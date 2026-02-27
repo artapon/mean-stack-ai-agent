@@ -1,0 +1,17 @@
+node_modules/
+.env
+.DS_Store
+dist/
+.output/
+.nuxt/
+.next/
+.cache/
+build/
+coverage/
+.vscode/
+.idea/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vercel
+.zip

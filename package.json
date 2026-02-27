@@ -1,0 +1,17 @@
+{
+  "name": "devagent",
+  "version": "1.0.0",
+  "description": "Agentic AI for Node.js + Express.js + Vue.js powered by LM Studio",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1"
+  }
+}
