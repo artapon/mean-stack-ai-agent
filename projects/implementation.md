@@ -1,18 +1,19 @@
-# Code Review Summary
+# Healthcare REST API Implementation
 
-## Security Recommendations
-- Ensure JWT authentication is properly configured.
-- Implement rate limiting and CORS middleware.
+**Objective:**
+- Create a full-fledged healthcare REST API with patient CRUD operations, JWT authentication, and Swagger documentation.
 
-## Performance Recommendations
-- Use `.lean()` for read-only queries.
-- Paginate using `.skip()` and `.limit()`.
+**File List:**
+- `src/controllers/patientController.js`
+- `src/services/patientService.js`
+- `src/routes/patientRoutes.js`
+- `src/routes/swaggerRoutes.js`
+- `src/middleware/authMiddleware.js`
+- `src/config/securityConfig.js`
 
-## Code Organization
-- Separate logic into controllers, services, and models.
-
-## Error Handling
-- Implement custom error types and middleware for consistent error responses.
-
-## Validation
-- Validate all inputs and use Mongoose schemas for data validation.
+**Endpoints:**
+- **GET /patients**: Retrieve all patients.
+- **POST /patients**: Create a new patient.
+- **GET /patients/:id**: Retrieve a single patient by ID.
+- **PUT /patients/:id**: Update an existing patient.
+- **DELETE /patients/:id**: Delete a patient.

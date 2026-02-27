@@ -34,22 +34,28 @@ function getSystemPrompt(isReview, targetFolder) {
     .map(t => `  ${t.name.padEnd(16)} ${t.params}`)
     .join('\n');
 
-  return `You are an expert agentic AI developer (Node.js, Express.js, Vue.js).
+  return `${EXPERT_SKILLS ? '--- EXPERT SKILLS ---\n' + EXPERT_SKILLS + '\n---\n\n' : ''}You are an expert agentic AI developer (Node.js, Express.js, Vue.js).
 ${isReview ? 'You are currently in REVIEW MODE. Your goal is to AUDIT the codebase and provide EXPERT ADVICE.' : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never just describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}" (Your tool calls will be relative to this folder)` : ''}
 
 TOOLS:
 ${availableTools}
 
-TOOL CALL FORMAT (MANDATORY):
-THOUGHT: (reasoning)
-ACTION: tool_name
-PARAMETERS: { "param": "value" }
+TOOL CALL FORMAT (MANDATORY & RIGID):
+1. THOUGHT: (Your absolute reasoning first)
+
+2. ACTION: (The exact valid tool name only)
+
+3. PARAMETERS: (The valid JSON object for that tool)
+
+**CRITICAL: NEVER MERGE THESE MARKERS. ALWAYS USE DOUBLE NEWLINES BETWEEN THEM.**
 
 FINISH FORMAT:
-THOUGHT: (reasoning)
-ACTION: finish
-PARAMETERS: { "response": "markdown summary" }
+1. THOUGHT: (reasoning)
+
+2. ACTION: finish
+
+3. PARAMETERS: { "response": "A professional markdown summary (headers, bullet points, bold text). No technical clutter." }
 
 RULES:
 1. CONTINUITY: Never stop after list_files or read_file. 
@@ -59,15 +65,19 @@ RULES:
      - PERFORM file-by-file analysis of the workspace in **VERY DEEP DETAIL**.
      - For each file, EXPLAIN its purpose, logic, and PROVIDE EXPERT ADVICE on best practices.
      - **SHOW EXAMPLES**: For all best practices, provide clear code snippets.
-     - FINISH by providing a **simple and highly readable summary**. Use bold headers and bullet points. No technical clutter in the final wrap-up.
+     - FINISH by providing a **simple and highly readable summary**. Use ### headers, bullet points, and bold text. No technical clutter in the final wrap-up.
 2. ALWAYS use tools to create/edit files in GENERATE mode. Never output code blocks in text.
 3. STRUCTURE: Always use headers (###), lists (-), and double newlines (\\n\\n) to ensure your responses are readable and well-formatted. Avoid long walls of text.
 4. PLAN-THEN-BUILD: In GENERATE mode, update implementation.md first, then IMPLEMENT.
 5. MANDATORY CHAINING: In GENERATE mode, you MUST NOT call "finish" until implementation is complete.
 6. COMPLETE FILES: write full file contents — no placeholders.
 7. SECURITY: include helmet, cors, rate-limit, and JWT auth in all Express apps.
-
-${EXPERT_SKILLS ? '--- EXPERT SKILLS ---\n' + EXPERT_SKILLS : ''}`;
+8. **JSDoc 3.0**: You MUST include JSDoc 3.0 documentation (descriptions and @param tags) for EVERY method you generate.
+9. **ERROR RECOVERY**: If a tool returns an ERROR, you MUST change your parameters or approach. NEVER repeat the same failed tool call.
+10. **NO PLACEHOLDERS**: Write full, working code. Never say "Implementation goes here".
+11. **NO MERGED MARKERS**: Never concatenate markers (e.g., ACTIONETERS). Strictly use individual lines for THOUGHT:, ACTION:, and PARAMETERS:.
+12. **NO PLACEHOLDER COMMENTS**: Never write files that only contain "// Implementation goes here" or similar. You MUST write full, working code.
+`;
 }
 
 
@@ -150,12 +160,37 @@ function extractJSON(raw) {
   return null;
 }
 
+// ── Sanitize raw model reply BEFORE parsing ───────────────────────────────
+// Fixes "ACTIONETERS" and other merged marker hallucinations.
+function sanitizeRawReply(raw) {
+  if (!raw) return '';
+  return raw
+    // 1. First, split THOUGHT from ACTION if merged (THOUGHTACTION: -> THOUGHT: \n ACTION:)
+    .replace(/THOUGHTACTION:/gi, 'THOUGHT: \n\nACTION:')
+    .replace(/THOUGHTPARAMETERS:/gi, 'THOUGHT: \n\nPARAMETERS:')
+
+    // 2. Fix variants of merged ACTION/PARAMETERS (ACTIONMETERS, ACTIONETERS, etc.)
+    // We replace the merged mess with a distinct marker pair on new lines.
+    // Use a unique placeholder to avoid the "PARAMETERS" action name bug
+    .replace(/ACTION[A-Z]*METERS:[A-Z:]*/gi, 'ACTION: \n\nPARAMETERS:')
+    .replace(/ACTION[A-Z]*AMETERS:[A-Z:]*/gi, 'ACTION: \n\nPARAMETERS:')
+    .replace(/ACTION[A-Z]*ETERS:[A-Z:]*/gi, 'ACTION: \n\nPARAMETERS:')
+    .replace(/ACTIONPARAMETERS:/gi, 'ACTION: \n\nPARAMETERS:')
+
+    // 3. Ensure markers are on their own lines
+    .replace(/([a-z0-9])ACTION:/gi, '$1\n\nACTION:')
+    .replace(/([a-z0-9])PARAMETERS:/gi, '$1\n\nPARAMETERS:')
+    .replace(/([a-z0-9])THOUGHT:/gi, '$1\n\nTHOUGHT:');
+}
+
 // ── Parse full reply → { action, parameters, response, thought } ─────────────
-function parseReply(raw, isReview) {
+function parseReply(rawText, isReview) {
+  const raw = sanitizeRawReply(rawText);
   if (!raw) return { action: 'finish', response: '' };
 
   // New Stable Format: ACTION: name \n PARAMETERS: {json}
-  var actionMatch = raw.match(/ACTION:\s*([\w_]+)/i);
+  // We use a more specific regex to avoid matching "PARAMETERS" if it appeared too close
+  var actionMatch = raw.match(/ACTION:\s*([a-z_][\w_]*)/i);
   var thoughtMatch = raw.match(/THOUGHT:\s*([\s\S]*?)(?=ACTION:|$)/i);
 
   // FIX 1: Scope JSON extraction to the PARAMETERS: block that belongs to the
@@ -370,7 +405,15 @@ async function callLMStudio(history, onChunk, signal) {
 
 // ── Build a human-readable summary of tool result for finish message ──────────
 function summariseResult(action, params, result, isReview) {
-  if (result && result.error) return '⚠️ **Error**: ' + result.error;
+  if (result && result.error) {
+    let advice = 'Check your parameters and try a different approach.';
+    if (result.error.toLowerCase().includes('is a directory')) {
+      advice = 'The path you provided is a DIRECTORY. You must provide a specific FILENAME (e.g. index.js) inside that directory.';
+    } else if (result.error.toLowerCase().includes('not found')) {
+      advice = 'Check the path carefully. Use list_files to verify the directory structure.';
+    }
+    return `⚠️ **Error**: ${result.error}\n\n**ADVICE**: ${advice}`;
+  }
 
   if (action === 'scaffold_project') {
     var files = (result && result.filesCreated) ? result.filesCreated : [];
@@ -423,7 +466,10 @@ function summariseResult(action, params, result, isReview) {
     return '### 📂 Folders Scanned\n' + nudge;
   }
 
-  return '### ✅ Task Complete\nAll requested operations finished successfully. FINISH if everything is done.';
+  return '### ✅ Task Complete\n' +
+    'All requested operations finished successfully.\n\n' +
+    '**SUMMARY**: ' + (isReview ? 'Your audit is ready. Review the findings below.' : 'Your changes are live. Verify the files in the sidebar and project files panel.') + '\n\n' +
+    'FINISH if everything is done.';
 }
 
 // ── ReAct agent loop ──────────────────────────────────────────────────────────
@@ -555,17 +601,34 @@ async function runAgent(opts) {
       return { success: true, response: rawText };
     }
 
-    // FIX 3: Consecutive-duplicate guard — detect tight loops where the model
-    // repeatedly emits the same action with the same parameters.
-    var actionSig = action + '|' + JSON.stringify(parsed.parameters || {});
+    // FIX 3: Robust loop guard — detect tight loops by comparing normalized parameters.
+    // We collapse whitespace and remove comments for the signature comparison to prevent
+    // the model from evading the guard with minor formatting changes.
+    const normalizeParams = (p) => {
+      const copy = JSON.parse(JSON.stringify(p || {}));
+      const textKeys = ['content', 'replace', 'search', 'text', 'blueprint'];
+      textKeys.forEach(k => {
+        if (typeof copy[k] === 'string') {
+          // Aggressive normalization: remove all whitespace/newlines for comparison only
+          copy[k] = copy[k].replace(/\s+/g, '').slice(0, 5000);
+        }
+      });
+      return JSON.stringify(copy);
+    };
+
+    var actionSig = action + '|' + normalizeParams(parsed.parameters);
     if (actionSig === lastActionSig) {
       lastActionRepeat++;
       console.warn(`[DevAgent] ⚠️ Duplicate action detected (${lastActionRepeat}/3): ${action}`);
       if (lastActionRepeat >= 3) {
-        var loopErr = `Agent stuck in a loop: "${action}" repeated 3 times with identical parameters. Stopping to prevent infinite execution.`;
+        var loopErr = `Agent stuck in a loop: "${action}" repeated 3 times with functionally identical parameters.`;
+        var advice = `You are repeating the same ${action} call with identical content. This usually happens if you are using placeholders or waiting for a state change that hasn't happened. CHANGE your approach, provide ACTUAL content, or call finish if you are stuck.`;
         console.error('[DevAgent] 🔴 Loop guard triggered:', loopErr);
         if (onStep) onStep({ type: 'error', message: loopErr });
-        return { success: false, response: loopErr };
+        history.push({ role: 'user', content: `⚠️ **Error: Loop Detected**\n\n${loopErr}\n\n**ADVICE**: ${advice}` });
+        // We give it one LAST chance with the advice nudge before hard-crashing if it repeats a 4th time
+        if (lastActionRepeat >= 4) return { success: false, response: loopErr };
+        continue;
       }
     } else {
       lastActionSig = actionSig;

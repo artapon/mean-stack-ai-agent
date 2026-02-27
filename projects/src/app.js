@@ -1,24 +1,47 @@
-// src/app.js
+// Import express
 const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-const authRoutes = require('./routes/authRoutes');
+
+// Create express application
 const app = express();
 
-app.use(express.json());
-app.use(helmet());
+// Import middleware
+const cors = require('cors');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
+
+// Apply middleware
 app.use(cors());
+app.use(morgan('dev'));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use(helmet());
 
-app.use('/api', authRoutes);
-
-// Error handler middleware
-const errorHandler = (err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  res.status(statusCode).json({ success: false, error: err.message });
+// Swagger configuration
+const options = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Healthcare API',
+      version: '1.0.0'
+    }
+  },
+  apis: ['./src/routes/*.js'] // files containing annotations as above
 };
+const swaggerSpec = swaggerJsdoc(options);
 
-app.use(errorHandler);
+// Initialize routes
+const patientRoutes = require('./routes/patientRoutes');
 
-module.exports = app;
+// Define routes
+app.use('/api/v1/patients', patientRoutes);
+
+// Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});

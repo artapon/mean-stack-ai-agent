@@ -76,11 +76,6 @@
               <path v-if="!fbLoading" d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
             </svg>
           </button>
-          <button class="icon-btn" @click="showBrowser = false" title="Close">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -162,7 +157,7 @@
 
       <header class="chat-header">
         <div class="chat-header-left">
-          <h1 class="chat-title">Javascript Developer Agent</h1>
+          <h1 class="chat-title">MEAN Stack Developer Agent</h1>
           <div class="chat-badge">
             <span class="badge-dot"></span>
             {{ lmModel }}
@@ -191,15 +186,6 @@
             </svg>
             {{ browsing ? 'Opening…' : 'Browse Folder' }}
           </button>
-          <button class="btn-outline" :class="{ active: showBrowser }" @click="showBrowser = !showBrowser">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            Files
-          </button>
         </div>
       </header>
 
@@ -211,6 +197,24 @@
           </svg>
           <code>{{ targetFolder === '.' ? 'workspace root' : targetFolder }}</code>
           <button class="target-clear" @click="targetFolder = null">✕</button>
+        </div>
+        <div class="workflow-toggle">
+          <button 
+            class="workflow-btn" 
+            :class="{ active: agentWorkflow === 'update' }" 
+            @click="agentWorkflow = 'update'"
+            title="Update Existing Files"
+          >
+            Update Project
+          </button>
+          <button 
+            class="workflow-btn" 
+            :class="{ active: agentWorkflow === 'create' }" 
+            @click="agentWorkflow = 'create'"
+            title="Create New Project Structure"
+          >
+             New Project
+          </button>
         </div>
       </div>
 
@@ -263,7 +267,13 @@
               >
                 <span class="act-icon">{{ actIcon(a) }}</span>
                 <template v-if="a.type === 'thought'">
-                  <span class="act-thought">{{ a.text }}</span>
+                  <details class="act-thought-details">
+                    <summary class="act-summary">
+                      <span class="act-thought-label">Agent Reasoning</span>
+                      <span class="act-chevron">›</span>
+                    </summary>
+                    <div class="act-thought-content">{{ a.text }}</div>
+                  </details>
                 </template>
                 <template v-else-if="a.type === 'tool'">
                   <span class="act-tool-name">{{ a.tool }}</span>
@@ -349,17 +359,18 @@ const lmModel    = ref('...')
 const messages = ref([])
 const input    = ref('')
 const running  = ref(false)
+const showBrowser = ref(true)
 const msgEl    = ref(null)
 const inputEl  = ref(null)
 let   abort    = null
 
 // ── File Browser State ────────────────────────────────────────────────────────
-const showBrowser  = ref(false)
 const fbLoading    = ref(false)
 const fbError      = ref('')
 const targetFolder = ref(null)
 const browsing     = ref(false)
 const agentMode    = ref('generate') // 'generate' or 'review'
+const agentWorkflow = ref('update')  // 'update' or 'create'
 const fbItems      = ref([])
 const currentPath  = ref('.')
 const selectedFile = ref(null)
@@ -466,6 +477,7 @@ async function send(text) {
   const tags = []
   if (targetFolder.value) tags.push(`[TARGET FOLDER: ${targetFolder.value}]`)
   if (agentMode.value)    tags.push(`[MODE: ${agentMode.value.toUpperCase()}]`)
+  if (agentWorkflow.value) tags.push(`[WORKFLOW: ${agentWorkflow.value.toUpperCase()}]`)
   if (tags.length > 0 && msg) msg = `${tags.join(' ')} ${msg}`
 
   if (!msg || running.value) return
@@ -665,6 +677,7 @@ async function loadHealth() {
 
 onMounted(() => {
   loadHealth()
+  loadFiles()
 
   // Global Copy Logic: Handles both Thought callouts and Full Message bubbles
   window.addEventListener('click', async (e) => {
@@ -1026,16 +1039,14 @@ textarea {
 
 /* ── File Browser ─────────────────────────────────────────────────────────── */
 .file-browser {
-  width: 0; min-width: 0;
+  width: 270px; min-width: 270px;
   background: var(--bg1);
   border-left: 1px solid var(--border);
   display: flex; flex-direction: column;
   overflow: hidden;
-  transition: width .25s ease, min-width .25s ease;
   flex-shrink: 0;
   order: 3;
 }
-.file-browser.open { width: 270px; min-width: 270px; }
 
 .fb-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -1249,6 +1260,24 @@ textarea {
   font-weight: 600;
 }
 .mode-btn:hover:not(.active) { background: var(--bg3); color: var(--t1); }
+
+/* ── Workflow Toggle ─────────────────────────────────────────────────────── */
+.workflow-toggle {
+  display: flex; gap: 4px; background: var(--bg2);
+  padding: 3px; border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+}
+.workflow-btn {
+  padding: 4px 10px; font-size: 11px; font-weight: 600;
+  color: var(--t2); border-radius: 6px;
+  transition: all 0.15s;
+}
+.workflow-btn.active {
+  background: var(--bg4);
+  color: var(--t0);
+  box-shadow: var(--shadow-sm);
+}
+.workflow-btn:hover:not(.active) { color: var(--t1); }
 
 /* ── Messages Area ───────────────────────────────────────────────────────── */
 .messages {
@@ -1491,8 +1520,32 @@ textarea {
   animation: slideIn .2s ease;
 }
 .act-card.thought {
-  background: rgba(91,156,255,.05);
-  border: 1px solid rgba(91,156,255,.15);
+  background: rgba(91,156,255,.03);
+  border: 1px solid rgba(91,156,255,.12);
+  padding: 0; /* Let details handle inward padding */
+  display: block;
+}
+.act-thought-details { width: 100%; }
+.act-summary {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; cursor: pointer; list-style: none;
+  user-select: none;
+}
+.act-summary::-webkit-details-marker { display: none; }
+.act-thought-label { 
+  font-size: 11px; font-weight: 700; color: var(--accent); 
+  text-transform: uppercase; letter-spacing: 0.05em; 
+}
+.act-chevron { 
+  font-size: 14px; color: var(--t3); transition: transform 0.2s; 
+}
+.act-thought-details[open] .act-chevron { transform: rotate(90deg); }
+
+.act-thought-content {
+  padding: 4px 14px 12px;
+  color: var(--t1); font-family: var(--sans); font-size: 13px;
+  line-height: 1.6; border-top: 1px solid rgba(91,156,255,.08);
+  white-space: pre-wrap;
 }
 .act-card.tool {
   background: rgba(61,220,132,.04);
@@ -1504,7 +1557,6 @@ textarea {
 }
 
 .act-icon { font-size: 14px; flex-shrink: 0; }
-.act-thought { color: var(--t2); font-style: italic; font-family: var(--sans); font-size: 12px; }
 .act-tool-name { color: var(--green); font-weight: 600; flex-shrink: 0; }
 .act-detail {
   color: var(--t2); flex: 1; overflow: hidden;
