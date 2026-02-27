@@ -1,0 +1,27 @@
+[
+    {
+        "id": "qwen2.5-coder-32b-instruct",
+        "label": "Qwen 2.5 Coder 32B",
+        "description": "Best for large codebases and architectural tasks"
+    },
+    {
+        "id": "qwen2.5-coder-7b-instruct",
+        "label": "Qwen 2.5 Coder 7B",
+        "description": "Fast and lightweight — ideal for smaller edits"
+    },
+    {
+        "id": "deepseek-coder-v2-lite-instruct",
+        "label": "DeepSeek Coder V2 Lite",
+        "description": "Strong reasoning for complex algorithms"
+    },
+    {
+        "id": "openai/gpt-oss-20b",
+        "label": "GPT OSS 20B",
+        "description": "General purpose, balanced performance"
+    },
+    {
+        "id": "meta-llama-3.1-8b-instruct",
+        "label": "Llama 3.1 8B",
+        "description": "Open source, good for scaffolding tasks"
+    }
+]

@@ -35,6 +35,17 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// ── Dynamic model list ────────────────────────────────────────────────────────
+app.get('/api/models', (_req, res) => {
+  try {
+    const modelsPath = path.join(__dirname, 'agent', 'models.json');
+    const models = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
+    res.json({ models });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not load models.json: ' + e.message });
+  }
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, () => {

@@ -164,6 +164,14 @@
           </div>
         </div>
         <div class="chat-header-right">
+          <!-- Model Selector -->
+          <div class="model-selector" v-if="availableModels.length > 0">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            <select id="model-select" v-model="selectedModel" class="model-select" :title="availableModels.find(m => m.id === selectedModel)?.description || ''">
+              <option v-for="m in availableModels" :key="m.id" :value="m.id">{{ m.label }}</option>
+            </select>
+          </div>
+          <div class="header-sep"></div>
           <div class="mode-toggle">
             <button class="mode-btn" :class="{ active: agentMode === 'generate' }" @click="agentMode = 'generate'">
               🛠 Generate
@@ -173,6 +181,15 @@
             </button>
           </div>
           <div class="header-sep"></div>
+          <!-- Follow Review Toggle -->
+          <div class="follow-review-toggle" v-if="agentMode === 'generate'">
+            <label class="switch">
+              <input type="checkbox" v-model="followReview">
+              <span class="slider round"></span>
+            </label>
+            <span class="follow-label">Follow Review</span>
+          </div>
+          <div class="header-sep" v-if="agentMode === 'generate'"></div>
           <button v-if="running" class="btn-stop" @click="stop">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -352,8 +369,11 @@
 import { ref, nextTick, computed, onMounted, watch } from 'vue'
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const lmEndpoint = ref('Loading...')
-const lmModel    = ref('...')
+const lmEndpoint       = ref('Loading...')
+const lmModel          = ref('...')
+// ── Dynamic Model List ────────────────────────────────────────────────────────
+const availableModels  = ref([])
+const selectedModel    = ref('')
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const messages = ref([])
@@ -469,6 +489,7 @@ const examples = [
   { icon: '🎨', label: 'Vue Dashboard',   sub: 'Pinia + Router + Components',       prompt: 'Create a Vue 3 dashboard app with Pinia state management, routing and a metrics page' },
   { icon: '🏥', label: 'Healthcare API',  sub: 'Patients, visits, reports',         prompt: 'Create a healthcare REST API with patient CRUD, JWT auth and Swagger docs' },
 ]
+const followReview    = ref(false)
 
 // ── Send message ──────────────────────────────────────────────────────────────
 async function send(text) {
@@ -478,6 +499,7 @@ async function send(text) {
   if (targetFolder.value) tags.push(`[TARGET FOLDER: ${targetFolder.value}]`)
   if (agentMode.value)    tags.push(`[MODE: ${agentMode.value.toUpperCase()}]`)
   if (agentWorkflow.value) tags.push(`[WORKFLOW: ${agentWorkflow.value.toUpperCase()}]`)
+  if (followReview.value && agentMode.value === 'generate') tags.push(`[FOLLOW REVIEW]`)
   if (tags.length > 0 && msg) msg = `${tags.join(' ')} ${msg}`
 
   if (!msg || running.value) return
@@ -503,7 +525,7 @@ async function send(text) {
     const res = await fetch('/api/agent/run', {
       method  : 'POST',
       headers : { 'Content-Type': 'application/json' },
-      body    : JSON.stringify({ messages: history }),
+      body    : JSON.stringify({ messages: history, selectedModel: selectedModel.value || null }),
       signal  : abort.signal
     })
 
@@ -675,8 +697,24 @@ async function loadHealth() {
   }
 }
 
+async function loadModels() {
+  try {
+    const res = await fetch('/api/models')
+    const data = await res.json()
+    if (data.models && data.models.length > 0) {
+      availableModels.value = data.models
+      // Pre-select: use env default if it matches, otherwise pick first
+      const envModel = lmModel.value
+      const match = data.models.find(m => m.id === envModel || m.label === envModel)
+      selectedModel.value = match ? match.id : data.models[0].id
+    }
+  } catch (e) {
+    console.error('[Models Load Error]', e)
+  }
+}
+
 onMounted(() => {
-  loadHealth()
+  loadHealth().then(loadModels)
   loadFiles()
 
   // Global Copy Logic: Handles both Thought callouts and Full Message bubbles
@@ -1184,6 +1222,89 @@ textarea {
   font-size: 11px; font-weight: 500; color: var(--t1);
   font-family: var(--mono);
 }
+.chat-header-right {
+  display: flex; align-items: center; gap: 12px;
+}
+
+.model-selector {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-sm);
+  padding: 4px 10px;
+  color: var(--t2);
+  transition: all .15s;
+}
+.model-selector:hover {
+  border-color: var(--border3);
+  color: var(--t1);
+}
+
+.model-select {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  padding-right: 4px;
+}
+.model-select option {
+  background: var(--bg1);
+  color: var(--t1);
+}
+
+.header-sep {
+  width: 1px; height: 16px;
+  background: var(--border);
+  opacity: .5;
+}
+
+.follow-review-toggle {
+  display: flex; align-items: center; gap: 10px;
+}
+.follow-label { font-size: 11px; font-weight: 600; color: var(--t2); text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* Switch design */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--bg3);
+  border: 1px solid var(--border2);
+  transition: .4s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px; width: 12px;
+  left: 3px; bottom: 2px;
+  background-color: var(--t3);
+  transition: .4s;
+}
+input:checked + .slider {
+  background-color: var(--green-dim);
+  border-color: var(--green);
+}
+input:checked + .slider:before {
+  transform: translateX(14px);
+  background-color: var(--green);
+}
+.slider.round {
+  border-radius: 34px;
+}
+.slider.round:before {
+  border-radius: 50%;
+}
+
 .badge-dot {
   width: 5px; height: 5px; border-radius: 50%;
   background: var(--green);

@@ -5,19 +5,40 @@ const fs = require('fs-extra');
 const { readFile, writeFile, listFiles, bulkWrite, applyBlueprint, bulkRead, replaceInFile } = require('../tools/filesystem');
 const { scaffoldProject } = require('../tools/scaffolder');
 
-// ── System prompt & Skills ───────────────────────────────────────────────────
-let EXPERT_SKILLS = '';
-try {
-  const skillPath = path.join(__dirname, 'skill.md');
-  if (fs.existsSync(skillPath)) {
-    EXPERT_SKILLS = fs.readFileSync(skillPath, 'utf-8');
-  }
-} catch (err) {
-  console.warn('[DevAgent] Could not load skill.md:', err.message);
+
+// ── System prompt & Skills ─────────────────────────────────────────────────
+/**
+ * Loads the agent's skill files dynamically based on the current mode.
+ * Combines global skill.md with developer.md (Generate) or review.md (Review).
+ * @param {boolean} isReview - Whether the agent is in Review mode.
+ * @returns {string} Combined skill content to inject into the system prompt.
+ */
+function loadSkills(isReview) {
+  const agentDir = __dirname;
+  const read = (filename) => {
+    try {
+      const p = path.join(agentDir, filename);
+      return fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : '';
+    } catch (e) {
+      console.warn(`[DevAgent] Could not load ${filename}:`, e.message);
+      return '';
+    }
+  };
+  const global = read('skill.md');
+  const modeSkill = isReview ? read('review.md') : read('developer.md');
+  return [global, modeSkill].filter(Boolean).join('\n\n---\n\n');
 }
 
 // ── Generic prompt construction ─────────────────────────────────────────────
+/**
+ * Builds the system prompt, injecting mode-specific skills and tool list.
+ * @param {boolean} isReview - Whether the agent is in Review mode.
+ * @param {string} [targetFolder] - Optional target workspace subdirectory label.
+ * @returns {string} Full system prompt string.
+ */
 function getSystemPrompt(isReview, targetFolder) {
+  const EXPERT_SKILLS = loadSkills(isReview);
+
   const toolsList = [
     { name: 'read_file', params: '{path}', safe: true },
     { name: 'write_file', params: '{path, content}', safe: false },
@@ -30,12 +51,12 @@ function getSystemPrompt(isReview, targetFolder) {
   ];
 
   const availableTools = toolsList
-    .filter(t => !isReview || t.safe)
+    .filter(t => !isReview || t.safe || t.name === 'write_file')
     .map(t => `  ${t.name.padEnd(16)} ${t.params}`)
     .join('\n');
 
-  return `${EXPERT_SKILLS ? '--- EXPERT SKILLS ---\n' + EXPERT_SKILLS + '\n---\n\n' : ''}You are an expert agentic AI developer (Node.js, Express.js, Vue.js).
-${isReview ? 'You are currently in REVIEW MODE. Your goal is to AUDIT the codebase and provide EXPERT ADVICE.' : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never just describe code.'}
+  return `${EXPERT_SKILLS ? EXPERT_SKILLS + '\n\n---\n\n' : ''}You are an expert MEAN Stack agentic AI developer.
+${isReview ? 'You are currently in REVIEW MODE. AUDIT the codebase. You are STRICTLY AUTHORIZED to use `write_file` ONLY for `review_report.md`. DO NOT modify any other files.' : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never just describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}" (Your tool calls will be relative to this folder)` : ''}
 
 TOOLS:
@@ -303,9 +324,17 @@ function parseReply(rawText, isReview) {
 }
 
 // ── LM Studio API call (Streaming) ──────────────────────────────────────────
-async function callLMStudio(history, onChunk, signal) {
+/**
+ * Calls the LM Studio API with streaming, sending history and receiving chunks.
+ * @param {Array} history - The conversation history to send.
+ * @param {Function} onChunk - Callback invoked with each streamed text chunk.
+ * @param {AbortSignal} signal - AbortSignal to cancel the request.
+ * @param {string} [selectedModel] - Optional model ID to override the .env default.
+ * @returns {Promise<string>} Full completed text response.
+ */
+async function callLMStudio(history, onChunk, signal, selectedModel) {
   const baseUrl = (process.env.LM_STUDIO_BASE_URL || 'http://localhost:1234').replace(/\/$/, '');
-  const model = process.env.LM_STUDIO_MODEL || 'openai/gpt-oss-20b';
+  const model = selectedModel || process.env.LM_STUDIO_MODEL || 'openai/gpt-oss-20b';
 
   // Standard OpenAI messages format
   const messages = history.map(m => ({
@@ -485,11 +514,22 @@ function summariseResult(action, params, result, isReview) {
 }
 
 // ── ReAct agent loop ──────────────────────────────────────────────────────────
+/**
+ * Main agent execution loop. Drives the ReAct cycle (plan, act, observe, repeat).
+ * @param {Object} opts - Agent options.
+ * @param {Array} opts.messages - Conversation history.
+ * @param {string} opts.workspaceDir - Root workspace directory path.
+ * @param {Function} opts.onStep - Callback for streaming step events.
+ * @param {AbortSignal} opts.signal - Signal to cancel the agent mid-run.
+ * @param {string} [opts.selectedModel] - Optional model ID to use for this run.
+ * @returns {Promise<{success: boolean, response: string}>} Final agent result.
+ */
 async function runAgent(opts) {
   var messages = opts.messages;
   var workspaceDir = opts.workspaceDir;
   var onStep = opts.onStep;
   var signal = opts.signal;
+  var selectedModel = opts.selectedModel || null;
 
   // Determine mode and TARGET FOLDER from the LATEST user instruction
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
@@ -580,7 +620,7 @@ async function runAgent(opts) {
           const type = stepFullText.toLowerCase().includes('action:') ? 'acting' : 'thinking';
           onStep({ type: 'status', text: `Agent is ${type}...` });
         }
-      }, signal);
+      }, signal, selectedModel);
     } catch (apiErr) {
       var msg = 'API Error: ' + apiErr.message;
       if (apiErr.response && apiErr.response.data) {
@@ -682,6 +722,22 @@ async function runAgent(opts) {
         continue;
       }
 
+      // 🟢 REVIEW PERSISTENCE GUARD: Force report writing before finishing
+      if (isReview) {
+        const hasSavedReport = history.some(m => {
+          const c = (m.content || '').toLowerCase();
+          return c.includes('tool result (write_file)') && c.includes('review_report.md') && c.includes('"success": true');
+        });
+
+        if (!hasSavedReport) {
+          console.warn('[DevAgent] ⚠️ Review report not found in history. Nudging agent to PERSIST.');
+          const nudge = "MANDATORY: You must save your audit findings to `review_report.md` using `write_file` BEFORE calling finish. Do this now.";
+          history.push({ role: 'user', content: nudge });
+          if (onStep) onStep({ type: 'error', message: "Review report not saved yet. Persist findings first." });
+          continue;
+        }
+      }
+
       var finalMsg = parsed.response || '';
       if (onStep) onStep({ type: 'response', content: finalMsg });
       return { success: true, response: finalMsg };
@@ -703,26 +759,38 @@ async function runAgent(opts) {
     // ── Enforce REVIEW mode restrictions ─────────────────────────────────────
     const writeTools = ['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'];
     if (isReview && writeTools.includes(action)) {
-      reviewWriteBlockCount++;
-      if (reviewWriteBlockCount >= 2) {
-        // Model is stuck trying to write in review mode. Force it to finish.
-        const forceMsg = `Tool "${action}" is disabled in REVIEW mode. You have attempted to write files multiple times — this is not allowed. You MUST call finish now with your analysis summary.`;
-        console.warn(`[DevAgent] 🔴 REVIEW write-block limit reached. Forcing finish.`);
-        if (onStep) onStep({ type: 'tool_error', tool: action, error: forceMsg });
-        history.push({ role: 'user', content: 'Error: ' + forceMsg });
-        // One final LLM call to produce the finish summary, then exit
+      const p = parsed.parameters || {};
+      const attemptedPath = String(p.path || p.file || p.filename || p.filepath || p.target || '').toLowerCase();
+
+      // We ONLY allow write_file for review_report.md. 
+      // bulk_write/replace_in_file/etc are ALWAYS blocked in Review mode.
+      const isAllowedReport = action === 'write_file' && /review_report\.md$/i.test(attemptedPath);
+
+      if (!isAllowedReport) {
+        reviewWriteBlockCount++;
+        const blockedMsg = `Tool "${action}" to "${attemptedPath}" is disabled in REVIEW mode inside "${effectiveWorkspaceDir}". You can ONLY use write_file for "review_report.md".`;
+        console.warn(`[DevAgent] ⛔ BLOCKED: ${blockedMsg} (Attempt ${reviewWriteBlockCount}/2)`);
+
+        if (reviewWriteBlockCount >= 2) {
+          const forceMsg = `You have attempted to write to unauthorized files multiple times in REVIEW mode. You MUST call finish now.`;
+          if (onStep) onStep({ type: 'tool_error', tool: action, error: forceMsg });
+          history.push({ role: 'user', content: 'Error: ' + forceMsg });
+          continue;
+        }
+
+        if (onStep) onStep({ type: 'tool_error', tool: action, error: blockedMsg });
+        history.push({ role: 'user', content: 'Error: ' + blockedMsg });
         continue;
       }
-      const errorMsg = `Tool "${action}" is disabled in REVIEW mode. You are a code auditor — analyse and advise ONLY. Do NOT modify files. Call finish with your findings.`;
-      console.warn(`[DevAgent] Blocked ${action} in REVIEW mode (${reviewWriteBlockCount}/2).`);
-      if (onStep) onStep({ type: 'tool_error', tool: action, error: errorMsg });
-      history.push({ role: 'user', content: 'Error: ' + errorMsg });
-      continue;
     }
 
     var result;
     try {
       console.log(`[DevAgent] STEP ${step} | Executing: ${action}...`);
+      if (action === 'write_file' && ((parsed.parameters || {}).path || (parsed.parameters || {}).file || '').toLowerCase().includes('review_report.md')) {
+        const reportPath = path.resolve(effectiveWorkspaceDir, ((parsed.parameters || {}).path || (parsed.parameters || {}).file).replace(/^[/\\]+/, ''));
+        console.log(`[DevAgent] 📝 SAVING REVIEW REPORT TO: ${reportPath}`);
+      }
       result = await toolFn(parsed.parameters || {}, effectiveWorkspaceDir);
 
       // ── Specific Debug Logging for list_files ──────────────────────────────
@@ -787,9 +855,8 @@ async function runAgent(opts) {
       content: `Tool result (${action}):\n${resultStr}`
     });
     console.log(`[DevAgent] STEP ${step} | DONE. Result sent to LLM context.`);
-  }
 
-  throw new Error('Agent reached the ' + MAX_STEPS + '-step limit without finishing.');
+  }
 }
 
 module.exports = { runAgent };

@@ -7,13 +7,13 @@ let activeAgentRun = null;
 
 // POST /api/agent/run — streams agent steps via Server-Sent Events
 router.post('/run', async (req, res) => {
-  const { messages } = req.body;
+  const { messages, selectedModel } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: '"messages" must be a non-empty array.' });
   }
 
-  console.log(`\n[DevAgent] 🟢 NEW REQUEST /api/agent/run (${messages.length} messages)`);
+  console.log(`\n[DevAgent] 🟢 NEW REQUEST /api/agent/run (${messages.length} messages, model: ${selectedModel || 'env default'})`);
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -25,16 +25,16 @@ router.post('/run', async (req, res) => {
   const send = function (payload) {
     if (!res.writableEnded) {
       res.write('data: ' + JSON.stringify(payload) + '\n\n');
-      if (typeof res.flush === 'function') res.flush(); // Bypasses compression buffers
+      if (typeof res.flush === 'function') res.flush();
     }
   };
 
   const abort = new AbortController();
-  activeAgentRun = abort; // Register current run globally
+  activeAgentRun = abort;
 
   req.on('close', function () {
     if (!res.writableEnded) {
-      console.warn('[DevAgent] ⚠️ Connection dropped (Jitter/Reload). Agent will CONTINUE on server.');
+      console.warn('[DevAgent] ⚠️ Connection dropped. Agent will CONTINUE on server.');
     } else {
       console.log('[DevAgent] 🏁 Connection closed after completed task.');
     }
@@ -45,7 +45,8 @@ router.post('/run', async (req, res) => {
       messages,
       workspaceDir: req.app.locals.workspaceDir,
       signal: abort.signal,
-      onStep: send
+      onStep: send,
+      selectedModel: selectedModel || null
     });
     console.log('[DevAgent] ✅ runAgent successfully finished.');
     send({ type: 'done' });
