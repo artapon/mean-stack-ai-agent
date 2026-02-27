@@ -207,6 +207,18 @@ function parseReply(rawText, isReview) {
   var rawAction = actionMatch ? actionMatch[1].toLowerCase() : null;
   var thought = thoughtMatch ? thoughtMatch[1].trim() : '';
 
+  // 🔴 Hallucination Guard: If the sanitized text suggests merged markers were found
+  // but there's no meaningful JSON payload, the model output was garbage.
+  // We detect this by checking if the input was mostly made of repeated patterns.
+  const isGarbageOutput = rawText && /^(ACTION[A-Z]*ETERS:[A-Z:]{10,}|ACTION[A-Z]*METERS:[A-Z:]{10,})/i.test(rawText.trim());
+  if (isGarbageOutput) {
+    return {
+      action: 'chain_error',
+      error: 'Your output was malformed (merged or repeated markers with no valid content). RESET and try again with the correct format: THOUGHT then ACTION then PARAMETERS.',
+      thought: 'Detected hallucination/garbage output, rejecting.'
+    };
+  }
+
   // Whitelist check
   function getSafeAction(name) {
     if (!name) return null;
