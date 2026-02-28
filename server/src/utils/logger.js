@@ -10,13 +10,17 @@ const logFilePath = path.join(__dirname, '../../agent-errors.log');
  * @param {string} message - The detailed error message or stack trace.
  * @param {Object} [metadata] - Optional extra data (e.g., raw payload, action name) to append.
  */
-async function logError(errorType, message, metadata = null) {
+async function logError(errorType, message, metadata = null, thought = null) {
     try {
         const timestamp = new Date().toISOString();
         let logEntry = `[${timestamp}] [${errorType.toUpperCase()}] ${message}\n`;
 
         if (metadata) {
             logEntry += `      Metadata: ${JSON.stringify(metadata, null, 2)}\n`;
+        }
+
+        if (thought) {
+            logEntry += `\n### THOUGHT:\n${thought}\n`;
         }
 
         // Append to file, ensuring the file exists

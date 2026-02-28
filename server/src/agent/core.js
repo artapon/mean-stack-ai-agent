@@ -90,20 +90,15 @@ RULES:
      - **SHOW EXAMPLES**: For all best practices, provide clear code snippets.
      - FINISH by providing a **simple and highly readable summary**. Use ### headers, bullet points, and bold text. No technical clutter in the final wrap-up.
 2. ALWAYS use tools to create/edit files in GENERATE mode. Never output code blocks in text.
-3. STRUCTURE: Always use headers (###), lists (-), and double newlines (\\n\\n) to ensure your responses are readable and well-formatted. Avoid long walls of text.
-4. PLAN-THEN-BUILD: In GENERATE mode, update implementation.md first, then IMPLEMENT.
-5. **MANDATORY CHAINING**: In GENERATE mode, you MUST NOT call "finish" until implementation of ALL files in your plan is complete. Sequential writing (one file at a time) is required, but you **MUST NOT STOP** after just one file if more are listed in your plan.
-6. COMPLETE FILES: write full file contents — no placeholders.
-7. SECURITY: include helmet, cors, rate-limit, and JWT auth in all Express apps.
-8. **JSDoc 3.0**: You MUST include JSDoc 3.0 documentation (descriptions and @param tags) for EVERY method you generate.
-9. **WORKSPACE ADAPTATION**: Scan existing files to identify naming conventions (e.g., "kebab-case" vs "camelCase") and folder structures. Follow them exactly.
-10. **FLAT GENERATION**: If a "TARGET FOLDER" is active, do NOT create a redundant project subfolder. Put files directly in the target directory (use "flat: true" for scaffold_project and STRIP folder prefixes from manual write_file paths).
-11. **ERROR RECOVERY**: If a tool returns an ERROR, you MUST change your parameters or approach. NEVER repeat the same failed tool call.
-12. **NO PLACEHOLDERS & NO EMPTY FILES**: Write FULL, working code. Never write files that only contain imports, comments, or "// Implementation goes here".
-13. **NO MERGED MARKERS**: Never concatenate markers (e.g., ACTIONETERS). Strictly use individual lines for THOUGHT:, ACTION:, and PARAMETERS:.
-14. **NO PLACEHOLDER COMMENTS**: Never write files that only contain "// Implementation goes here" or similar. You MUST write full, working code.
-15. **MODULAR EXPRESS ARCHITECTURE**: For Express.js projects, ALWAYS use the feature-based modular structure (src/modules/<feature>) and follow the "Route -> Controller -> Service -> Repository" flow. 
-    - **MANDATORY**: Use dot notation for ALL logic filenames (\`<feature>.controller.js\`, \`<feature>.model.js\`, \`<feature>.routes.js\`). NEVER create bare \`<feature>.js\` files for logic.
+3. STRUCTURE: Always use headers (###), lists (-), and double newlines (\n\n) to ensure your responses are readable and well-formatted. Avoid long walls of text.
+4. BUILD-THEN-DOCUMENT: In GENERATE mode, write all actual source code files FIRST, then write the final \`implementation.md\` at the project root.
+5. **AI DEVELOPMENT THOUGHTS**: Every \`implementation.md\` MUST include a \`## AI Development Thoughts\` section detailing your reasoning and architecture.
+6. **FINISHING**: Call \`finish\` ONLY after both code and \`implementation.md\` are done. Your \`finish\` response MUST confirm that \`implementation.md\` exists and includes your thoughts.
+7. **JSDoc 3.0**: You MUST include JSDoc 3.0 documentation for EVERY method you generate.
+8. **WORKSPACE ADAPTATION**: Follow project naming conventions and folder structures exactly.
+9. **MODULAR ARCHITECTURE**: For Express.js, ALWAYS use the feature-based modular structure (\`src/modules/<feature>\`) and follow the "Route -> Controller -> Service -> Model" flow.
+10. **NO PLACEHOLDERS**: Write FULL, working code. Never write files that only contain comments or imports.
+11. **NO SHELL**: Never use \`write_file\` to run shell commands (e.g., \`mkdir\`). It handles directory creation automatically.
 `;
 }
 
@@ -178,7 +173,11 @@ function extractJSON(raw) {
     }
   }
 
-  if (end === -1) return null;
+  var end = raw.lastIndexOf('}');
+  if (end === -1) {
+    // If no closing brace, take everything until the end of the string (for truncated AI results)
+    end = raw.length - 1;
+  }
   var candidate = raw.slice(i, end + 1);
 
   // Strategy 1: strict JSON
@@ -198,46 +197,64 @@ function extractJSON(raw) {
     return JSON.parse(fixed);
   } catch (_) { }
 
-  // Strategy 4: Safely extract multiline `content` fields. The AI often fails to escape 
-  // newlines or embeds markdown \`\`\` wrappers inside the JSON string.
+  // Strategy 4: COMPREHENSIVE EXTRACTION ENGINE
+  // Handles multiline backticked content, missing escapes, and markdown clutter.
+  // Now supports all common fields: path, content, search, replace.
   try {
-    const pathMatch = candidate.match(/"?path"?\s*:\s*['"]([^'"]+)['"]/);
-    if (pathMatch) {
-      const contentIndex = candidate.indexOf('"content"');
-      if (contentIndex !== -1) {
-        const colonIndex = candidate.indexOf(':', contentIndex);
-        if (colonIndex !== -1) {
-          let contentStr = candidate.slice(colonIndex + 1).trim();
-          let extractedContent = null;
+    const clean = candidate.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/i, '').trim();
+    const result = { _isRecovered: true };
 
-          // Case A: content: ```javascript \n code \n ```
-          const mdMatch = contentStr.match(/^```(?:[a-z]*)\n([\s\S]*?)```/i);
-          if (mdMatch) {
-            extractedContent = mdMatch[1];
-          } else {
-            // Case B: content: " \n raw unescaped code \n " or ` \n code \n `
-            // Match anything inside the first quote/backtick until the last quote/backtick before a } or ,
-            const rawMatch = contentStr.match(/^["'`][\s\S]*?["'`]\s*(?:,|})/);
-            if (rawMatch) {
-              // Extract the inner content by stripping the first and last quote-like character
-              const matchedStr = rawMatch[0].trim().replace(/,$/, '').replace(/}$/, '').trim();
-              extractedContent = matchedStr.slice(1, -1);
+    const extractField = (fieldName) => {
+      // Find the field key
+      const keyIdx = clean.search(new RegExp(`"?${fieldName}"?\\s*:`, 'i'));
+      if (keyIdx === -1) return null;
+
+      const colonIdx = clean.indexOf(':', keyIdx);
+      let slice = clean.slice(colonIdx + 1).trim();
+
+      // Detection: "...", '...', `...`, or ```...```
+      const mdMatch = slice.match(/^```(?:[a-z]*)\n?([\s\S]*?)```/i);
+      if (mdMatch) return mdMatch[1].trim();
+
+      const delimMatch = slice.match(/^["'`]/);
+      if (delimMatch) {
+        const delim = delimMatch[0];
+        // Find the balanced end or the last occurrence
+        let foundEnd = -1;
+        let escaped = false;
+        for (let k = 1; k < slice.length; k++) {
+          if (escaped) { escaped = false; continue; }
+          if (slice[k] === '\\') { escaped = true; continue; }
+          if (slice[k] === delim) {
+            // Peek ahead: is it followed by , or } or newline?
+            const after = slice.slice(k + 1).trim();
+            if (after.startsWith(',') || after.startsWith('}') || after.length === 0) {
+              foundEnd = k;
+              break;
             }
           }
-
-          if (extractedContent !== null) {
-            return {
-              path: pathMatch[1],
-              content: extractedContent
-            };
-          }
         }
+        if (foundEnd === -1) foundEnd = slice.lastIndexOf(delim); // Desperation
+        if (foundEnd > 0) return slice.slice(1, foundEnd);
       }
-    }
-  } catch (_) { }
+      return null;
+    };
 
+    const fields = ['path', 'content', 'search', 'replace', 'name', 'type', 'files'];
+    let foundAny = false;
+    fields.forEach(f => {
+      const val = extractField(f);
+      if (val !== null) {
+        result[f] = val;
+        foundAny = true;
+      }
+    });
+
+    if (foundAny) return result;
+  } catch (_) { }
   return null;
 }
+
 
 // ── Sanitize raw model reply BEFORE parsing ───────────────────────────────
 // Fixes "ACTIONETERS" and other merged marker hallucinations.
@@ -247,20 +264,28 @@ function sanitizeRawReply(raw) {
     // 1. Force markers to own lines to help regex discovery. 
     // We enforce that they start at the beginning of a line (or string) to avoid
     // hitting the word inside user string blocks (like Swagger docs).
-    .replace(/(?:^|\n)(ACTION|PARAMETERS|THOUGHT):\s*/gi, (m, p1) => `\n\n${p1.toUpperCase()} `)
+    // FIX: Make the colon optional in the search but MANDATORY in the replacement.
+    // ADD: Support for bolded markdown markers like **Action** or **Action:**
+    .replace(/(?:^|\n)\**\s*(ACTION|PARAMETERS|THOUGHT)\s*\**\s*(?:[:\s]+)?/gi, (m, p1) => `\n\n${p1.toUpperCase()}: `)
 
     // Handle Markdown Header variants: ### Action:, ### Parameters:, etc.
-    .replace(/(?:^|\n)###\s*(ACTION|PARAMETERS|THOUGHT)[:\s]*/gi, (m, p1) => `\n\n${p1.toUpperCase()} `)
+    .replace(/(?:^|\n)###\s*(ACTION|PARAMETERS|THOUGHT)[:\s]*/gi, (m, p1) => `\n\n${p1.toUpperCase()}: `)
+
 
     // 2. Fix variants of merged markers (ACTIONMETERS, ACTIONETERS, etc.)
     .replace(/(?:^|\n)ACTION[A-Z]*METERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
     .replace(/(?:^|\n)ACTION[A-Z]*AMETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
     .replace(/(?:^|\n)ACTION[A-Z]*ETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
     .replace(/(?:^|\n)ACTIONPARAMETERS:/gi, '\n\nACTION: \n\nPARAMETERS:')
+    .replace(/(?:^|\n)ACTIONSON[:\s]*/gi, '\n\nACTION: \n\nPARAMETERS:') // Hallucination fix for "ACTION son" or "ACTIONson"
     .replace(/(?:^|\n)THOUGHTACTION:/gi, 'THOUGHT: \n\nACTION:')
     .replace(/(?:^|\n)THOUGHTPARAMETERS:/gi, 'THOUGHT: \n\nPARAMETERS:')
 
-    // 3. Cleanup spacing
+    // 3. Resilience: If ACTION exists but PARAMETERS: is missing, inject it
+    // This handles the case where the AI immediately follows action with a JSON block.
+    .replace(/(\n\nACTION:\s*\w+)\s*\n+(?=(?:```[a-z]*\s*)?\{)/gi, '$1\n\nPARAMETERS: ')
+
+    // 4. Cleanup spacing
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
     .trim();
 }
@@ -356,7 +381,7 @@ function parseReply(rawText, isReview) {
   if (action) {
     if (!json && raw.toLowerCase().includes('parameters:')) {
       console.warn(`[DevAgent] ⚠️ ACTION "${action}" detected but PARAMETERS: JSON is unparseable.`);
-      logError('parse_error', `JSON is unparseable for action "${action}"`, { rawBuffer: raw });
+      logError('parse_error', `JSON is unparseable for action "${action}"`, { rawBuffer: raw }, thought);
       return {
         action: 'chain_error',
         error: `I found ACTION: "${action}" but your PARAMETERS: block is not valid JSON. Please provide valid JSON using double quotes for keys and strings. Example: PARAMETERS: { "path": "index.js", "content": "..." }`,
@@ -378,7 +403,7 @@ function parseReply(rawText, isReview) {
   // Skip this check in Review mode, where the model is encouraged to show snippets.
   // Also only trigger if there's NO action (if model said ACTION: it's not orphaned)
   if (raw.includes('```') && !action && !isReview && !raw.includes('ACTION:')) {
-    logError('chain_error', 'Orphaned code block detected without tool call', { rawBuffer: raw });
+    logError('chain_error', 'Orphaned code block detected without tool call', { rawBuffer: raw }, thought);
     return {
       action: 'chain_error',
       error: 'You output a markdown code block but DID NOT use a tool (write_file/replace_in_file). STRICTLY use tools to modify the filesystem. Never just output code in text.',
@@ -750,7 +775,7 @@ async function runAgent(opts) {
         var loopErr = `Agent stuck in a loop: "${action}" repeated 3 times with functionally identical parameters.`;
         var advice = `You are repeating the same ${action} call with identical content. This usually happens if you are using placeholders or waiting for a state change that hasn't happened. CHANGE your approach, provide ACTUAL content, or call finish if you are stuck.`;
         console.error('[DevAgent] 🔴 Loop guard triggered:', loopErr);
-        logError('loop_guard', loopErr, { action, actionSig });
+        logError('loop_guard', loopErr, { action, actionSig }, parsed.thought);
         if (onStep) onStep({ type: 'error', message: loopErr });
         history.push({ role: 'user', content: `⚠️ **Error: Loop Detected**\n\n${loopErr}\n\n**ADVICE**: ${advice}` });
         // We give it one LAST chance with the advice nudge before hard-crashing if it repeats a 4th time
@@ -788,14 +813,15 @@ async function runAgent(opts) {
       const hasModifiedCode = history.some(function (m) {
         var c = (m.content || '').toLowerCase();
         return m.role === 'user' && c.includes('tool result') &&
-          (c.includes('write_file') || c.includes('replace_in_file') || c.includes('bulk_write') || c.includes('apply_blueprint')) &&
+          (c.includes('write_file') || c.includes('replace_in_file') || c.includes('bulk_write') || c.includes('apply_blueprint') || c.includes('scaffold_project')) &&
           !c.includes('implementation.md');
       });
 
       const hasWrittenPlan = history.some(function (m) {
         var c = (m.content || '').toLowerCase();
         return m.role === 'user' && c.includes('tool result') &&
-          c.includes('write_file') && c.includes('implementation.md');
+          (c.includes('write_file') || c.includes('bulk_write') || c.includes('scaffold_project')) &&
+          c.includes('implementation.md');
       });
 
       const isEmptyFinish = (parsed.response || '').trim().length <= 50;
@@ -844,7 +870,7 @@ async function runAgent(opts) {
     if (!toolFn) {
       var errMsg = `Unknown tool "${action}". Available: ${Object.keys(TOOLS).join(', ')}`;
       console.error('[DevAgent] Tool error:', errMsg);
-      logError('tool_error', errMsg, { action, parameters: parsed.parameters });
+      logError('tool_error', errMsg, { action, parameters: parsed.parameters }, parsed.thought);
       if (onStep) onStep({ type: 'tool_error', tool: action, error: errMsg });
       history.push({ role: 'user', content: 'Error: ' + errMsg });
       continue;
@@ -933,6 +959,17 @@ async function runAgent(opts) {
         const reportPath = path.resolve(effectiveWorkspaceDir, (p.path || p.file).replace(/^[/\\]+/, ''));
         console.log(`[DevAgent] 📝 SAVING REVIEW REPORT TO: ${reportPath}`);
       }
+
+      // ── SHELL COMMAND GUARD ──────────────────────────────────────────────
+      // Prevents the AI from using write_file as a shell (mkdir, cd, etc.)
+      if (action === 'write_file' && typeof p.content === 'string') {
+        const shellMatch = p.content.match(/^\s*(mkdir|cd|npm|node|git|rm|cp|mv|ls)\s+|^#!|^#!(\/usr\/bin\/env|\/bin\/bash)/i);
+        if (shellMatch) {
+          const cmd = shellMatch[1] || 'shell script';
+          throw new Error(`CRITICAL: You are using write_file to run "${cmd}". STOP. write_file is for FILE CONTENT only. Parent directories are created AUTOMATICALLY. If you need to run a command, use run_command or scaffold_project. Never put shell logic in write_file.`);
+        }
+      }
+
       result = await toolFn(p, effectiveWorkspaceDir);
 
       // ── Specific Debug Logging for list_files ──────────────────────────────
@@ -945,7 +982,7 @@ async function runAgent(opts) {
       if (onStep) onStep({ type: 'tool_result', tool: action, result: result });
     } catch (toolErr) {
       console.error(`[DevAgent] ${action} failed:`, toolErr.message);
-      logError('tool_execution_error', toolErr.message, { action, parameters: parsed.parameters });
+      logError('tool_execution_error', toolErr.message, { action, parameters: parsed.parameters }, parsed.thought);
       result = { error: toolErr.message };
       if (onStep) onStep({ type: 'tool_error', tool: action, error: toolErr.message });
     }

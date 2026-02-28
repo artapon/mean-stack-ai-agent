@@ -440,10 +440,6 @@ UserSchema.pre('save', async function (next) {
   next();
 });
 
-UserSchema.methods.comparePassword = function (candidate) {
-  return bcrypt.compare(candidate, this.password);
-};
-
 module.exports = mongoose.model('User', UserSchema);
 `,
 
@@ -486,6 +482,10 @@ const { success } = require('../../utils/response');
 
 const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
 
+/**
+ * @desc Register a new user
+ * @route POST /api/auth/register
+ */
 exports.register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
@@ -498,6 +498,10 @@ exports.register = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+/**
+ * @desc Login user
+ * @route POST /api/auth/login
+ */
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -513,18 +517,29 @@ exports.login = async (req, res, next) => {
     [`${name}/src/modules/user/user.controller.js`]: `const User = require('./user.model');
 const { success } = require('../../utils/response');
 
+/**
+ * @desc Get all users
+ * @route GET /api/users
+ */
 exports.getAll = async (req, res, next) => {
   try {
     const { page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
-    const [data, total] = await Promise.all([User.find().skip(+skip).limit(+limit), User.countDocuments()]);
+    const [data, total] = await Promise.all([
+      User.find().skip(+skip).limit(+limit).lean(),
+      User.countDocuments()
+    ]);
     success(res, data, 200, { pagination: { total, page: +page, limit: +limit, pages: Math.ceil(total / limit) } });
   } catch (err) { next(err); }
 };
 
+/**
+ * @desc Get single user
+ * @route GET /api/users/:id
+ */
 exports.getOne = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(req.params.id).lean();
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
     success(res, user);
   } catch (err) { next(err); }
@@ -743,10 +758,136 @@ const auth = useAuthStore()
   };
 }
 
+// ── healthcare-api ────────────────────────────────────────────────────────────
+function healthcareApiFiles(name) {
+  const base = expressApiSwaggerFiles(name);
+  return {
+    ...base,
+    [`${name}/package.json`]: JSON.stringify({
+      name, version: '1.0.0',
+      scripts: { dev: 'nodemon src/server.js', start: 'node src/server.js' },
+      dependencies: {
+        express: '^4.18.2', cors: '^2.8.5', dotenv: '^16.3.1',
+        helmet: '^7.1.0', morgan: '^1.10.0', mongoose: '^8.0.0',
+        'swagger-ui-express': '^5.0.0', yamljs: '^0.3.0'
+      },
+      devDependencies: { nodemon: '^3.0.2' }
+    }, null, 2),
+
+    [`${name}/src/routes/index.js`]: `const express = require('express');
+const router  = express.Router();
+const patientRoutes = require('../modules/patient/patient.routes');
+
+router.get('/health', (_req, res) => res.json({ success: true, status: 'ok', ts: new Date() }));
+router.use('/patients', patientRoutes);
+
+module.exports = router;
+`,
+
+    [`${name}/src/modules/patient/patient.model.js`]: `const mongoose = require('mongoose');
+
+const PatientSchema = new mongoose.Schema({
+  mrn:       { type: String, required: true, unique: true, index: true },
+  name:      { type: String, required: true },
+  dob:       { type: Date,   required: true },
+  status:    { type: String, enum: ['Active', 'Inactive'], default: 'Active' }
+}, { timestamps: true });
+
+module.exports = mongoose.model('Patient', PatientSchema);
+`,
+
+    [`${name}/src/modules/patient/patient.service.js`]: `const Patient = require('./patient.model');
+
+/**
+ * @desc Get all patients
+ * @returns {Promise<Array>}
+ */
+exports.getAll = async (query = {}) => {
+  const { page = 1, limit = 10 } = query;
+  const skip = (page - 1) * limit;
+  return await Patient.find().sort('-createdAt').skip(skip).limit(limit).lean();
+};
+
+exports.create = async (data) => await Patient.create(data);
+`,
+
+    [`${name}/src/modules/patient/patient.controller.js`]: `const service = require('./patient.service');
+
+/**
+ * @desc Create patient
+ */
+exports.create = async (req, res, next) => {
+  try {
+    const patient = await service.create(req.body);
+    res.status(201).json({ success: true, data: patient });
+  } catch (err) { next(err); }
+};
+
+/**
+ * @desc List patients
+ */
+exports.list = async (req, res, next) => {
+  try {
+    const patients = await service.getAll(req.query);
+    res.json({ success: true, data: patients });
+  } catch (err) { next(err); }
+};
+`,
+
+    [`${name}/src/modules/patient/patient.routes.js`]: `const express = require('express');
+const router  = express.Router();
+const controller = require('./patient.controller');
+
+/**
+ * @swagger
+ * /patients:
+ *   get:
+ *     summary: List all patients
+ *     tags: [Patients]
+ *   post:
+ *     summary: Create patient
+ *     tags: [Patients]
+ */
+router.get('/',  controller.list);
+router.post('/', controller.create);
+
+module.exports = router;
+`,
+
+    [`${name}/swagger.yaml`]: `openapi: 3.0.0
+info:
+  title: Healthcare API
+  version: 1.0.0
+servers:
+  - url: /api
+paths:
+  /health:
+    get:
+      responses:
+        '200':
+          description: OK
+  /patients:
+    get:
+      tags: [Patients]
+      responses:
+        '200':
+          description: OK
+    post:
+      tags: [Patients]
+      responses:
+        '201':
+          description: Created
+`,
+
+    [`${name}/implementation.md`]: `# Healthcare API - Implementation\n\n## Stack\n- Express.js\n- MongoDB (Mongoose)\n- Swagger UI\n\n## Endpoints\n- GET  /api/health\n- GET  /api/patients\n- POST /api/patients\n`
+  };
+}
+
 const TEMPLATES = {
   'express-api': expressApiFiles,
   'express-api-swagger': expressApiSwaggerFiles,
   'express-api-mongo': expressApiMongoFiles,
+  'healthcare-api': healthcareApiFiles,
   'vue-app': vueAppFiles,
   'fullstack': fullstackFiles,
   'fullstack-auth': fullstackAuthFiles

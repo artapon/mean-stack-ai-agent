@@ -63,7 +63,12 @@ async function writeFile(params, workspaceDir) {
   }
 
   const abs = safePath(filePath, workspaceDir);
-  await fs.ensureDir(path.dirname(abs));
+  const dir = path.dirname(abs);
+  const dirStat = await fs.pathExists(dir) ? await fs.stat(dir) : null;
+  if (dirStat && !dirStat.isDirectory()) {
+    return { error: `Cannot create directory "${dir}": A file with the same name already exists. Please delete it first.` };
+  }
+  await fs.ensureDir(dir);
   await fs.writeFile(abs, contentStr, 'utf-8');
   console.log(`[DevAgent] Write: ${abs}`);
   return { success: true, path: filePath, bytes: Buffer.byteLength(contentStr, 'utf-8') };
@@ -156,7 +161,13 @@ async function bulkWrite(params, workspaceDir) {
 
     try {
       const abs = safePath(filePath, workspaceDir);
-      await fs.ensureDir(path.dirname(abs));
+      const dir = path.dirname(abs);
+      const dirStat = await fs.pathExists(dir) ? await fs.stat(dir) : null;
+      if (dirStat && !dirStat.isDirectory()) {
+        results.push({ path: filePath, error: `Cannot create directory "${dir}": A file with the same name already exists.` });
+        continue;
+      }
+      await fs.ensureDir(dir);
       await fs.writeFile(abs, contentStr, 'utf-8');
       console.log(`[DevAgent] BulkWrite: ${abs}`);
       results.push({ path: filePath, success: true, bytes: Buffer.byteLength(contentStr, 'utf-8') });

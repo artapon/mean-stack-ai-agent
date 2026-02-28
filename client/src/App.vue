@@ -543,10 +543,27 @@ async function send(text) {
   abort = new AbortController()
   await scrollDown()
 
-  const history = messages.value
-    .slice(0, idx)
-    .filter(m => m.text)
-    .map(m => ({ role: m.role, content: m.text }))
+  const history = []
+  messages.value.slice(0, idx).forEach(m => {
+    if (!m.text && (!m.activity || m.activity.length === 0)) return
+    
+    // Add the main message (Assistant thoughts/action or User prompt)
+    history.push({ role: m.role, content: m.text || '' })
+    
+    // If it's an assistant message, append any tool results as subsequent 'user' messages
+    if (m.role === 'assistant' && m.activity) {
+      m.activity.forEach(act => {
+        if (act.type === 'tool' && act.done && act.result) {
+          history.push({ 
+            role: 'user', 
+            content: `Tool result (${act.tool}):\n${JSON.stringify(act.result, null, 2)}` 
+          })
+        } else if (act.type === 'error') {
+          history.push({ role: 'user', content: `Error: ${act.text}` })
+        }
+      })
+    }
+  })
 
   try {
     const res = await fetch('/api/agent/run', {
@@ -684,7 +701,11 @@ function applyEvent(ev, idx) {
     }]
   } else if (ev.type === 'tool_result') {
     const last = [...msg.activity].reverse().find(a => a.type === 'tool' && !a.done)
-    if (last) last.done = true
+    if (last) {
+      last.done = true
+      // Store the result content for history persistence
+      last.result = ev.result 
+    }
   } else if (ev.type === 'tool_error') {
     // In review mode, suppress the "write tool is disabled" error cards — they're
     // an internal agent correction, not something the user needs to see.
