@@ -712,12 +712,16 @@ function applyEvent(ev, idx) {
     if (inReview && ev.tool && WRITE_TOOLS.has(ev.tool)) return
     msg.activity = [...msg.activity, { type: 'error', text: `${ev.tool}: ${ev.error}` }]
   } else if (ev.type === 'response') {
-    const hasWrittenDoc = msg.activity?.some(a => a.type === 'tool' && a.tool === 'write_file' && a.detail?.includes('implementation.md'));
+    const hasWrittenDoc = msg.activity?.some(a => a.type === 'tool' && a.tool === 'write_file' && (a.detail?.includes('walkthrough.md') || a.detail?.includes('implementation.md') || a.detail?.includes('walkthrough_review_report.md')));
     
     // Final sync
     let finalContent = ev.content || '';
     if (hasWrittenDoc && !finalContent.includes('✅')) {
-       finalContent += `\n\n---\n**✅ AI Generation Complete.** The \`implementation.md\` report has been successfully updated at the project root.`;
+       if (inReview) {
+         finalContent += `\n\n---\n**✅ Code Audit Complete.** The \`walkthrough_review_report.md\` has been successfully updated.`;
+       } else {
+         finalContent += `\n\n---\n**✅ AI Generation Complete.** The \`walkthrough.md\` report has been successfully updated at the project root.`;
+       }
     }
 
     if (inReview && msg.text && !msg.text.includes(ev.content)) {

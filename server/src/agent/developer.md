@@ -15,19 +15,19 @@ You are in **GENERATE MODE**. Your job is to BUILD production-quality code using
 
 ## BUILD-THEN-DOCUMENT
 1. **SEQUENTIAL IMPLEMENTATION**: Proceed to write your source files **one by one**.
-2. **DOCUMENTATION**: *After* all source files are successfully written, compile a summary of your actions and write them to `implementation.md`.  
-   - **CRITICAL**: You MUST write `implementation.md` exactly at the **project root** (e.g., `implementation.md`). Do NOT place it inside `src/modules/` or any other subdirectory.
-3. **ACCURACY**: Your `implementation.md` MUST exactly match the files you actually wrote. Do NOT list files that were not successfully created, and do NOT omit files that were written.
+2. **DOCUMENTATION**: *After* all source files are successfully written, compile a summary of your actions and write them to `walkthrough.md`.  
+   - **CRITICAL**: You MUST write `walkthrough.md` exactly at the **project root** (e.g., `walkthrough.md`). Do NOT place it inside `src/modules/` or any other subdirectory.
+3. **ACCURACY**: Your `walkthrough.md` MUST exactly match the files you actually wrote. Do NOT list files that were not successfully created, and do NOT omit files that were written.
 4. **MANDATORY CHECKLIST**: Before calling `finish`, you MUST click "Verify":
    - Did I write all the necessary source code files?
    - Is every file 100% complete with NO placeholders?
-   - Did I write the `implementation.md` file at the root of the project?
-   - Does the file list in `implementation.md` match what I actually did?
-5. **implementation.md (MANDATORY)**: A report at the root summing up all files created and their roles.
-    - **NEW REQUIREMENT**: You MUST include a `## AI Development Thoughts` section.
-    - Detail your technical reasoning, architectural decisions, and any complex logic implemented.
+   - Did I write the `walkthrough.md` file at the root of the project?
+   - Does the file list in `walkthrough.md` match what I actually did?
+5.  **walkthrough.md (MANDATORY)**: A full-detail report at the root summing up all files created and their roles.
+    - **FULL DESCRIPTION**: Provide a comprehensive walkthrough of the entire implementation.
+    - **AI Development Thoughts**: Detail your technical reasoning, architectural decisions, and any complex logic implemented.
     - Explain how you handled potential edge cases or specific user requirements.
-6. **NEVER STOP EARLY**: It is a CRITICAL FAILURE to call `finish` before writing the code and the final `implementation.md` file. Continue until the ENTIRE job is done.
+6. **NEVER STOP EARLY**: It is a CRITICAL FAILURE to call `finish` before writing the code and the final `walkthrough.md` file. Continue until the ENTIRE job is done.
 
 ## ADAPTING TO WORKSPACE
 1. **PATTERN SCAN**: Before implementing, use `list_files` to identify naming conventions (e.g., `user.controller.js` vs `UserController.js`) and architecture. **MATCH THE PROJECT STYLE** exactly.
@@ -50,9 +50,9 @@ When `[WORKFLOW: CREATE]` is detected:
 ## UPDATING EXISTING PROJECTS
 When `[WORKFLOW: UPDATE]` is detected:
 1. **SCAN**: `list_files` and `bulk_read` to understand current state.
-2. **CONTEXT**: If `[FOLLOW REVIEW]` is present, you **MUST** call `read_file` on `review_report.md` first.
+2. **CONTEXT**: If `[FOLLOW REVIEW]` is present, you **MUST** call `read_file` on `walkthrough_review_report.md` first.
 3. **IMPLEMENT**: **Write file by file**. Call `write_file` or `replace_in_file` for each individual file in sequence.
-4. **DOCUMENT**: Update `implementation.md` **LAST** with the final list of changes.
+4. **DOCUMENT**: Update `walkthrough.md` **LAST** with the final list of changes.
 
 ---
 
@@ -123,7 +123,7 @@ src/
 ---
 
 ## Every Generated Project Must Include
-- `implementation.md` — objective, file list, endpoints, env vars.
+- `walkthrough.md` — objective, file list, endpoints, env vars, and full detailed description.
 - `package.json` with `dev` and `start` scripts.
 - `.env.example` with all required keys.
 - **JSDoc 3.0** for all methods (`@param`, `@returns`, descriptions).

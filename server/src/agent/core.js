@@ -91,9 +91,9 @@ RULES:
      - FINISH by providing a **simple and highly readable summary**. Use ### headers, bullet points, and bold text. No technical clutter in the final wrap-up.
 2. ALWAYS use tools to create/edit files in GENERATE mode. Never output code blocks in text.
 3. STRUCTURE: Always use headers (###), lists (-), and double newlines (\n\n) to ensure your responses are readable and well-formatted. Avoid long walls of text.
-4. BUILD-THEN-DOCUMENT: In GENERATE mode, write all actual source code files FIRST, then write the final \`implementation.md\` at the project root.
-5. **AI DEVELOPMENT THOUGHTS**: Every \`implementation.md\` MUST include a \`## AI Development Thoughts\` section detailing your reasoning and architecture.
-6. **FINISHING**: Call \`finish\` ONLY after both code and \`implementation.md\` are done. Your \`finish\` response MUST confirm that \`implementation.md\` exists and includes your thoughts.
+4. BUILD-THEN-DOCUMENT: In GENERATE mode, write all actual source code files FIRST, then write the final \`walkthrough.md\` at the project root.
+5. **AI DEVELOPMENT THOUGHTS**: Every \`walkthrough.md\` MUST include a \`## AI Development Thoughts\` section detailing your reasoning and architecture.
+6. **FINISHING**: Call \`finish\` ONLY after both code and \`walkthrough.md\` are done. Your \`finish\` response MUST confirm that \`walkthrough.md\` exists and includes your thoughts.
 7. **JSDoc 3.0**: You MUST include JSDoc 3.0 documentation for EVERY method you generate.
 8. **WORKSPACE ADAPTATION**: Follow project naming conventions and folder structures exactly.
 9. **MODULAR ARCHITECTURE**: For Express.js, ALWAYS use the feature-based modular structure (\`src/modules/<feature>\`) and follow the "Route -> Controller -> Service -> Model" flow.
@@ -273,13 +273,14 @@ function sanitizeRawReply(raw) {
 
 
     // 2. Fix variants of merged markers (ACTIONMETERS, ACTIONETERS, etc.)
-    .replace(/(?:^|\n)ACTION[A-Z]*METERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
-    .replace(/(?:^|\n)ACTION[A-Z]*AMETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
-    .replace(/(?:^|\n)ACTION[A-Z]*ETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
-    .replace(/(?:^|\n)ACTIONPARAMETERS:/gi, '\n\nACTION: \n\nPARAMETERS:')
-    .replace(/(?:^|\n)ACTIONSON[:\s]*/gi, '\n\nACTION: \n\nPARAMETERS:') // Hallucination fix for "ACTION son" or "ACTIONson"
-    .replace(/(?:^|\n)THOUGHTACTION:/gi, 'THOUGHT: \n\nACTION:')
-    .replace(/(?:^|\n)THOUGHTPARAMETERS:/gi, 'THOUGHT: \n\nPARAMETERS:')
+    // FIX: Make the match non-greedy/specific to prevent overlapping with previous markers
+    .replace(/(?:^|\n)ACTION[A-Z]*METERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
+    .replace(/(?:^|\n)ACTION[A-Z]*AMETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
+    .replace(/(?:^|\n)ACTION[A-Z]*ETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
+    .replace(/(?:^|\n)ACTIONPARAMETERS:/gi, '\n\nACTION: \n\nPARAMETERS: ')
+    .replace(/(?:^|\n)ACTIONSON[:\s]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
+    .replace(/(?:^|\n)THOUGHTACTION:/gi, 'THOUGHT: \n\nACTION: ')
+    .replace(/(?:^|\n)THOUGHTPARAMETERS:/gi, 'THOUGHT: \n\nPARAMETERS: ')
 
     // 3. Resilience: If ACTION exists but PARAMETERS: is missing, inject it
     // This handles the case where the AI immediately follows action with a JSON block.
@@ -814,14 +815,14 @@ async function runAgent(opts) {
         var c = (m.content || '').toLowerCase();
         return m.role === 'user' && c.includes('tool result') &&
           (c.includes('write_file') || c.includes('replace_in_file') || c.includes('bulk_write') || c.includes('apply_blueprint') || c.includes('scaffold_project')) &&
-          !c.includes('implementation.md');
+          !c.includes('walkthrough.md');
       });
 
       const hasWrittenPlan = history.some(function (m) {
         var c = (m.content || '').toLowerCase();
         return m.role === 'user' && c.includes('tool result') &&
           (c.includes('write_file') || c.includes('bulk_write') || c.includes('scaffold_project')) &&
-          c.includes('implementation.md');
+          c.includes('walkthrough.md');
       });
 
       const isEmptyFinish = (parsed.response || '').trim().length <= 50;
@@ -833,7 +834,7 @@ async function runAgent(opts) {
         if (!hasModifiedCode) {
           nudge = "You haven't modified any source code files yet. PROCEED TO IMPLEMENTATION (surgical edits). DO NOT FINISH yet.";
         } else if (!hasWrittenPlan) {
-          nudge = "You haven't written the `implementation.md` summary to the project root yet. DO THIS NOW before finishing.";
+          nudge = "You haven't written the `walkthrough.md` summary to the project root yet. DO THIS NOW before finishing.";
         }
 
         if (nudge) {
@@ -847,12 +848,16 @@ async function runAgent(opts) {
       if (isReview) {
         const hasSavedReport = history.some(m => {
           const c = (m.content || '').toLowerCase();
-          return c.includes('tool result (write_file)') && c.includes('review_report.md') && c.includes('"success": true');
+          // FIX: The check was failing because 'Tool' in 'Tool result' was capitalized.
+          // Using case-insensitive match for the entire result line is safer.
+          return (c.includes('tool result') || c.includes('tool_result')) &&
+            c.includes('walkthrough_review_report.md') &&
+            c.includes('"success": true');
         });
 
         if (!hasSavedReport) {
           console.warn('[DevAgent] ⚠️ Review report not found in history. Nudging agent to PERSIST.');
-          const nudge = "MANDATORY: You must save your audit findings to `review_report.md` using `write_file` BEFORE calling finish. Include two sections: `## AGENT Reasoning` and `## Summary`. Do this now.";
+          const nudge = "MANDATORY: You must save your audit findings to `walkthrough_review_report.md` using `write_file` BEFORE calling finish. Include two sections: `## AGENT Reasoning` and `## Summary`. Do this now.";
           history.push({ role: 'user', content: nudge });
           if (onStep) onStep({ type: 'error', message: "Review report not saved yet. Persist Reasoning and Summary first." });
           continue;
@@ -884,13 +889,13 @@ async function runAgent(opts) {
       const p = parsed.parameters || {};
       const attemptedPath = String(p.path || p.file || p.filename || p.filepath || p.target || '').toLowerCase();
 
-      // We ONLY allow write_file for review_report.md. 
+      // We ONLY allow write_file for walkthrough_review_report.md. 
       // bulk_write/replace_in_file/etc are ALWAYS blocked in Review mode.
-      const isAllowedReport = action === 'write_file' && /review_report\.md$/i.test(attemptedPath);
+      const isAllowedReport = action === 'write_file' && /walkthrough_review_report\.md$/i.test(attemptedPath);
 
       if (!isAllowedReport) {
         reviewWriteBlockCount++;
-        const blockedMsg = `Tool "${action}" to "${attemptedPath}" is disabled in REVIEW mode inside "${effectiveWorkspaceDir}". You can ONLY use write_file for "review_report.md".`;
+        const blockedMsg = `Tool "${action}" to "${attemptedPath}" is disabled in REVIEW mode inside "${effectiveWorkspaceDir}". You can ONLY use write_file for "walkthrough_review_report.md".`;
         console.warn(`[DevAgent] ⛔ BLOCKED: ${blockedMsg} (Attempt ${reviewWriteBlockCount}/2)`);
 
         if (reviewWriteBlockCount >= 2) {
@@ -955,10 +960,11 @@ async function runAgent(opts) {
       const targetPath = p.path || p.file || (p.files ? `${p.files.length} files` : 'none');
       console.log(`[DevAgent] STEP ${step} | Executing: ${action} | Target: ${targetPath}`);
 
-      if (action === 'write_file' && (targetPath.toLowerCase().includes('review_report.md'))) {
+      if (action === 'write_file' && (targetPath.toLowerCase().includes('walkthrough_review_report.md'))) {
         const reportPath = path.resolve(effectiveWorkspaceDir, (p.path || p.file).replace(/^[/\\]+/, ''));
         console.log(`[DevAgent] 📝 SAVING REVIEW REPORT TO: ${reportPath}`);
       }
+
 
       // ── SHELL COMMAND GUARD ──────────────────────────────────────────────
       // Prevents the AI from using write_file as a shell (mkdir, cd, etc.)
@@ -1035,7 +1041,6 @@ async function runAgent(opts) {
       content: `Tool result (${action}):\n${resultStr}`
     });
     console.log(`[DevAgent] STEP ${step} | DONE. Result sent to LLM context.`);
-
   }
 }
 
