@@ -71,11 +71,13 @@ ${fastMode ? `1. ACTION: (The exact valid tool name only)\n\n2. PARAMETERS: (The
 **CRITICAL: NEVER MERGE THESE MARKERS. ALWAYS USE DOUBLE NEWLINES BETWEEN THEM.**
 
 FINISH FORMAT:
-1. THOUGHT: (reasoning)
+${fastMode ? `1. ACTION: finish
+
+2. PARAMETERS: { "response": "A professional markdown summary (headers, bullet points, bold text). No technical clutter." }` : `1. THOUGHT: (reasoning)
 
 2. ACTION: finish
 
-3. PARAMETERS: { "response": "A professional markdown summary (headers, bullet points, bold text). No technical clutter." }
+3. PARAMETERS: { "response": "A professional markdown summary (headers, bullet points, bold text). No technical clutter." }`}
 
 RULES:
 1. CONTINUITY: Never stop after list_files or read_file. 
@@ -94,9 +96,10 @@ RULES:
 7. **JSDoc 3.0**: You MUST include JSDoc 3.0 documentation for EVERY method you generate.
 8. **WORKSPACE ADAPTATION**: Follow project naming conventions and folder structures exactly.
 9. **MODULAR ARCHITECTURE**: For Express.js, ALWAYS use the feature-based modular structure (\`src/modules/<feature>\`) and follow the "Route -> Controller -> Service -> Model" flow.
-10. **NO PLACEHOLDERS**: Write FULL, working code. Never write files that only contain comments or imports.
+10. **NO PLACEHOLDERS (CRITICAL)**: Write FULL, working code. NEVER write files that only contain comments like \`// Implementation goes here\`. If a file is too complex to write in one go, write the partial implementation, but never just a stub comment.
 11. **NO SHELL**: Never use \`write_file\` to run shell commands (e.g., \`mkdir\`). It handles directory creation automatically.
-${fastMode ? `12. **FAST MODE**: Do NOT output any reasoning or thoughts before actions. Skip straight to ACTION and PARAMETERS.` : ''}
+12. **NO FILE LISTING LOOPS**: You are strictly forbidden from calling \`list_files\` more than twice without modifying a file.
+${fastMode ? `13. **FAST MODE**: Do NOT output any reasoning or thoughts before actions. Skip straight to ACTION and PARAMETERS.` : ''}
 `;
 }
 
@@ -275,6 +278,11 @@ function sanitizeRawReply(raw) {
     .replace(/(?:^|\n)THOUGHTACTION:/gi, 'THOUGHT: \n\nACTION: ')
     .replace(/(?:^|\n)THOUGHTPARAMETERS:/gi, 'THOUGHT: \n\nPARAMETERS: ')
 
+    // 2B. Aggressive fix for infinite repeating markers (ACTIONMETERS:ACTIONMETERS:...)
+    .replace(/(?:ACTION[A-Z]*METERS[:\s]*){2,}/gi, '\n\nACTION: \n\nPARAMETERS: ')
+    .replace(/(?:ACTION[:\s]*){2,}/gi, '\n\nACTION: ')
+    .replace(/(?:PARAMETERS[:\s]*){2,}/gi, '\n\nPARAMETERS: ')
+
     // 3. Resilience: If ACTION exists but PARAMETERS: is missing, inject it
     // This handles the case where the AI immediately follows action with a JSON block.
     .replace(/(\n\nACTION:\s*\w+)\s*\n+(?=(?:```[a-z]*\s*)?\{)/gi, '$1\n\nPARAMETERS: ')
@@ -285,7 +293,7 @@ function sanitizeRawReply(raw) {
 }
 
 // ── Parse full reply → { action, parameters, response, thought } ─────────────
-function parseReply(rawText, isReview) {
+function parseReply(rawText, isReview, fastMode) {
   const raw = sanitizeRawReply(rawText);
   if (!raw) return { action: 'finish', response: '' };
 
@@ -308,6 +316,11 @@ function parseReply(rawText, isReview) {
   // Clean redundant prefixes left by aggressive sanitization
   if (thought && thought.toUpperCase().startsWith('THOUGHT:')) {
     thought = thought.replace(/^THOUGHT:\s*/i, '').trim();
+  }
+
+  // FAST MODE OVERRIDE: If the model hallucinates a thought, ignore it
+  if (fastMode) {
+    thought = '';
   }
 
   // 🔴 Hallucination Guard: If the sanitized text suggests merged markers were found
@@ -401,7 +414,7 @@ function parseReply(rawText, isReview) {
     logError('chain_error', 'Orphaned code block detected without tool call', { rawBuffer: raw }, thought);
     return {
       action: 'chain_error',
-      error: 'You output a markdown code block but DID NOT use a tool (write_file/replace_in_file). STRICTLY use tools to modify the filesystem. Never just output code in text.',
+      error: 'You output a markdown code block but DID NOT use a tool (write_file/replace_in_file). STRICTLY use tools to modify the filesystem. Never just output code in text.\n\nEXAMPLE RECOVERY:\nACTION: write_file\nPARAMETERS: { "path": "filename.js", "content": "YOUR CODE HERE" }',
       thought: thought || 'Detected orphaned code block.'
     };
   }
@@ -442,7 +455,10 @@ async function callLMStudio(history, onChunk, signal, selectedModel) {
       {
         model: model,
         messages: messages,
-        stream: true
+        stream: true,
+        temperature: 0.1,
+        max_tokens: 8192,
+        stop: null
       },
       {
         headers: { 'Content-Type': 'application/json' },
@@ -658,6 +674,9 @@ async function runAgent(opts) {
   var MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
   var step = 0;
 
+  // Read/List loop guard: prevent endless scanning without writing
+  var listFilesCount = 0;
+
   // FIX 3: Consecutive-duplicate-action guard. If the agent outputs the exact
   // same action+parameters 3 times in a row, it is stuck. Abort early.
   var lastActionSig = null;
@@ -679,10 +698,14 @@ async function runAgent(opts) {
     console.log(`\n[DevAgent] 🚀 STEP ${step} START ─── (History: ${history.length} items)`);
 
     // Prune history ONLY if it gets extremely long (avoid context window blowup)
-    // We keep the system prompt, the original user request, and the last 30 turns
+    // We keep the system prompt, the original user request, and ALL tool results to maintain context 
+    // of what was actually done. We prune pure conversational/thought turns.
     if (history.length > 50) {
       console.log(' [DevAgent] ✂️  Pruning history for context efficiency...');
-      history = history.slice(0, 2).concat(history.slice(-30));
+      const essential = history.slice(0, 2);
+      const recent = history.slice(-20);
+      const toolResults = history.slice(2, -20).filter(m => m.role === 'user' && m.content && m.content.startsWith('Tool result'));
+      history = essential.concat(toolResults).concat(recent);
     }
 
     // Only abort BEFORE an LM Studio call — never mid-execution
@@ -702,11 +725,14 @@ async function runAgent(opts) {
         // STATEFUL DELTA FILTERING:
         // We clean the ENTIRE text generated so far, then only send the "new" clean part.
         // This prevents partial tags (like "ACTI") from leaking to the UI when split across chunks.
-        // IMPROVED: ALWAYS preserve thoughts for transparency (never strip them in chunks)
         let cleanAll = stepFullText
           .replace(/ACTION:\s*[\w_]*/gi, '')
           .replace(/PARAMETERS:\s*\{[\s\S]*?\}/gi, '')
           .replace(/PARAMETERS:\s*\{[\s\S]*/gi, ''); // Hide partial parameters
+
+        if (fastMode) {
+          cleanAll = cleanAll.replace(/THOUGHT:\s*[\s\S]*?(?=ACTION:|$)/gi, '');
+        }
 
         let newClean = cleanAll.slice(sentCleanTextLength);
         if (newClean.length > 0) {
@@ -717,7 +743,7 @@ async function runAgent(opts) {
         // Send status updates when we are filtering out internal work
         const isInternal = stepFullText.toLowerCase().includes('action:') || stepFullText.toLowerCase().includes('parameters:') || stepFullText.toLowerCase().includes('thought:');
         if (isInternal && newClean.length === 0) {
-          const type = stepFullText.toLowerCase().includes('action:') ? 'acting' : 'thinking';
+          const type = stepFullText.toLowerCase().includes('action:') ? 'acting' : (fastMode ? 'acting' : 'thinking');
           onStep({ type: 'status', text: `Agent is ${type}...` });
         }
       }, signal, selectedModel);
@@ -732,7 +758,7 @@ async function runAgent(opts) {
     }
     history.push({ role: 'assistant', content: rawText });
 
-    var parsed = parseReply(rawText, isReview);
+    var parsed = parseReply(rawText, isReview, fastMode);
     var action = (parsed.action || '').toLowerCase();
 
     console.log('[DevAgent] STEP', step, 'RESPONSE ─── action:', action || 'none');
@@ -786,6 +812,20 @@ async function runAgent(opts) {
     } else {
       lastActionSig = actionSig;
       lastActionRepeat = 0;
+    }
+
+    // ── No Progress Guard (List/Read without write) ──────────────────────────
+    if (action === 'list_files' || action === 'read_file' || action === 'bulk_read') {
+      listFilesCount++;
+      if (listFilesCount >= 3 && step > 5) {
+        console.warn(`[DevAgent] ⚠️ No progress loop detected. Forcing write action.`);
+        let err = `You have called tools to read/list files ${listFilesCount} times consecutively without writing any code. STOP SCANNING. START WRITING FILES IMMEDIATELY using write_file.`;
+        history.push({ role: 'user', content: '⚠️ **Error: No Progress**\n\n' + err });
+        if (onStep) onStep({ type: 'error', message: err });
+        continue;
+      }
+    } else if (action === 'write_file' || action === 'replace_in_file' || action === 'bulk_write' || action === 'apply_blueprint' || action === 'scaffold_project') {
+      listFilesCount = 0;
     }
 
     // ── Chain Error (Orphaned Code Block) ────────────────────────────────────
@@ -1018,27 +1058,35 @@ async function runAgent(opts) {
             : actualContent;
           result.currentFileContent =
             `CURRENT FILE CONTENT OF "${targetPath}":\n\`\`\`\n${truncated}\n\`\`\`` +
-            `\n\nINSTRUCTION: Your search block was NOT found. ` +
-            `Use the current file content above and either:\n` +
-            `  1. Fix your search block to match exactly, OR\n` +
-            `  2. Use write_file with the COMPLETE corrected file content instead.`;
+            `\n\nCRITICAL INSTRUCTION: Your search block was NOT found. DO NOT RETRY EXACTLY THE SAME SEARCH BLOCK.` +
+            `\nUse the actual file content above and either:\n` +
+            `  1. Fix your search block to match exactly (including whitespace and comments), OR\n` +
+            `  2. Use write_file to rewrite the ENTIRE file instead if the change is too complex for replace_in_file.`;
           console.log(`[DevAgent] Injected current content of "${targetPath}" into replace_in_file error feedback.`);
         } catch (_) { /* file may not exist yet — that's fine */ }
       }
     }
 
-    // ── Safety Truncation: Prevent context window overflow ────────────────────
-    var resultStr = JSON.stringify(result, null, 2);
-    const MAX_RESULT_CHARS = 10000;
-    if (resultStr.length > MAX_RESULT_CHARS) {
-      console.log(`[DevAgent] STEP ${step} | Truncating ${action} result (${resultStr.length} chars)`);
-      resultStr = resultStr.slice(0, MAX_RESULT_CHARS) +
-        '\n\n... [TRUNCATED - output too large] ...';
+    // ── Result Summary to prevent context window overflow ────────────────────
+    var resultSummary = summariseResult(action, parsed.parameters || {}, result, isReview);
+    var contentToPush = `Tool result (${action}):\n${resultSummary}`;
+
+    // For reads/lists or errors, inject actual data payload over summary
+    if (action === 'read_file' || action === 'list_files' || action === 'bulk_read') {
+      var rawString = JSON.stringify(result, null, 2);
+      if (rawString.length > 10000) {
+        console.log(`[DevAgent] STEP ${step} | Truncating raw ${action} result (${rawString.length} chars)`);
+        rawString = rawString.slice(0, 10000) + '\n\n... [TRUNCATED] ...';
+      }
+      contentToPush += `\n\nRaw Data:\n\`\`\`json\n${rawString}\n\`\`\``;
+    } else if (result && result.error) {
+      contentToPush = `Tool result (${action}):\n⚠️ Error: ${result.error}`;
+      if (result.currentFileContent) contentToPush += `\n\n${result.currentFileContent}`;
     }
 
     history.push({
       role: 'user',
-      content: `Tool result (${action}):\n${resultStr}`
+      content: contentToPush
     });
     console.log(`[DevAgent] STEP ${step} | DONE. Result sent to LLM context.`);
   }

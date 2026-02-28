@@ -15,8 +15,8 @@
         "description": "Strong reasoning for complex algorithms"
     },
     {
-        "id": "openai/gpt-oss-20b",
-        "label": "GPT OSS 20B",
+        "id": "yi-coder-9b-chat",
+        "label": "Yi Coder 9B",
         "description": "General purpose, balanced performance"
     },
     {
