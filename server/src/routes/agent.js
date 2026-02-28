@@ -7,13 +7,13 @@ let activeAgentRun = null;
 
 // POST /api/agent/run — streams agent steps via Server-Sent Events
 router.post('/run', async (req, res) => {
-  const { messages, selectedModel } = req.body;
+  const { messages, selectedModel, fastMode } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: '"messages" must be a non-empty array.' });
   }
 
-  console.log(`\n[DevAgent] 🟢 NEW REQUEST /api/agent/run (${messages.length} messages, model: ${selectedModel || 'env default'})`);
+  console.log(`\n[DevAgent] 🟢 NEW REQUEST /api/agent/run (${messages.length} messages, model: ${selectedModel || 'env default'}, fast: ${fastMode})`);
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -46,7 +46,8 @@ router.post('/run', async (req, res) => {
       workspaceDir: req.app.locals.workspaceDir,
       signal: abort.signal,
       onStep: send,
-      selectedModel: selectedModel || null
+      selectedModel: selectedModel || null,
+      fastMode: !!fastMode
     });
     console.log('[DevAgent] ✅ runAgent successfully finished.');
     send({ type: 'done' });

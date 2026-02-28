@@ -35,9 +35,10 @@ function loadSkills(isReview) {
  * Builds the system prompt, injecting mode-specific skills and tool list.
  * @param {boolean} isReview - Whether the agent is in Review mode.
  * @param {string} [targetFolder] - Optional target workspace subdirectory label.
+ * @param {boolean} [fastMode] - If true, restricts the AI from outputting THOUGHT.
  * @returns {string} Full system prompt string.
  */
-function getSystemPrompt(isReview, targetFolder) {
+function getSystemPrompt(isReview, targetFolder, fastMode = false) {
   const EXPERT_SKILLS = loadSkills(isReview);
 
   const toolsList = [
@@ -64,11 +65,7 @@ TOOLS:
 ${availableTools}
 
 TOOL CALL FORMAT (MANDATORY & RIGID):
-1. THOUGHT: (Your absolute reasoning first)
-
-2. ACTION: (The exact valid tool name only)
-
-3. PARAMETERS: (The valid JSON object for that tool)
+${fastMode ? `1. ACTION: (The exact valid tool name only)\n\n2. PARAMETERS: (The valid JSON object for that tool)\n\n**CRITICAL: YOU ARE IN FAST MODE. DO NOT OUTPUT A 'THOUGHT:' MARKER OR ANY REASONING. ONLY OUTPUT THE ACTION AND THE PARAMETERS.**` : `1. THOUGHT: (Your absolute reasoning first)\n\n2. ACTION: (The exact valid tool name only)\n\n3. PARAMETERS: (The valid JSON object for that tool)`}
 
 **CRITICAL JSON RULE**: If a parameter value (like \`content\`) spans multiple lines, you MUST use backticks (\`) instead of double quotes for that value.
 **CRITICAL: NEVER MERGE THESE MARKERS. ALWAYS USE DOUBLE NEWLINES BETWEEN THEM.**
@@ -99,6 +96,7 @@ RULES:
 9. **MODULAR ARCHITECTURE**: For Express.js, ALWAYS use the feature-based modular structure (\`src/modules/<feature>\`) and follow the "Route -> Controller -> Service -> Model" flow.
 10. **NO PLACEHOLDERS**: Write FULL, working code. Never write files that only contain comments or imports.
 11. **NO SHELL**: Never use \`write_file\` to run shell commands (e.g., \`mkdir\`). It handles directory creation automatically.
+${fastMode ? `12. **FAST MODE**: Do NOT output any reasoning or thoughts before actions. Skip straight to ACTION and PARAMETERS.` : ''}
 `;
 }
 
@@ -294,13 +292,9 @@ function parseReply(rawText, isReview) {
   // New Stable Format: ACTION: name \n PARAMETERS: {json}
   // We use a more specific regex to avoid matching "PARAMETERS" if it appeared too close
   var actionMatch = raw.match(/(?:^|\n)ACTION:\s*([a-z_][\w_]*)/i);
-  var thoughtMatch = raw.match(/(?:^|\n)THOUGHT:\s*([\s\S]*?)(?=(?:\nACTION:)|(?:^ACTION:)|\nPARAMETERS:|(?:\n$|$))/i);
+  var thoughtMatch = raw.match(/(?:^|\n)THOUGHT:\s*([\s\S]*?)(?=(?:\n(?:\d+\.)?\*?\*?\s*ACTION:)|(?:^(?:\d+\.)?\*?\*?\s*ACTION:)|\n(?:\d+\.)?\*?\*?\s*PARAMETERS:|(?:\n$|$))/i);
 
-  // FIX 1: Scope JSON extraction to the PARAMETERS: block that belongs to the
-  // FIRST action only. Models like qwen2.5-coder output multiple ACTION blocks
-  // in one response; extracting from the full string hits the wrong brace pair.
-  // IMPROVED: Now also handles cases where models wrap parameters in markdown code blocks.
-  // Enforced beginning-of-line matching to prevent splitting inside string content.
+  // Scope JSON extraction to the PARAMETERS: block that belongs to the FIRST action.
   var paramSection = raw;
   var paramIdx = raw.search(/(?:^|\n)PARAMETERS:\s*(?:```json\s*)?\{/i);
   if (paramIdx !== -1) {
@@ -310,6 +304,11 @@ function parseReply(rawText, isReview) {
 
   var rawAction = actionMatch ? actionMatch[1].toLowerCase() : null;
   var thought = thoughtMatch ? thoughtMatch[1].trim() : '';
+
+  // Clean redundant prefixes left by aggressive sanitization
+  if (thought && thought.toUpperCase().startsWith('THOUGHT:')) {
+    thought = thought.replace(/^THOUGHT:\s*/i, '').trim();
+  }
 
   // 🔴 Hallucination Guard: If the sanitized text suggests merged markers were found
   // but there's no meaningful JSON payload, the model output was garbage.
@@ -736,7 +735,6 @@ async function runAgent(opts) {
     } else {
       console.log(rawText);
     }
-
     if (parsed.thought && onStep) {
       onStep({ type: 'thought', content: parsed.thought });
     }

@@ -169,86 +169,47 @@
     <main class="chat">
 
       <header class="chat-header">
+        <!-- Left: Branding + live model -->
         <div class="chat-header-left">
-          <h1 class="chat-title">MEAN Stack Developer Agent</h1>
+          <h1 class="chat-title">DevAgent</h1>
           <div class="chat-badge">
             <span class="badge-dot"></span>
-            {{ lmModel }}
-          </div>
-          
-          <!-- Unified Workspace Status -->
-          <div v-if="workspacePath" class="workspace-status-banner">
-            <div class="wcb-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-              </svg>
-            </div>
-            <div class="wcb-content">
-              <span class="wcb-label">{{ targetFolder ? 'Pinned Folder' : 'Workspace Root' }}</span>
-              <span class="wcb-path" :title="targetFolder || workspacePath">{{ targetFolder || workspacePath }}</span>
-              <button v-if="targetFolder" class="wcb-clear" @click="targetFolder = null" title="Unpin folder">✕</button>
-            </div>
-          </div>
-        </div>
-        <div class="chat-header-right">
-          <!-- Model Selector -->
-          <div class="model-selector" v-if="availableModels.length > 0">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-            <select id="model-select" v-model="selectedModel" class="model-select" :title="availableModels.find(m => m.id === selectedModel)?.description || ''">
+            <select v-if="availableModels.length > 0" id="model-select" v-model="selectedModel" class="model-select-inline" :title="availableModels.find(m => m.id === selectedModel)?.description || ''">
               <option v-for="m in availableModels" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
+            <span v-else>{{ lmModel }}</span>
           </div>
-          <div class="header-sep"></div>
-          <div class="mode-toggle">
-            <button class="mode-btn" :class="{ active: agentMode === 'generate' }" @click="agentMode = 'generate'">
-              🛠 Develop
-            </button>
-            <button class="mode-btn" :class="{ active: agentMode === 'review' }" @click="agentMode = 'review'">
-              🔍 Review
-            </button>
+        </div>
+
+        <!-- Right: Controls -->
+        <div class="chat-header-right">
+          <!-- Mode + Workflow pill group -->
+          <div class="header-pill-group">
+            <button class="pill-btn" :class="{ active: agentMode === 'generate' }" @click="agentMode = 'generate'" title="Develop Mode">🛠 Dev</button>
+            <button class="pill-btn" :class="{ active: agentMode === 'review' }" @click="agentMode = 'review'" title="Review Mode">🔍 Review</button>
           </div>
-          <div class="header-sep"></div>
-          <!-- Follow Review Toggle -->
-          <div class="follow-review-toggle" v-if="agentMode === 'generate'">
+
+          <!-- Follow Review toggle -->
+          <div class="follow-review-toggle" v-if="agentMode === 'generate'" title="Apply review suggestions automatically">
             <label class="switch">
               <input type="checkbox" v-model="followReview">
               <span class="slider round"></span>
             </label>
             <span class="follow-label">Follow Review</span>
           </div>
-          <div class="header-sep" v-if="agentMode === 'generate'"></div>
+
+          <!-- Stop (visible only while running) -->
           <button v-if="running" class="btn-stop" @click="stop">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-            </svg>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
             Stop
           </button>
-          <div class="header-sep"></div>
-          <div class="workflow-toggle">
-            <button 
-              class="workflow-btn" 
-              :class="{ active: agentWorkflow === 'update' }" 
-              @click="agentWorkflow = 'update'"
-              title="Update Existing Files"
-            >
-              Update
-            </button>
-            <button 
-              class="workflow-btn" 
-              :class="{ active: agentWorkflow === 'create' }" 
-              @click="agentWorkflow = 'create'"
-              title="Create New Project Structure"
-            >
-              New
-            </button>
-          </div>
-          <div class="header-sep"></div>
-          <button class="btn-outline" :disabled="browsing" @click="browseFolder">
-            <span v-if="browsing" class="spin-sm" style="margin-right:4px"></span>
-            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+          <!-- Browse Folder (icon only) -->
+          <button class="btn-icon" :disabled="browsing" @click="browseFolder" title="Browse Folder">
+            <span v-if="browsing" class="spin-sm"></span>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
             </svg>
-            {{ browsing ? 'Opening…' : 'Browse Folder' }}
           </button>
         </div>
       </header>
@@ -361,6 +322,14 @@
             @keydown.enter.shift.exact="input += '\n'"
             @input="resize"
           ></textarea>
+          <!-- Fast Mode Toggle -->
+          <div class="fast-mode-toggle input-fast-mode" v-if="agentMode === 'generate'" title="Skip THOUGHT step for faster generation">
+            <label class="switch">
+              <input type="checkbox" v-model="fastMode">
+              <span class="slider round slider-fast"></span>
+            </label>
+            <span class="follow-label">Fast Mode</span>
+          </div>
           <button class="continue-btn" :disabled="running" @click="handleContinue" title="Continue Generating">
             Continue
           </button>
@@ -412,7 +381,6 @@ const fbError      = ref('')
 const targetFolder = ref(null)
 const browsing     = ref(false)
 const agentMode    = ref('generate') // 'generate' or 'review'
-const agentWorkflow = ref('update')  // 'update' or 'create'
 const fbItems      = ref([])
 const currentPath  = ref('.')
 const selectedFile = ref(null)
@@ -517,6 +485,7 @@ const examples = [
   { icon: '🏥', label: 'Healthcare API',  sub: 'Patients, visits, reports',         prompt: 'Create a healthcare REST API with patient CRUD, JWT auth and Swagger docs' },
 ]
 const followReview    = ref(false)
+const fastMode        = ref(false)
 
 // ── Send message ──────────────────────────────────────────────────────────────
 async function send(text) {
@@ -525,7 +494,6 @@ async function send(text) {
   const tags = []
   if (targetFolder.value) tags.push(`[TARGET FOLDER: ${targetFolder.value}]`)
   if (agentMode.value)    tags.push(`[MODE: ${agentMode.value.toUpperCase()}]`)
-  if (agentWorkflow.value) tags.push(`[WORKFLOW: ${agentWorkflow.value.toUpperCase()}]`)
   if (followReview.value && agentMode.value === 'generate') tags.push(`[FOLLOW REVIEW]`)
   if (tags.length > 0 && msg) msg = `${tags.join(' ')} ${msg}`
 
@@ -569,7 +537,7 @@ async function send(text) {
     const res = await fetch('/api/agent/run', {
       method  : 'POST',
       headers : { 'Content-Type': 'application/json' },
-      body    : JSON.stringify({ messages: history, selectedModel: selectedModel.value || null }),
+      body    : JSON.stringify({ messages: history, selectedModel: selectedModel.value || null, fastMode: fastMode.value }),
       signal  : abort.signal
     })
 
@@ -1334,14 +1302,51 @@ textarea {
 /* ── Chat Header ─────────────────────────────────────────────────────────── */
 .chat-header {
   display: flex; align-items: center; justify-content: space-between;
-  height: 56px; padding: 0 24px;
+  height: auto; min-height: 52px; padding: 0 20px;
   background: var(--bg1);
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  flex-shrink: 0; gap: 12px;
 }
-.chat-header-left { display: flex; align-items: center; gap: 12px; }
-.chat-header-right { display: flex; align-items: center; gap: 8px; }
-.header-sep { width: 1px; height: 18px; background: var(--border2); margin: 0 4px; }
+.chat-header-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.chat-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* Pill group for Mode+Workflow */
+.header-pill-group {
+  display: flex; align-items: center; gap: 2px;
+  background: var(--bg2); padding: 3px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+}
+.pill-btn {
+  padding: 4px 10px; font-size: 11.5px; font-weight: 500;
+  color: var(--t2); border-radius: 5px;
+  transition: all 0.15s; cursor: pointer;
+}
+.pill-btn.active {
+  background: var(--bg4); color: var(--t0);
+  box-shadow: var(--shadow-sm); font-weight: 600;
+}
+.pill-btn:hover:not(.active) { color: var(--t1); background: var(--bg3); }
+.pill-sep { width: 1px; height: 14px; background: var(--border2); margin: 0 3px; }
+
+/* Model select inline in badge */
+.model-select-inline {
+  background: none; border: none; color: inherit;
+  font-size: 11px; font-weight: 500; font-family: var(--mono);
+  cursor: pointer; outline: none; padding: 0; max-width: 160px;
+}
+.model-select-inline option { background: var(--bg1); color: var(--t1); }
+
+/* Icon-only button */
+.btn-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  border: 1px solid var(--border2);
+  border-radius: var(--r-sm); color: var(--t2);
+  transition: all .15s;
+}
+.btn-icon:hover:not(:disabled) { background: var(--bg3); color: var(--t0); border-color: var(--border3); }
+.btn-icon:disabled { opacity: .4; cursor: not-allowed; }
 
 .chat-title {
   font-size: 15px; font-weight: 700; color: var(--t0);
@@ -1431,6 +1436,13 @@ input:checked + .slider {
 input:checked + .slider:before {
   transform: translateX(14px);
   background-color: var(--green);
+}
+input:checked + .slider.slider-fast {
+  background-color: rgba(255, 209, 102, 0.2);
+  border-color: var(--yellow);
+}
+input:checked + .slider.slider-fast:before {
+  background-color: var(--yellow);
 }
 .slider.round {
   border-radius: 34px;
@@ -1855,6 +1867,13 @@ input:checked + .slider:before {
   flex-shrink: 0;
 }
 .input-wrapper { display: flex; align-items: flex-end; gap: 10px; }
+
+.input-fast-mode {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; height: 50px; padding: 0 10px; background: var(--bg3);
+  border: 1px solid var(--border2); border-radius: var(--r); flex-shrink: 0;
+}
+.input-fast-mode .follow-label { font-size: 10px; margin-top: -2px; }
 
 .input-area textarea {
   flex: 1;
