@@ -428,6 +428,8 @@ async function callLMStudio(history, onChunk, signal, selectedModel) {
   const baseUrl = (process.env.LM_STUDIO_BASE_URL || 'http://localhost:1234').replace(/\/$/, '');
   const model = selectedModel || process.env.LM_STUDIO_MODEL || 'openai/gpt-oss-20b';
 
+  console.log(`[DevAgent] 📡 API call → ${baseUrl}/v1/chat/completions | model: "${model}"`);
+
   // Standard OpenAI messages format
   const messages = history.map(m => ({
     role: m.role,
@@ -622,6 +624,7 @@ async function runAgent(opts) {
   var onStep = opts.onStep;
   var signal = opts.signal;
   var selectedModel = opts.selectedModel || null;
+  var fastMode = !!opts.fastMode;
 
   // Determine mode and TARGET FOLDER from the LATEST user instruction
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
@@ -635,7 +638,7 @@ async function runAgent(opts) {
   if (targetMatch) {
     const targetPath = targetMatch[1].trim();
     if (targetPath && targetPath !== '.') {
-      const resolved = path.resolve(workspaceDir, targetPath.replace(/^[/\\]+/, ''));
+      const resolved = path.resolve(workspaceDir, targetPath.replace(/^[\/\\]+/, ''));
       // Safety: Only allow targeting subfolders of the original workspace
       if (resolved.toLowerCase().startsWith(workspaceDir.toLowerCase())) {
         effectiveWorkspaceDir = resolved;
@@ -647,7 +650,10 @@ async function runAgent(opts) {
     }
   }
 
-  const systemPrompt = getSystemPrompt(isReview, targetFolderName);
+  const resolvedModel = selectedModel || process.env.LM_STUDIO_MODEL || 'openai/gpt-oss-20b';
+  console.log(`[DevAgent] 🤖 Using model: "${resolvedModel}" | fastMode: ${fastMode}`);
+
+  const systemPrompt = getSystemPrompt(isReview, targetFolderName, fastMode);
 
   var MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
   var step = 0;
