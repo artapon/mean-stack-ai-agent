@@ -176,21 +176,17 @@
             {{ lmModel }}
           </div>
           
-          <!-- Workspace Confirmation Banner -->
-          <div v-if="workspacePath" class="workspace-confirm-banner" :class="{ confirmed: workspaceConfirmed }">
+          <!-- Unified Workspace Status -->
+          <div v-if="workspacePath" class="workspace-status-banner">
             <div class="wcb-icon">
-              <svg v-if="workspaceConfirmed" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
             </div>
             <div class="wcb-content">
-              <span class="wcb-label">{{ workspaceConfirmed ? 'Working in Workspace:' : 'Confirm Workspace Path:' }}</span>
-              <span class="wcb-path" :title="workspacePath">{{ workspacePath }}</span>
-            </div>
-            <button v-if="!workspaceConfirmed" class="wcb-btn" @click="workspaceConfirmed = true">
-              Confirm
-            </button>
-            <div v-else class="wcb-ok">
-              Confirmed
+              <span class="wcb-label">{{ targetFolder ? 'Pinned Folder' : 'Workspace Root' }}</span>
+              <span class="wcb-path" :title="targetFolder || workspacePath">{{ targetFolder || workspacePath }}</span>
+              <button v-if="targetFolder" class="wcb-clear" @click="targetFolder = null" title="Unpin folder">✕</button>
             </div>
           </div>
         </div>
@@ -205,7 +201,7 @@
           <div class="header-sep"></div>
           <div class="mode-toggle">
             <button class="mode-btn" :class="{ active: agentMode === 'generate' }" @click="agentMode = 'generate'">
-              🛠 Generate
+              🛠 Develop
             </button>
             <button class="mode-btn" :class="{ active: agentMode === 'review' }" @click="agentMode = 'review'">
               🔍 Review
@@ -227,6 +223,26 @@
             </svg>
             Stop
           </button>
+          <div class="header-sep"></div>
+          <div class="workflow-toggle">
+            <button 
+              class="workflow-btn" 
+              :class="{ active: agentWorkflow === 'update' }" 
+              @click="agentWorkflow = 'update'"
+              title="Update Existing Files"
+            >
+              Update
+            </button>
+            <button 
+              class="workflow-btn" 
+              :class="{ active: agentWorkflow === 'create' }" 
+              @click="agentWorkflow = 'create'"
+              title="Create New Project Structure"
+            >
+              New
+            </button>
+          </div>
+          <div class="header-sep"></div>
           <button class="btn-outline" :disabled="browsing" @click="browseFolder">
             <span v-if="browsing" class="spin-sm" style="margin-right:4px"></span>
             <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -236,35 +252,6 @@
           </button>
         </div>
       </header>
-
-      <!-- Target folder bar -->
-      <div v-if="targetFolder" class="target-bar">
-        <div class="target-info">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-          </svg>
-          <code>{{ targetFolder === '.' ? 'workspace root' : targetFolder }}</code>
-          <button class="target-clear" @click="targetFolder = null">✕</button>
-        </div>
-        <div class="workflow-toggle">
-          <button 
-            class="workflow-btn" 
-            :class="{ active: agentWorkflow === 'update' }" 
-            @click="agentWorkflow = 'update'"
-            title="Update Existing Files"
-          >
-            Update Project
-          </button>
-          <button 
-            class="workflow-btn" 
-            :class="{ active: agentWorkflow === 'create' }" 
-            @click="agentWorkflow = 'create'"
-            title="Create New Project Structure"
-          >
-             New Project
-          </button>
-        </div>
-      </div>
 
       <!-- Messages -->
       <div class="messages" ref="msgEl">
@@ -416,12 +403,7 @@ const inputEl  = ref(null)
 let   abort    = null
 
 // ── Workspace State ──
-// ── File Browser State ────────────────────────────────────────────────────────
 const workspacePath = ref('')
-const workspaceConfirmed = ref(false)
-const showWCBError = ref(false)
-
-// ── File Browser State ────────────────────────────────────────────────────────
 const fbLoading    = ref(false)
 const fbError      = ref('')
 const targetFolder = ref(null)
@@ -543,12 +525,6 @@ async function send(text) {
   if (agentWorkflow.value) tags.push(`[WORKFLOW: ${agentWorkflow.value.toUpperCase()}]`)
   if (followReview.value && agentMode.value === 'generate') tags.push(`[FOLLOW REVIEW]`)
   if (tags.length > 0 && msg) msg = `${tags.join(' ')} ${msg}`
-
-  if (!workspaceConfirmed.value) {
-    showWCBError.value = true
-    setTimeout(() => { showWCBError.value = false }, 3000)
-    return
-  }
 
   if (!msg || running.value) return
   input.value = ''
@@ -1857,78 +1833,41 @@ input:checked + .slider:before {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;
 }
 
-/* ── Workspace Confirmation Banner ── */
-.workspace-confirm-banner {
-  display: flex; align-items: center; gap: 12px;
-  padding: 4px 12px; margin-left: 12px;
-  background: rgba(255, 191, 0, 0.08);
-  border: 1px solid rgba(255, 191, 0, 0.2);
+/* ── Workspace Status Banner ── */
+.workspace-status-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 14px; margin-left: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
   border-radius: 30px;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s ease;
   max-width: 480px;
-}
-.workspace-confirm-banner.confirmed {
-  background: rgba(0, 255, 149, 0.06);
-  border-color: rgba(0, 255, 149, 0.25);
 }
 .wcb-icon {
   display: flex; align-items: center; justify-content: center;
   width: 20px; height: 20px;
   border-radius: 50%;
-  background: rgba(255, 191, 0, 0.15);
-  color: #ffbf00;
-  transition: all 0.3s;
-}
-.confirmed .wcb-icon {
-  background: rgba(0, 255, 149, 0.15);
-  color: #00ff95;
+  background: var(--bg3);
+  color: var(--accent);
 }
 .wcb-content {
-  display: flex; flex-direction: column;
+  display: flex; align-items: center; gap: 8px;
   overflow: hidden;
 }
 .wcb-label {
   font-size: 8px; font-weight: 800; color: var(--t3);
-  text-transform: uppercase; letter-spacing: 0.06em; line-height: 1;
-  margin-bottom: 2px;
+  text-transform: uppercase; letter-spacing: 0.06em; 
+  white-space: nowrap;
 }
 .wcb-path {
-  font-size: 11px; font-family: var(--mono); color: var(--t2);
+  font-size: 11px; font-family: var(--mono); color: var(--t1);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 320px;
 }
-.confirmed .wcb-path { color: var(--t1); }
-
-.wcb-btn {
-  background: #ffbf00;
-  color: #000;
-  border: none;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 11px; font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(255, 191, 0, 0.2);
+.wcb-clear {
+  background: transparent; border: none; padding: 2px 6px;
+  color: var(--t3); cursor: pointer; font-size: 10px;
+  transition: color 0.15s;
 }
-.wcb-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(255, 191, 0, 0.4);
-}
-.wcb-ok {
-  font-size: 10px; font-weight: 800; color: #00ff95;
-  padding: 4px 8px; text-transform: uppercase; letter-spacing: 0.05em;
-  animation: fadeIn 0.5s ease;
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
-}
-
-.workspace-confirm-banner.shake {
-  animation: shake 0.2s ease-in-out 0s 2;
-  border-color: var(--red) !important;
-  background: rgba(255, 107, 107, 0.1) !important;
-}
+.wcb-clear:hover { color: var(--red); }
 </style>

@@ -95,7 +95,7 @@ RULES:
 7. SECURITY: include helmet, cors, rate-limit, and JWT auth in all Express apps.
 8. **JSDoc 3.0**: You MUST include JSDoc 3.0 documentation (descriptions and @param tags) for EVERY method you generate.
 9. **WORKSPACE ADAPTATION**: Scan existing files to identify naming conventions (e.g., "kebab-case" vs "camelCase") and folder structures. Follow them exactly.
-10. **FLAT GENERATION**: If a "TARGET FOLDER" is active, do NOT create a redundant project subfolder. Put files directly in the target directory (use "flat: true" for scaffold_project).
+10. **FLAT GENERATION**: If a "TARGET FOLDER" is active, do NOT create a redundant project subfolder. Put files directly in the target directory (use "flat: true" for scaffold_project and STRIP folder prefixes from manual write_file paths).
 11. **ERROR RECOVERY**: If a tool returns an ERROR, you MUST change your parameters or approach. NEVER repeat the same failed tool call.
 12. **NO PLACEHOLDERS**: Write full, working code. Never say "Implementation goes here".
 13. **NO MERGED MARKERS**: Never concatenate markers (e.g., ACTIONETERS). Strictly use individual lines for THOUGHT:, ACTION:, and PARAMETERS:.
@@ -815,6 +815,49 @@ async function runAgent(opts) {
     var result;
     try {
       const p = parsed.parameters || {};
+
+      // ── DUPLICATION PREVENTION INTERCEPT ───────────────────────────────────
+      // If a specific target folder is pinned, we forcefully strip its name 
+      // from any paths the AI tries to write to, preventing redundant subfolders.
+      if (targetFolderName) {
+        if (action === 'scaffold_project') {
+          p.flat = true;
+        }
+
+        const stripPrefix = (filePath) => {
+          if (!filePath || typeof filePath !== 'string') return filePath;
+          const normalizedPath = filePath.replace(/\\/g, '/');
+          const normalizedTarget = targetFolderName.replace(/\\/g, '/');
+
+          if (normalizedPath === normalizedTarget) return '.';
+          const prefix = normalizedTarget + '/';
+          if (normalizedPath.startsWith(prefix)) {
+            return normalizedPath.substring(prefix.length);
+          }
+          return filePath;
+        };
+
+        ['path', 'file', 'filepath', 'filename', 'target'].forEach(key => {
+          if (p[key]) p[key] = stripPrefix(p[key]);
+        });
+
+        if ((action === 'bulk_write' || action === 'apply_blueprint') && Array.isArray(p.files)) {
+          p.files.forEach(f => {
+            ['path', 'file'].forEach(key => {
+              if (f[key]) f[key] = stripPrefix(f[key]);
+            });
+          });
+        }
+
+        if (action === 'apply_blueprint' && typeof p.content === 'string') {
+          const normalizedTarget = targetFolderName.replace(/\\/g, '/');
+          const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`(##\\s*)${escapeRegExp(normalizedTarget)}[/\\\\]`, 'g');
+          p.content = p.content.replace(regex, '$1');
+        }
+      }
+      // ───────────────────────────────────────────────────────────────────────
+
       const targetPath = p.path || p.file || (p.files ? `${p.files.length} files` : 'none');
       console.log(`[DevAgent] STEP ${step} | Executing: ${action} | Target: ${targetPath}`);
 
