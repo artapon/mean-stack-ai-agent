@@ -57,7 +57,7 @@ function getSystemPrompt(isReview, targetFolder) {
     .join('\n');
 
   return `${EXPERT_SKILLS ? EXPERT_SKILLS + '\n\n---\n\n' : ''}You are an expert MEAN Stack agentic AI developer.
-${isReview ? 'You are currently in REVIEW MODE. AUDIT the codebase. You are STRICTLY AUTHORIZED to use `write_file` ONLY for `review_report.md`. DO NOT modify any other files.' : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never just describe code.'}
+${isReview ? 'You are currently in REVIEW MODE. AUDIT the codebase. You are STRICTLY AUTHORIZED to use `write_file` ONLY for `walkthrough_review_report.md`. DO NOT modify any other files.' : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never just describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}" (Your tool calls will be relative to this folder)` : ''}
 
 TOOLS:
@@ -173,7 +173,6 @@ function extractJSON(raw) {
     }
   }
 
-  var end = raw.lastIndexOf('}');
   if (end === -1) {
     // If no closing brace, take everything until the end of the string (for truncated AI results)
     end = raw.length - 1;
@@ -262,18 +261,14 @@ function sanitizeRawReply(raw) {
   if (!raw) return '';
   return raw
     // 1. Force markers to own lines to help regex discovery. 
-    // We enforce that they start at the beginning of a line (or string) to avoid
-    // hitting the word inside user string blocks (like Swagger docs).
-    // FIX: Make the colon optional in the search but MANDATORY in the replacement.
-    // ADD: Support for bolded markdown markers like **Action** or **Action:**
-    .replace(/(?:^|\n)\**\s*(ACTION|PARAMETERS|THOUGHT)\s*\**\s*(?:[:\s]+)?/gi, (m, p1) => `\n\n${p1.toUpperCase()}: `)
+    // FIX: Support numbered lists (1. THOUGHT, 2. ACTION, etc) and anchored matching.
+    .replace(/(?:^|\n)(?:\d+\.)?\*?\*?\s*(ACTION|PARAMETERS|THOUGHT)\s*\*?\*?\s*(?:[:\s]+)?/gi, (m, p1) => `\n\n${p1.toUpperCase()}: `)
 
     // Handle Markdown Header variants: ### Action:, ### Parameters:, etc.
     .replace(/(?:^|\n)###\s*(ACTION|PARAMETERS|THOUGHT)[:\s]*/gi, (m, p1) => `\n\n${p1.toUpperCase()}: `)
 
 
     // 2. Fix variants of merged markers (ACTIONMETERS, ACTIONETERS, etc.)
-    // FIX: Make the match non-greedy/specific to prevent overlapping with previous markers
     .replace(/(?:^|\n)ACTION[A-Z]*METERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
     .replace(/(?:^|\n)ACTION[A-Z]*AMETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
     .replace(/(?:^|\n)ACTION[A-Z]*ETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
@@ -574,9 +569,9 @@ function summariseResult(action, params, result, isReview) {
   }
 
   if (action === 'write_file') {
-    var isPlan = (params.path || '').endsWith('implementation.md');
+    var isPlan = (params.path || '').endsWith('walkthrough.md');
     var nudge = isReview ? 'Analyze the changes and continue your review.' :
-      (isPlan ? '🟢 **DOCUMENTATION SAVED. YOU MAY NOW FINISH.**' : 'CONTINUE to next file or FINISH by writing implementation.md to the project root.');
+      (isPlan ? '🟢 **DOCUMENTATION SAVED. YOU MAY NOW FINISH.**' : 'CONTINUE to next file or FINISH by writing walkthrough.md to the project root.');
     return '### ✍️ File Updated\n' +
       'File **' + (params.path || '') + '** written successfully.\n\n' + nudge;
   }
@@ -595,7 +590,7 @@ function summariseResult(action, params, result, isReview) {
   if (action === 'bulk_read') {
     var results = (result && result.results) ? result.results : [];
     var count = results.filter(function (r) { return r.success; }).length;
-    var nudge = isReview ? 'Retrieved **' + count + '** files. ANALYZE context and PROVIDE ADVICE now.' : 'Retrieved **' + count + '** files. ANALYZE context and UPDATE implementation.md now.';
+    var nudge = isReview ? 'Retrieved **' + count + '** files. ANALYZE context and PROVIDE ADVICE now.' : 'Retrieved **' + count + '** files. ANALYZE context and UPDATE walkthrough.md now.';
     return '### 📚 Bulk Read Complete\n' + nudge;
   }
 
@@ -749,6 +744,7 @@ async function runAgent(opts) {
     // ── No action ─────────────────────────────────────────────────────────────
     if (!action) {
       console.warn('[DevAgent] No action detected. Forcing finish to avoid loop.');
+      logError('parse_warning', 'No action detected in model reply', { rawText });
       if (onStep) onStep({ type: 'response', content: rawText });
       return { success: true, response: rawText };
     }
