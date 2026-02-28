@@ -43,8 +43,21 @@ async function writeFile(params, workspaceDir) {
   if (!filePath) return { error: '"path" parameter is required.' };
 
   // Safety: Prevent writing suspicious placeholders or accidental empty files
-  if (contentStr.length < 10 && (contentStr.includes('...') || contentStr.includes('/*') || contentStr.trim() === '')) {
-    const msg = `Rejecting write to "${filePath}": Content is suspiciously empty or contains placeholders. Please provide the FULL file content.`;
+  const isPlaceholder = contentStr.includes('// Implementation goes here') ||
+    contentStr.includes('// TODO: Implement') ||
+    (contentStr.length < 15 && (contentStr.includes('...') || contentStr.trim() === ''));
+
+  if (isPlaceholder) {
+    const msg = `Rejecting write to "${filePath}": Content is suspiciously empty or contains placeholder text. You MUST provide the FULL, valid implementation for this file.`;
+    console.warn(`[DevAgent] ${msg}`);
+    return { error: msg };
+  }
+
+  // Safety: Prevent AI from creating misnamed architectural logic files (e.g. literally "controller.js" instead of "user.controller.js")
+  const basename = path.basename(filePath).toLowerCase();
+  const genericNames = ['controller.js', 'model.js', 'service.js', 'routes.js', 'validation.js', 'repository.js'];
+  if (genericNames.includes(basename)) {
+    const msg = `Rejecting write to "${filePath}": Invalid filename. You CANNOT name a file exactly "${basename}". You MUST use feature-based dot-notation (e.g., "patient.${basename}").`;
     console.warn(`[DevAgent] ${msg}`);
     return { error: msg };
   }
@@ -124,8 +137,20 @@ async function bulkWrite(params, workspaceDir) {
     }
 
     // Safety check for bulk write content
-    if (contentStr.length < 10 && (contentStr.includes('...') || contentStr.includes('/*') || contentStr.trim() === '')) {
-      results.push({ path: filePath, error: 'Suspiciously empty content or placeholders detected. Write aborted for this file.' });
+    const isPlaceholder = contentStr.includes('// Implementation goes here') ||
+      contentStr.includes('// TODO: Implement') ||
+      (contentStr.length < 15 && (contentStr.includes('...') || contentStr.trim() === ''));
+
+    if (isPlaceholder) {
+      results.push({ path: filePath, error: 'Suspiciously empty content or placeholder text detected. You MUST provide the FULL, valid implementation for this file. Write aborted.' });
+      continue;
+    }
+
+    // Safety: Prevent AI from creating misnamed architectural logic files
+    const basename = path.basename(filePath).toLowerCase();
+    const genericNames = ['controller.js', 'model.js', 'service.js', 'routes.js', 'validation.js', 'repository.js'];
+    if (genericNames.includes(basename)) {
+      results.push({ path: filePath, error: `Invalid filename. You CANNOT name a file exactly "${basename}". You MUST use feature-based dot-notation (e.g., "patient.${basename}"). Write aborted.` });
       continue;
     }
 

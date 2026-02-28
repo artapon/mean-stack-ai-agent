@@ -332,7 +332,7 @@
             <!-- Response text (Use throttled 'display' field during streaming to prevent hangs) -->
             <div v-if="msg.text" class="msg-bubble-container">
               <div v-if="msg.role === 'assistant' && !msg.streaming" class="msg-header-actions">
-                <button class="msg-copy-btn" title="Copy Message">Copy</button>
+                <button class="msg-action-btn copy-btn" title="Copy Message">Copy</button>
               </div>
               <div class="msg-bubble" :class="msg.role" v-html="md(msg.display || msg.text)"></div>
             </div>
@@ -361,6 +361,9 @@
             @keydown.enter.shift.exact="input += '\n'"
             @input="resize"
           ></textarea>
+          <button class="continue-btn" :disabled="running" @click="handleContinue" title="Continue Generating">
+            Continue
+          </button>
           <button class="send-btn" :disabled="!input.trim() || running" @click="submit">
             <span v-if="running" class="spin-sm light"></span>
             <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -600,6 +603,42 @@ async function send(text) {
 
 function submit() { send(input.value) }
 
+const WRITE_TOOLS = new Set(['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'])
+
+// Intelligent continue: Extracts the last directory the agent was working in before stopping
+function handleContinue() {
+  let contextTarget = '';
+  
+  // Backwards scan through messages to find the last assistant message with tool activity
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const msg = messages.value[i];
+    if (msg.role === 'assistant' && msg.activity && msg.activity.length > 0) {
+      // Backwards scan through the activities to find the last write action
+      for (let j = msg.activity.length - 1; j >= 0; j--) {
+        const act = msg.activity[j];
+        if (act.type === 'tool' && WRITE_TOOLS.has(act.tool) && act.detail) {
+          // act.detail is usually the file path (e.g., "src/modules/patient/patient.model.js")
+          const pathParts = act.detail.split(/[\/\\]/); // split by slash or backslash
+          if (pathParts.length > 1) {
+             pathParts.pop(); // Remove the filename
+             contextTarget = pathParts.join('/'); // Rejoin the directory path
+          }
+          break;
+        }
+      }
+    }
+    if (contextTarget) break;
+  }
+
+  let prompt = 'Please continue exactly where you left off. Do not repeat what you already wrote, just continue the code/text immediately from the cutoff point.';
+  
+  if (contextTarget) {
+    prompt = `[ACTIVE DIRECTORY Context: ${contextTarget}/] ${prompt} Note: You are currently working inside the ${contextTarget}/ directory. Ensure any new files you create are placed here unless specified otherwise.`;
+  }
+  
+  send(prompt);
+}
+
 async function stop() {
   if (abort) abort.abort()
   running.value = false
@@ -611,7 +650,6 @@ async function stop() {
 function clearChat() { messages.value = [] }
 
 // ── SSE event handler ─────────────────────────────────────────────────────────
-const WRITE_TOOLS = new Set(['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'])
 
 function applyEvent(ev, idx) {
   const msg = messages.value[idx]
@@ -653,13 +691,20 @@ function applyEvent(ev, idx) {
     if (inReview && ev.tool && WRITE_TOOLS.has(ev.tool)) return
     msg.activity = [...msg.activity, { type: 'error', text: `${ev.tool}: ${ev.error}` }]
   } else if (ev.type === 'response') {
-    // In review mode, append the summary instead of overwriting the detailed analysis
-    if (inReview && msg.text && !msg.text.includes(ev.content)) {
-      msg.text += '\n\n---\n\n' + ev.content
-    } else {
-      msg.text = ev.content
+    const hasWrittenDoc = msg.activity?.some(a => a.type === 'tool' && a.tool === 'write_file' && a.detail?.includes('implementation.md'));
+    
+    // Final sync
+    let finalContent = ev.content || '';
+    if (hasWrittenDoc && !finalContent.includes('✅')) {
+       finalContent += `\n\n---\n**✅ AI Generation Complete.** The \`implementation.md\` report has been successfully updated at the project root.`;
     }
-    msg.display = msg.text // Final sync
+
+    if (inReview && msg.text && !msg.text.includes(ev.content)) {
+      msg.text += '\n\n---\n\n' + finalContent
+    } else {
+      msg.text = finalContent
+    }
+    msg.display = msg.text 
     msg.status = null
   } else if (ev.type === 'error') {
     // Non-destructive error: Append the error to the message instead of wiping it.
@@ -749,7 +794,7 @@ onMounted(async () => {
 
   // Global Copy Logic: Handles both Thought callouts and Full Message bubbles
   window.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.thought-copy, .msg-copy-btn');
+    const btn = e.target.closest('.thought-copy, .copy-btn');
     if (!btn) return;
     
     let textToCopy = '';
@@ -757,7 +802,7 @@ onMounted(async () => {
     if (btn.classList.contains('thought-copy')) {
       const container = btn.closest('.thought-container');
       textToCopy = container?.querySelector('.thought-content')?.innerText || '';
-    } else if (btn.classList.contains('msg-copy-btn')) {
+    } else if (btn.classList.contains('copy-btn')) {
       const container = btn.closest('.msg-bubble-container');
       textToCopy = container?.querySelector('.msg-bubble')?.innerText || '';
     }
@@ -1655,26 +1700,26 @@ input:checked + .slider:before {
   display: flex; flex-direction: column; gap: 4px;
 }
 .msg-header-actions {
-  display: flex; justify-content: flex-end;
+  display: flex; justify-content: flex-end; gap: 6px;
   padding: 0 4px;
 }
-.msg-copy-btn {
+.msg-action-btn {
   background: transparent;
   border: none;
   color: var(--t3);
   font-size: 10px; font-weight: 700;
-  padding: 2px 6px; border-radius: 4px;
+  padding: 3px 8px; border-radius: 4px;
   cursor: pointer; transition: all 0.2s;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   opacity: 0.6;
 }
-.msg-copy-btn:hover {
+.msg-action-btn:hover {
   background: var(--bg3);
   color: var(--t1);
   opacity: 1;
 }
-.msg-copy-btn.active {
+.msg-action-btn.active {
   background: var(--green-dim);
   color: var(--green);
   opacity: 1;
@@ -1804,6 +1849,25 @@ input:checked + .slider:before {
 }
 .input-area textarea::placeholder { color: var(--t3); }
 .input-area textarea:disabled { opacity: .45; }
+
+.continue-btn {
+  height: 50px;
+  padding: 0 16px;
+  border-radius: var(--r);
+  background: var(--bg3);
+  color: var(--t1);
+  font-size: 14px; font-weight: 600; flex-shrink: 0;
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.continue-btn:hover:not(:disabled) {
+  background: var(--accent-glow);
+  color: var(--accent);
+  border-color: rgba(91,156,255,.4);
+}
+.continue-btn:active:not(:disabled) { transform: translateY(1px); }
+.continue-btn:disabled { opacity: .35; cursor: not-allowed; }
 
 .send-btn {
   width: 50px; height: 50px;

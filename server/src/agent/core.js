@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { readFile, writeFile, listFiles, bulkWrite, applyBlueprint, bulkRead, replaceInFile } = require('../tools/filesystem');
 const { scaffoldProject } = require('../tools/scaffolder');
+const { logError } = require('../utils/logger');
 
 
 // ── System prompt & Skills ─────────────────────────────────────────────────
@@ -69,6 +70,7 @@ TOOL CALL FORMAT (MANDATORY & RIGID):
 
 3. PARAMETERS: (The valid JSON object for that tool)
 
+**CRITICAL JSON RULE**: If a parameter value (like \`content\`) spans multiple lines, you MUST use backticks (\`) instead of double quotes for that value.
 **CRITICAL: NEVER MERGE THESE MARKERS. ALWAYS USE DOUBLE NEWLINES BETWEEN THEM.**
 
 FINISH FORMAT:
@@ -97,10 +99,11 @@ RULES:
 9. **WORKSPACE ADAPTATION**: Scan existing files to identify naming conventions (e.g., "kebab-case" vs "camelCase") and folder structures. Follow them exactly.
 10. **FLAT GENERATION**: If a "TARGET FOLDER" is active, do NOT create a redundant project subfolder. Put files directly in the target directory (use "flat: true" for scaffold_project and STRIP folder prefixes from manual write_file paths).
 11. **ERROR RECOVERY**: If a tool returns an ERROR, you MUST change your parameters or approach. NEVER repeat the same failed tool call.
-12. **NO PLACEHOLDERS**: Write full, working code. Never say "Implementation goes here".
+12. **NO PLACEHOLDERS & NO EMPTY FILES**: Write FULL, working code. Never write files that only contain imports, comments, or "// Implementation goes here".
 13. **NO MERGED MARKERS**: Never concatenate markers (e.g., ACTIONETERS). Strictly use individual lines for THOUGHT:, ACTION:, and PARAMETERS:.
 14. **NO PLACEHOLDER COMMENTS**: Never write files that only contain "// Implementation goes here" or similar. You MUST write full, working code.
-15. **MODULAR EXPRESS ARCHITECTURE**: For Express.js projects, ALWAYS use the feature-based modular structure (src/modules/<feature>) and follow the "Route -> Controller -> Service -> Repository" flow. Use dot notation for filenames (e.g., user.controller.js).
+15. **MODULAR EXPRESS ARCHITECTURE**: For Express.js projects, ALWAYS use the feature-based modular structure (src/modules/<feature>) and follow the "Route -> Controller -> Service -> Repository" flow. 
+    - **MANDATORY**: Use dot notation for ALL logic filenames (\`<feature>.controller.js\`, \`<feature>.model.js\`, \`<feature>.routes.js\`). NEVER create bare \`<feature>.js\` files for logic.
 `;
 }
 
@@ -150,19 +153,19 @@ function extractJSON(raw) {
   if (i === -1) return null;
 
   // ── String-aware brace balancing ─────────────────────────────────────────
-  var depth = 0, end = -1, inQuote = null; // null, '"' or "'"
+  var depth = 0, end = -1, inQuote = null; // null, '"', "'" or '`'
   for (var j = i; j < raw.length; j++) {
     var c = raw[j];
 
     // Handle Escapes
     if (c === '\\') { j++; continue; }
 
-    // Handle Strings (Both " and ')
+    // Handle Strings (Both ", ', and `)
     if (inQuote) {
       if (c === inQuote) inQuote = null;
       continue;
     }
-    if (c === '"' || c === "'") {
+    if (c === '"' || c === "'" || c === '`') {
       inQuote = c;
       continue;
     }
@@ -195,6 +198,44 @@ function extractJSON(raw) {
     return JSON.parse(fixed);
   } catch (_) { }
 
+  // Strategy 4: Safely extract multiline `content` fields. The AI often fails to escape 
+  // newlines or embeds markdown \`\`\` wrappers inside the JSON string.
+  try {
+    const pathMatch = candidate.match(/"?path"?\s*:\s*['"]([^'"]+)['"]/);
+    if (pathMatch) {
+      const contentIndex = candidate.indexOf('"content"');
+      if (contentIndex !== -1) {
+        const colonIndex = candidate.indexOf(':', contentIndex);
+        if (colonIndex !== -1) {
+          let contentStr = candidate.slice(colonIndex + 1).trim();
+          let extractedContent = null;
+
+          // Case A: content: ```javascript \n code \n ```
+          const mdMatch = contentStr.match(/^```(?:[a-z]*)\n([\s\S]*?)```/i);
+          if (mdMatch) {
+            extractedContent = mdMatch[1];
+          } else {
+            // Case B: content: " \n raw unescaped code \n " or ` \n code \n `
+            // Match anything inside the first quote/backtick until the last quote/backtick before a } or ,
+            const rawMatch = contentStr.match(/^["'`][\s\S]*?["'`]\s*(?:,|})/);
+            if (rawMatch) {
+              // Extract the inner content by stripping the first and last quote-like character
+              const matchedStr = rawMatch[0].trim().replace(/,$/, '').replace(/}$/, '').trim();
+              extractedContent = matchedStr.slice(1, -1);
+            }
+          }
+
+          if (extractedContent !== null) {
+            return {
+              path: pathMatch[1],
+              content: extractedContent
+            };
+          }
+        }
+      }
+    }
+  } catch (_) { }
+
   return null;
 }
 
@@ -203,16 +244,21 @@ function extractJSON(raw) {
 function sanitizeRawReply(raw) {
   if (!raw) return '';
   return raw
-    // 1. Force markers to own lines to help regex discovery
-    .replace(/(ACTION|PARAMETERS|THOUGHT):\s*/gi, (m) => `\n\n${m.toUpperCase()} `)
+    // 1. Force markers to own lines to help regex discovery. 
+    // We enforce that they start at the beginning of a line (or string) to avoid
+    // hitting the word inside user string blocks (like Swagger docs).
+    .replace(/(?:^|\n)(ACTION|PARAMETERS|THOUGHT):\s*/gi, (m, p1) => `\n\n${p1.toUpperCase()} `)
+
+    // Handle Markdown Header variants: ### Action:, ### Parameters:, etc.
+    .replace(/(?:^|\n)###\s*(ACTION|PARAMETERS|THOUGHT)[:\s]*/gi, (m, p1) => `\n\n${p1.toUpperCase()} `)
 
     // 2. Fix variants of merged markers (ACTIONMETERS, ACTIONETERS, etc.)
-    .replace(/ACTION[A-Z]*METERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
-    .replace(/ACTION[A-Z]*AMETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
-    .replace(/ACTION[A-Z]*ETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
-    .replace(/ACTIONPARAMETERS:/gi, '\n\nACTION: \n\nPARAMETERS:')
-    .replace(/THOUGHTACTION:/gi, 'THOUGHT: \n\nACTION:')
-    .replace(/THOUGHTPARAMETERS:/gi, 'THOUGHT: \n\nPARAMETERS:')
+    .replace(/(?:^|\n)ACTION[A-Z]*METERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
+    .replace(/(?:^|\n)ACTION[A-Z]*AMETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
+    .replace(/(?:^|\n)ACTION[A-Z]*ETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
+    .replace(/(?:^|\n)ACTIONPARAMETERS:/gi, '\n\nACTION: \n\nPARAMETERS:')
+    .replace(/(?:^|\n)THOUGHTACTION:/gi, 'THOUGHT: \n\nACTION:')
+    .replace(/(?:^|\n)THOUGHTPARAMETERS:/gi, 'THOUGHT: \n\nPARAMETERS:')
 
     // 3. Cleanup spacing
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
@@ -226,15 +272,16 @@ function parseReply(rawText, isReview) {
 
   // New Stable Format: ACTION: name \n PARAMETERS: {json}
   // We use a more specific regex to avoid matching "PARAMETERS" if it appeared too close
-  var actionMatch = raw.match(/ACTION:\s*([a-z_][\w_]*)/i);
-  var thoughtMatch = raw.match(/THOUGHT:\s*([\s\S]*?)(?=ACTION:|$)/i);
+  var actionMatch = raw.match(/(?:^|\n)ACTION:\s*([a-z_][\w_]*)/i);
+  var thoughtMatch = raw.match(/(?:^|\n)THOUGHT:\s*([\s\S]*?)(?=(?:\nACTION:)|(?:^ACTION:)|\nPARAMETERS:|(?:\n$|$))/i);
 
   // FIX 1: Scope JSON extraction to the PARAMETERS: block that belongs to the
   // FIRST action only. Models like qwen2.5-coder output multiple ACTION blocks
   // in one response; extracting from the full string hits the wrong brace pair.
   // IMPROVED: Now also handles cases where models wrap parameters in markdown code blocks.
+  // Enforced beginning-of-line matching to prevent splitting inside string content.
   var paramSection = raw;
-  var paramIdx = raw.search(/PARAMETERS:\s*(?:```json\s*)?\{/i);
+  var paramIdx = raw.search(/(?:^|\n)PARAMETERS:\s*(?:```json\s*)?\{/i);
   if (paramIdx !== -1) {
     paramSection = raw.slice(paramIdx);
   }
@@ -309,6 +356,7 @@ function parseReply(rawText, isReview) {
   if (action) {
     if (!json && raw.toLowerCase().includes('parameters:')) {
       console.warn(`[DevAgent] ⚠️ ACTION "${action}" detected but PARAMETERS: JSON is unparseable.`);
+      logError('parse_error', `JSON is unparseable for action "${action}"`, { rawBuffer: raw });
       return {
         action: 'chain_error',
         error: `I found ACTION: "${action}" but your PARAMETERS: block is not valid JSON. Please provide valid JSON using double quotes for keys and strings. Example: PARAMETERS: { "path": "index.js", "content": "..." }`,
@@ -330,6 +378,7 @@ function parseReply(rawText, isReview) {
   // Skip this check in Review mode, where the model is encouraged to show snippets.
   // Also only trigger if there's NO action (if model said ACTION: it's not orphaned)
   if (raw.includes('```') && !action && !isReview && !raw.includes('ACTION:')) {
+    logError('chain_error', 'Orphaned code block detected without tool call', { rawBuffer: raw });
     return {
       action: 'chain_error',
       error: 'You output a markdown code block but DID NOT use a tool (write_file/replace_in_file). STRICTLY use tools to modify the filesystem. Never just output code in text.',
@@ -501,7 +550,7 @@ function summariseResult(action, params, result, isReview) {
   if (action === 'write_file') {
     var isPlan = (params.path || '').endsWith('implementation.md');
     var nudge = isReview ? 'Analyze the changes and continue your review.' :
-      (isPlan ? '🟢 **PLAN UPDATED. PROCEED IMMEDIATELY TO IMPLEMENTATION PHASE (surgical edits). DO NOT STOP.**' : 'CONTINUE to next file or FINISH if task is complete.');
+      (isPlan ? '🟢 **DOCUMENTATION SAVED. YOU MAY NOW FINISH.**' : 'CONTINUE to next file or FINISH by writing implementation.md to the project root.');
     return '### ✍️ File Updated\n' +
       'File **' + (params.path || '') + '** written successfully.\n\n' + nudge;
   }
@@ -694,13 +743,14 @@ async function runAgent(opts) {
     };
 
     var actionSig = action + '|' + normalizeParams(parsed.parameters);
-    if (actionSig === lastActionSig) {
+    if (actionSig === lastActionSig && action !== 'chain_error') {
       lastActionRepeat++;
       console.warn(`[DevAgent] ⚠️ Duplicate action detected (${lastActionRepeat}/3): ${action}`);
       if (lastActionRepeat >= 3) {
         var loopErr = `Agent stuck in a loop: "${action}" repeated 3 times with functionally identical parameters.`;
         var advice = `You are repeating the same ${action} call with identical content. This usually happens if you are using placeholders or waiting for a state change that hasn't happened. CHANGE your approach, provide ACTUAL content, or call finish if you are stuck.`;
         console.error('[DevAgent] 🔴 Loop guard triggered:', loopErr);
+        logError('loop_guard', loopErr, { action, actionSig });
         if (onStep) onStep({ type: 'error', message: loopErr });
         history.push({ role: 'user', content: `⚠️ **Error: Loop Detected**\n\n${loopErr}\n\n**ADVICE**: ${advice}` });
         // We give it one LAST chance with the advice nudge before hard-crashing if it repeats a 4th time
@@ -742,12 +792,29 @@ async function runAgent(opts) {
           !c.includes('implementation.md');
       });
 
+      const hasWrittenPlan = history.some(function (m) {
+        var c = (m.content || '').toLowerCase();
+        return m.role === 'user' && c.includes('tool result') &&
+          c.includes('write_file') && c.includes('implementation.md');
+      });
+
       const isEmptyFinish = (parsed.response || '').trim().length <= 50;
-      if (isUpdateTask && !hasModifiedCode && isEmptyFinish && step < 10 && !isReview) {
-        console.warn('[DevAgent] ⚠️ Premature finish detected in GENERATE/UPDATE mode. Nudging agent to CONTINUE.');
-        const nudge = "You are in an UPDATE/GENERATE task but haven't modified any source code files yet. PROCEED TO IMPLEMENTATION (surgical edits). DO NOT FINISH yet.";
-        history.push({ role: 'user', content: nudge });
-        continue;
+
+      // Prevent finishing if they haven't written code OR if they forgot to document it (if early in loop)
+      if (isUpdateTask && (!hasModifiedCode || !hasWrittenPlan) && step < 10 && !isReview) {
+        console.warn('[DevAgent] ⚠️ Premature finish detected. Nudging agent to CONTINUE.');
+        let nudge = '';
+        if (!hasModifiedCode) {
+          nudge = "You haven't modified any source code files yet. PROCEED TO IMPLEMENTATION (surgical edits). DO NOT FINISH yet.";
+        } else if (!hasWrittenPlan) {
+          nudge = "You haven't written the `implementation.md` summary to the project root yet. DO THIS NOW before finishing.";
+        }
+
+        if (nudge) {
+          history.push({ role: 'user', content: nudge });
+          if (onStep) onStep({ type: 'error', message: `Premature finish detected. Nudging: ${nudge}` });
+          continue;
+        }
       }
 
       // 🟢 REVIEW PERSISTENCE GUARD: Force report writing before finishing
@@ -777,6 +844,7 @@ async function runAgent(opts) {
     if (!toolFn) {
       var errMsg = `Unknown tool "${action}". Available: ${Object.keys(TOOLS).join(', ')}`;
       console.error('[DevAgent] Tool error:', errMsg);
+      logError('tool_error', errMsg, { action, parameters: parsed.parameters });
       if (onStep) onStep({ type: 'tool_error', tool: action, error: errMsg });
       history.push({ role: 'user', content: 'Error: ' + errMsg });
       continue;
@@ -877,6 +945,7 @@ async function runAgent(opts) {
       if (onStep) onStep({ type: 'tool_result', tool: action, result: result });
     } catch (toolErr) {
       console.error(`[DevAgent] ${action} failed:`, toolErr.message);
+      logError('tool_execution_error', toolErr.message, { action, parameters: parsed.parameters });
       result = { error: toolErr.message };
       if (onStep) onStep({ type: 'tool_error', tool: action, error: toolErr.message });
     }
