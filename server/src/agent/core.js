@@ -90,14 +90,17 @@ RULES:
 2. ALWAYS use tools to create/edit files in GENERATE mode. Never output code blocks in text.
 3. STRUCTURE: Always use headers (###), lists (-), and double newlines (\\n\\n) to ensure your responses are readable and well-formatted. Avoid long walls of text.
 4. PLAN-THEN-BUILD: In GENERATE mode, update implementation.md first, then IMPLEMENT.
-5. MANDATORY CHAINING: In GENERATE mode, you MUST NOT call "finish" until implementation is complete.
+5. **MANDATORY CHAINING**: In GENERATE mode, you MUST NOT call "finish" until implementation of ALL files in your plan is complete. Sequential writing (one file at a time) is required, but you **MUST NOT STOP** after just one file if more are listed in your plan.
 6. COMPLETE FILES: write full file contents — no placeholders.
 7. SECURITY: include helmet, cors, rate-limit, and JWT auth in all Express apps.
 8. **JSDoc 3.0**: You MUST include JSDoc 3.0 documentation (descriptions and @param tags) for EVERY method you generate.
-9. **ERROR RECOVERY**: If a tool returns an ERROR, you MUST change your parameters or approach. NEVER repeat the same failed tool call.
-10. **NO PLACEHOLDERS**: Write full, working code. Never say "Implementation goes here".
-11. **NO MERGED MARKERS**: Never concatenate markers (e.g., ACTIONETERS). Strictly use individual lines for THOUGHT:, ACTION:, and PARAMETERS:.
-12. **NO PLACEHOLDER COMMENTS**: Never write files that only contain "// Implementation goes here" or similar. You MUST write full, working code.
+9. **WORKSPACE ADAPTATION**: Scan existing files to identify naming conventions (e.g., "kebab-case" vs "camelCase") and folder structures. Follow them exactly.
+10. **FLAT GENERATION**: If a "TARGET FOLDER" is active, do NOT create a redundant project subfolder. Put files directly in the target directory (use "flat: true" for scaffold_project).
+11. **ERROR RECOVERY**: If a tool returns an ERROR, you MUST change your parameters or approach. NEVER repeat the same failed tool call.
+12. **NO PLACEHOLDERS**: Write full, working code. Never say "Implementation goes here".
+13. **NO MERGED MARKERS**: Never concatenate markers (e.g., ACTIONETERS). Strictly use individual lines for THOUGHT:, ACTION:, and PARAMETERS:.
+14. **NO PLACEHOLDER COMMENTS**: Never write files that only contain "// Implementation goes here" or similar. You MUST write full, working code.
+15. **MODULAR EXPRESS ARCHITECTURE**: For Express.js projects, ALWAYS use the feature-based modular structure (src/modules/<feature>) and follow the "Route -> Controller -> Service -> Repository" flow. Use dot notation for filenames (e.g., user.controller.js).
 `;
 }
 
@@ -137,6 +140,9 @@ function extractReply(data) {
 //   2. vm.runInNewContext – handles JS object literals with unquoted keys,
 //      single-quoted strings, trailing commas (qwen2.5 style output)
 //   3. Trailing-comma fixup + JSON.parse
+// ── Extract brace-balanced JSON from raw string ───────────────────────────────
+// Uses a string-aware brace counter (supports " and ') so that } inside strings
+// doesn't prematurely end extraction. Handles escaped quotes.
 function extractJSON(raw) {
   if (!raw) return null;
 
@@ -144,17 +150,29 @@ function extractJSON(raw) {
   if (i === -1) return null;
 
   // ── String-aware brace balancing ─────────────────────────────────────────
-  var depth = 0, end = -1, inString = false;
+  var depth = 0, end = -1, inQuote = null; // null, '"' or "'"
   for (var j = i; j < raw.length; j++) {
     var c = raw[j];
-    if (inString) {
-      if (c === '\\') { j++; continue; }   // skip escaped char
-      if (c === '"') { inString = false; }
+
+    // Handle Escapes
+    if (c === '\\') { j++; continue; }
+
+    // Handle Strings (Both " and ')
+    if (inQuote) {
+      if (c === inQuote) inQuote = null;
       continue;
     }
-    if (c === '"') { inString = true; continue; }
+    if (c === '"' || c === "'") {
+      inQuote = c;
+      continue;
+    }
+
+    // Handle Braces
     if (c === '{') depth++;
-    if (c === '}') { depth--; if (depth === 0) { end = j; break; } }
+    if (c === '}') {
+      depth--;
+      if (depth === 0) { end = j; break; }
+    }
   }
 
   if (end === -1) return null;
@@ -165,14 +183,13 @@ function extractJSON(raw) {
 
   // Strategy 2: relaxed JS object literal via vm sandbox
   // Handles unquoted keys, single-quoted strings, trailing commas.
-  // vm.runInNewContext is a built-in Node module – no extra deps needed.
   try {
     var vm = require('vm');
     var result = vm.runInNewContext('(' + candidate + ')', Object.create(null));
     if (result && typeof result === 'object') return result;
   } catch (_) { }
 
-  // Strategy 3: strip trailing commas then retry JSON.parse
+  // Strategy 3: strip trailing commas or other minor junk then retry JSON.parse
   try {
     var fixed = candidate.replace(/,(\s*[}\]])/g, '$1');
     return JSON.parse(fixed);
@@ -186,22 +203,20 @@ function extractJSON(raw) {
 function sanitizeRawReply(raw) {
   if (!raw) return '';
   return raw
-    // 1. First, split THOUGHT from ACTION if merged (THOUGHTACTION: -> THOUGHT: \n ACTION:)
+    // 1. Force markers to own lines to help regex discovery
+    .replace(/(ACTION|PARAMETERS|THOUGHT):\s*/gi, (m) => `\n\n${m.toUpperCase()} `)
+
+    // 2. Fix variants of merged markers (ACTIONMETERS, ACTIONETERS, etc.)
+    .replace(/ACTION[A-Z]*METERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
+    .replace(/ACTION[A-Z]*AMETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
+    .replace(/ACTION[A-Z]*ETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS:')
+    .replace(/ACTIONPARAMETERS:/gi, '\n\nACTION: \n\nPARAMETERS:')
     .replace(/THOUGHTACTION:/gi, 'THOUGHT: \n\nACTION:')
     .replace(/THOUGHTPARAMETERS:/gi, 'THOUGHT: \n\nPARAMETERS:')
 
-    // 2. Fix variants of merged ACTION/PARAMETERS (ACTIONMETERS, ACTIONETERS, etc.)
-    // We replace the merged mess with a distinct marker pair on new lines.
-    // Use a unique placeholder to avoid the "PARAMETERS" action name bug
-    .replace(/ACTION[A-Z]*METERS:[A-Z:]*/gi, 'ACTION: \n\nPARAMETERS:')
-    .replace(/ACTION[A-Z]*AMETERS:[A-Z:]*/gi, 'ACTION: \n\nPARAMETERS:')
-    .replace(/ACTION[A-Z]*ETERS:[A-Z:]*/gi, 'ACTION: \n\nPARAMETERS:')
-    .replace(/ACTIONPARAMETERS:/gi, 'ACTION: \n\nPARAMETERS:')
-
-    // 3. Ensure markers are on their own lines
-    .replace(/([a-z0-9])ACTION:/gi, '$1\n\nACTION:')
-    .replace(/([a-z0-9])PARAMETERS:/gi, '$1\n\nPARAMETERS:')
-    .replace(/([a-z0-9])THOUGHT:/gi, '$1\n\nTHOUGHT:');
+    // 3. Cleanup spacing
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
+    .trim();
 }
 
 // ── Parse full reply → { action, parameters, response, thought } ─────────────
@@ -292,6 +307,14 @@ function parseReply(rawText, isReview) {
   }
 
   if (action) {
+    if (!json && raw.toLowerCase().includes('parameters:')) {
+      console.warn(`[DevAgent] ⚠️ ACTION "${action}" detected but PARAMETERS: JSON is unparseable.`);
+      return {
+        action: 'chain_error',
+        error: `I found ACTION: "${action}" but your PARAMETERS: block is not valid JSON. Please provide valid JSON using double quotes for keys and strings. Example: PARAMETERS: { "path": "index.js", "content": "..." }`,
+        thought: thought || 'Detected unparseable parameters.'
+      };
+    }
     return { action, parameters: json || {}, thought };
   }
 
@@ -548,7 +571,9 @@ async function runAgent(opts) {
       if (resolved.toLowerCase().startsWith(workspaceDir.toLowerCase())) {
         effectiveWorkspaceDir = resolved;
         targetFolderName = targetPath;
-        console.log(`[DevAgent] 📍 TARGET FOLDER DETECTED: "${targetPath}". Workspace relocated.`);
+        console.log('\n' + '━'.repeat(60));
+        console.log(`[DevAgent] 📍 TARGET FOLDER DETECTED: "${targetPath}"`);
+        console.log('━'.repeat(60) + '\n');
       }
     }
   }
@@ -704,18 +729,21 @@ async function runAgent(opts) {
       // blocking legitimate finishes and creating a secondary loop.
       const isUpdateTask = history.some(function (m) {
         var c = (m.content || '').toLowerCase();
-        return m.role === 'user' && (c.includes('generate') || c.includes('update') || c.includes('modify') || c.includes('fix') || c.includes('add'));
+        return m.role === 'user' && (
+          c.includes('generate') || c.includes('update') || c.includes('modify') ||
+          c.includes('fix') || c.includes('add') || c.includes('[workflow: update]')
+        );
       });
 
       const hasModifiedCode = history.some(function (m) {
         var c = (m.content || '').toLowerCase();
         return m.role === 'user' && c.includes('tool result') &&
-          (c.includes('write_file') || c.includes('replace_in_file') || c.includes('bulk_write')) &&
+          (c.includes('write_file') || c.includes('replace_in_file') || c.includes('bulk_write') || c.includes('apply_blueprint')) &&
           !c.includes('implementation.md');
       });
 
       const isEmptyFinish = (parsed.response || '').trim().length <= 50;
-      if (isUpdateTask && !hasModifiedCode && isEmptyFinish && step < 3 && !isReview) {
+      if (isUpdateTask && !hasModifiedCode && isEmptyFinish && step < 10 && !isReview) {
         console.warn('[DevAgent] ⚠️ Premature finish detected in GENERATE/UPDATE mode. Nudging agent to CONTINUE.');
         const nudge = "You are in an UPDATE/GENERATE task but haven't modified any source code files yet. PROCEED TO IMPLEMENTATION (surgical edits). DO NOT FINISH yet.";
         history.push({ role: 'user', content: nudge });
@@ -731,9 +759,9 @@ async function runAgent(opts) {
 
         if (!hasSavedReport) {
           console.warn('[DevAgent] ⚠️ Review report not found in history. Nudging agent to PERSIST.');
-          const nudge = "MANDATORY: You must save your audit findings to `review_report.md` using `write_file` BEFORE calling finish. Do this now.";
+          const nudge = "MANDATORY: You must save your audit findings to `review_report.md` using `write_file` BEFORE calling finish. Include two sections: `## AGENT Reasoning` and `## Summary`. Do this now.";
           history.push({ role: 'user', content: nudge });
-          if (onStep) onStep({ type: 'error', message: "Review report not saved yet. Persist findings first." });
+          if (onStep) onStep({ type: 'error', message: "Review report not saved yet. Persist Reasoning and Summary first." });
           continue;
         }
       }
@@ -786,12 +814,15 @@ async function runAgent(opts) {
 
     var result;
     try {
-      console.log(`[DevAgent] STEP ${step} | Executing: ${action}...`);
-      if (action === 'write_file' && ((parsed.parameters || {}).path || (parsed.parameters || {}).file || '').toLowerCase().includes('review_report.md')) {
-        const reportPath = path.resolve(effectiveWorkspaceDir, ((parsed.parameters || {}).path || (parsed.parameters || {}).file).replace(/^[/\\]+/, ''));
+      const p = parsed.parameters || {};
+      const targetPath = p.path || p.file || (p.files ? `${p.files.length} files` : 'none');
+      console.log(`[DevAgent] STEP ${step} | Executing: ${action} | Target: ${targetPath}`);
+
+      if (action === 'write_file' && (targetPath.toLowerCase().includes('review_report.md'))) {
+        const reportPath = path.resolve(effectiveWorkspaceDir, (p.path || p.file).replace(/^[/\\]+/, ''));
         console.log(`[DevAgent] 📝 SAVING REVIEW REPORT TO: ${reportPath}`);
       }
-      result = await toolFn(parsed.parameters || {}, effectiveWorkspaceDir);
+      result = await toolFn(p, effectiveWorkspaceDir);
 
       // ── Specific Debug Logging for list_files ──────────────────────────────
       if (action === 'list_files' && result.filesList) {

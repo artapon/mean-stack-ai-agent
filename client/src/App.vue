@@ -67,7 +67,7 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
           </svg>
-          Project Files
+          Workspace
         </div>
         <div class="fb-actions">
           <button class="icon-btn" @click="loadFiles" :disabled="fbLoading" title="Refresh">
@@ -83,13 +83,17 @@
         <button class="fb-crumb home" @click="navigateTo('.')">🏠</button>
         <template v-for="(seg, i) in pathSegments" :key="i">
           <span class="fb-sep">›</span>
-          <button class="fb-crumb" @click="navigateTo(pathSegments.slice(0, i+1).join('/'))">{{ seg }}</button>
+          <div class="fb-crumb-wrap" :class="{ pinned: targetFolder === pathSegments.slice(0, i+1).join('/') }">
+            <button class="fb-crumb" @click="navigateTo(pathSegments.slice(0, i+1).join('/'))">{{ seg }}</button>
+            <button class="fb-crumb-pin" @click.stop="setTargetFolder(pathSegments.slice(0, i+1).join('/'))" title="Pin this folder">📌</button>
+          </div>
         </template>
         <button
-          class="fb-pin-btn"
+          v-if="currentPath !== '.'"
+          class="fb-pin-btn-top"
           :class="{ pinned: targetFolder === currentPath }"
           @click="setTargetFolder(currentPath)"
-          :title="targetFolder === currentPath ? 'Unpin target folder' : 'Pin as target folder'"
+          :title="targetFolder === currentPath ? 'Unpin current folder' : 'Pin current folder'"
         >
           {{ targetFolder === currentPath ? '📌 Pinned' : '📌 Pin' }}
         </button>
@@ -112,12 +116,21 @@
         <div
           v-for="item in fbFolders" :key="item.name"
           class="fb-item fb-dir"
+          :class="{ pinned: targetFolder === item.path }"
           @click="navigateTo(item.path)"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
           </svg>
           <span class="fb-name">{{ item.name }}</span>
+          <button 
+            class="fb-item-pin" 
+            :class="{ active: targetFolder === item.path }"
+            @click.stop="setTargetFolder(item.path)" 
+            :title="targetFolder === item.path ? 'Unpin folder' : 'Pin folder'"
+          >
+            📌
+          </button>
         </div>
         <div
           v-for="item in fbFiles" :key="item.name"
@@ -161,6 +174,24 @@
           <div class="chat-badge">
             <span class="badge-dot"></span>
             {{ lmModel }}
+          </div>
+          
+          <!-- Workspace Confirmation Banner -->
+          <div v-if="workspacePath" class="workspace-confirm-banner" :class="{ confirmed: workspaceConfirmed }">
+            <div class="wcb-icon">
+              <svg v-if="workspaceConfirmed" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div class="wcb-content">
+              <span class="wcb-label">{{ workspaceConfirmed ? 'Working in Workspace:' : 'Confirm Workspace Path:' }}</span>
+              <span class="wcb-path" :title="workspacePath">{{ workspacePath }}</span>
+            </div>
+            <button v-if="!workspaceConfirmed" class="wcb-btn" @click="workspaceConfirmed = true">
+              Confirm
+            </button>
+            <div v-else class="wcb-ok">
+              Confirmed
+            </div>
           </div>
         </div>
         <div class="chat-header-right">
@@ -384,6 +415,12 @@ const msgEl    = ref(null)
 const inputEl  = ref(null)
 let   abort    = null
 
+// ── Workspace State ──
+// ── File Browser State ────────────────────────────────────────────────────────
+const workspacePath = ref('')
+const workspaceConfirmed = ref(false)
+const showWCBError = ref(false)
+
 // ── File Browser State ────────────────────────────────────────────────────────
 const fbLoading    = ref(false)
 const fbError      = ref('')
@@ -398,6 +435,11 @@ const fileContent  = ref('')
 
 function setTargetFolder(path) {
   targetFolder.value = path === targetFolder.value ? null : path
+  if (targetFolder.value) {
+    localStorage.setItem('devagent_target_folder', targetFolder.value)
+  } else {
+    localStorage.removeItem('devagent_target_folder')
+  }
 }
 
 async function browseFolder() {
@@ -502,6 +544,12 @@ async function send(text) {
   if (followReview.value && agentMode.value === 'generate') tags.push(`[FOLLOW REVIEW]`)
   if (tags.length > 0 && msg) msg = `${tags.join(' ')} ${msg}`
 
+  if (!workspaceConfirmed.value) {
+    showWCBError.value = true
+    setTimeout(() => { showWCBError.value = false }, 3000)
+    return
+  }
+
   if (!msg || running.value) return
   input.value = ''
   await nextTick(); resize()
@@ -542,7 +590,16 @@ async function send(text) {
         buf = lines.pop();
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
-          try { applyEvent(JSON.parse(line.slice(6)), idx); } catch { /* ignore */ }
+          try { 
+            const ev = JSON.parse(line.slice(6));
+            applyEvent(ev, idx); 
+            
+            // REAL-TIME REFRESH: If any write tool finished, reload the file browser
+            if (ev.type === 'tool_result' && WRITE_TOOLS.has(ev.tool)) {
+              console.log(`[DevAgent] Tool ${ev.tool} finished. Refreshing file list...`);
+              loadFiles();
+            }
+          } catch { /* ignore */ }
         }
         
         // Optimize scrolling: update at most 10 times per second
@@ -681,22 +738,6 @@ async function scrollDown() {
   if (msgEl.value) msgEl.value.scrollTop = msgEl.value.scrollHeight
 }
 
-async function loadHealth() {
-  try {
-    const res = await fetch('/api/health')
-    const data = await res.json()
-    if (data.model) lmModel.value = data.model.split('/').pop()
-    if (data.endpoint) {
-      const url = new URL(data.endpoint)
-      lmEndpoint.value = url.host
-    }
-  } catch (e) {
-    console.error('[Health Check Error]', e)
-    lmEndpoint.value = 'localhost:1234'
-    lmModel.value = 'gpt-oss-20b'
-  }
-}
-
 async function loadModels() {
   try {
     const res = await fetch('/api/models')
@@ -713,8 +754,21 @@ async function loadModels() {
   }
 }
 
-onMounted(() => {
-  loadHealth().then(loadModels)
+onMounted(async () => {
+  // Load persistence
+  const savedFolder = localStorage.getItem('devagent_target_folder')
+  if (savedFolder) targetFolder.value = savedFolder
+
+  try {
+    const res = await fetch('/api/health')
+    const data = await res.json()
+    lmEndpoint.value = data.endpoint
+    lmModel.value = data.model
+    workspacePath.value = data.workspace
+  } catch (e) {
+    lmEndpoint.value = 'Offline'
+  }
+  loadModels()
   loadFiles()
 
   // Global Copy Logic: Handles both Thought callouts and Full Message bubbles
@@ -1121,22 +1175,42 @@ textarea {
   color: var(--accent); padding: 1px 4px; border-radius: 3px;
 }
 .fb-crumb:hover { background: var(--accent-glow2); }
-.fb-crumb.home { font-size: 13px; }
-.fb-sep { color: var(--t3); font-size: 11px; }
+.fb-crumb.home { font-size: 13px; color: var(--t2); }
+.fb-sep { color: var(--t3); font-size: 11px; margin: 0 1px; }
 
-.fb-pin-btn {
+/* ── Breadcrumb Pinning ── */
+.fb-crumb-wrap {
+  display: flex; align-items: center; background: var(--bg3); 
+  border-radius: 4px; border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.fb-crumb-wrap.pinned {
+  background: rgba(255, 209, 102, .08);
+  border-color: rgba(255, 209, 102, .4);
+}
+.fb-crumb-pin {
+  background: transparent; border: none; padding: 2px 5px;
+  cursor: pointer; opacity: 0.3; font-size: 10px;
+  transition: opacity 0.2s;
+}
+.fb-crumb-wrap:hover .fb-crumb-pin, .fb-crumb-wrap.pinned .fb-crumb-pin { opacity: 1; }
+
+.fb-pin-btn-top {
   margin-left: auto;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 20px;
-  font-size: 10px; font-weight: 600;
+  font-size: 10px; font-weight: 700;
   border: 1px solid var(--border2);
   color: var(--t2);
   transition: all .15s;
+  cursor: pointer;
+  background: var(--bg3);
 }
-.fb-pin-btn:hover, .fb-pin-btn.pinned {
-  background: rgba(255, 209, 102, .08);
-  border-color: rgba(255, 209, 102, .4);
+.fb-pin-btn-top:hover, .fb-pin-btn-top.pinned {
+  background: rgba(255, 209, 102, .12);
+  border-color: rgba(255, 209, 102, .5);
   color: var(--yellow);
+  box-shadow: 0 0 12px rgba(255, 209, 102, 0.1);
 }
 
 .fb-error {
@@ -1156,9 +1230,23 @@ textarea {
   transition: background .12s, color .12s;
 }
 .fb-item:hover { background: var(--bg3); color: var(--t0); }
+.fb-item.pinned {
+  background: rgba(255, 209, 102, .06);
+  border: 1px solid rgba(255, 209, 102, .15);
+}
 
 .fb-back { color: var(--t2); }
 .fb-dir .fb-name { font-weight: 500; color: var(--t0); }
+.fb-item-pin {
+  background: transparent; border: none; padding: 4px;
+  cursor: pointer; opacity: 0; font-size: 11px;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+.fb-item:hover .fb-item-pin { opacity: 0.4; }
+.fb-item-pin:hover, .fb-item-pin.active { opacity: 1 !important; transform: scale(1.1); }
+.fb-item-pin.active { color: var(--yellow); }
+
 .fb-file.active { background: var(--accent-glow2); border: 1px solid var(--border2); }
 
 .fb-file-icon { font-size: 13px; flex-shrink: 0; }
@@ -1767,5 +1855,80 @@ input:checked + .slider:before {
   color: var(--yellow);
   opacity: .7;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;
+}
+
+/* ── Workspace Confirmation Banner ── */
+.workspace-confirm-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 4px 12px; margin-left: 12px;
+  background: rgba(255, 191, 0, 0.08);
+  border: 1px solid rgba(255, 191, 0, 0.2);
+  border-radius: 30px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: 480px;
+}
+.workspace-confirm-banner.confirmed {
+  background: rgba(0, 255, 149, 0.06);
+  border-color: rgba(0, 255, 149, 0.25);
+}
+.wcb-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 191, 0, 0.15);
+  color: #ffbf00;
+  transition: all 0.3s;
+}
+.confirmed .wcb-icon {
+  background: rgba(0, 255, 149, 0.15);
+  color: #00ff95;
+}
+.wcb-content {
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.wcb-label {
+  font-size: 8px; font-weight: 800; color: var(--t3);
+  text-transform: uppercase; letter-spacing: 0.06em; line-height: 1;
+  margin-bottom: 2px;
+}
+.wcb-path {
+  font-size: 11px; font-family: var(--mono); color: var(--t2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 320px;
+}
+.confirmed .wcb-path { color: var(--t1); }
+
+.wcb-btn {
+  background: #ffbf00;
+  color: #000;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(255, 191, 0, 0.2);
+}
+.wcb-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 191, 0, 0.4);
+}
+.wcb-ok {
+  font-size: 10px; font-weight: 800; color: #00ff95;
+  padding: 4px 8px; text-transform: uppercase; letter-spacing: 0.05em;
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.workspace-confirm-banner.shake {
+  animation: shake 0.2s ease-in-out 0s 2;
+  border-color: var(--red) !important;
+  background: rgba(255, 107, 107, 0.1) !important;
 }
 </style>

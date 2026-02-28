@@ -7,7 +7,7 @@ function expressApiSwaggerFiles(name) {
     ...expressApiFiles(name),
     [`${name}/package.json`]: JSON.stringify({
       name, version: '1.0.0',
-      scripts: { dev: 'nodemon src/index.js', start: 'node src/index.js', lint: 'eslint src' },
+      scripts: { dev: 'nodemon src/server.js', start: 'node src/server.js', lint: 'eslint src' },
       dependencies: {
         express: '^4.18.2', cors: '^2.8.5',
         dotenv: '^16.3.1', helmet: '^7.1.0',
@@ -18,8 +18,7 @@ function expressApiSwaggerFiles(name) {
       devDependencies: { nodemon: '^3.0.2', eslint: '^8.56.0' }
     }, null, 2),
 
-    [`${name}/src/index.js`]: `require('dotenv').config();
-const express = require('express');
+    [`${name}/src/app.js`]: `const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
 const morgan  = require('morgan');
@@ -27,7 +26,7 @@ const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const path = require('path');
 const routes  = require('./routes');
-const { errorHandler } = require('./middleware/error.handler');
+const { errorHandler } = require('./middlewares/error.middleware');
 
 const app = express();
 const swaggerDocument = YAML.load(path.join(__dirname, '../swagger.yaml'));
@@ -47,11 +46,7 @@ app.use('/api', routes);
 // Global error handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(\`🚀 Server running → http://localhost:\${PORT}\`);
-  console.log(\`📖 API Docs      → http://localhost:\${PORT}/api-docs\`);
-});
+module.exports = app;
 `,
 
     [`${name}/swagger.yaml`]: `openapi: 3.0.0
@@ -75,7 +70,7 @@ function expressApiFiles(name) {
   return {
     [`${name}/package.json`]: JSON.stringify({
       name, version: '1.0.0',
-      scripts: { dev: 'nodemon src/index.js', start: 'node src/index.js', lint: 'eslint src' },
+      scripts: { dev: 'nodemon src/server.js', start: 'node src/server.js', lint: 'eslint src' },
       dependencies: {
         express: '^4.18.2', cors: '^2.8.5',
         dotenv: '^16.3.1', helmet: '^7.1.0',
@@ -86,13 +81,19 @@ function expressApiFiles(name) {
 
     [`${name}/.env.example`]: 'PORT=3000\nNODE_ENV=development\n',
 
-    [`${name}/src/index.js`]: `require('dotenv').config();
-const express = require('express');
+    [`${name}/src/server.js`]: `require('dotenv').config();
+const app = require('./app');
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(\`🚀 Server running → http://localhost:\${PORT}\`));
+`,
+
+    [`${name}/src/app.js`]: `const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
 const morgan  = require('morgan');
 const routes  = require('./routes');
-const { errorHandler } = require('./middleware/error.handler');
+const { errorHandler } = require('./middlewares/error.middleware');
 
 const app = express();
 
@@ -108,11 +109,10 @@ app.use('/api', routes);
 // Global error handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(\`🚀 Server running → http://localhost:\${PORT}\`));
+module.exports = app;
 `,
 
-    [`${name}/src/middleware/error.handler.js`]: `function errorHandler(err, req, res, next) {
+    [`${name}/src/middlewares/error.middleware.js`]: `function errorHandler(err, req, res, next) {
   console.error('[Error]', err.stack);
   const status = err.status || 500;
   res.status(status).json({
@@ -309,7 +309,7 @@ function expressApiMongoFiles(name) {
   return {
     [`${name}/package.json`]: JSON.stringify({
       name, version: '1.0.0',
-      scripts: { dev: 'nodemon src/index.js', start: 'node src/index.js' },
+      scripts: { dev: 'nodemon src/server.js', start: 'node src/server.js' },
       dependencies: {
         express: '^4.18.2', cors: '^2.8.5', dotenv: '^16.3.1',
         helmet: '^7.1.0', morgan: '^1.10.0', mongoose: '^8.0.0',
@@ -321,32 +321,49 @@ function expressApiMongoFiles(name) {
 
     [`${name}/.env.example`]: `PORT=3000\nNODE_ENV=development\nMONGO_URI=mongodb://localhost:27017/${name}\nJWT_SECRET=changeme_use_a_long_random_string\nJWT_EXPIRES_IN=7d\nCORS_ORIGIN=*\n`,
 
-    [`${name}/src/index.js`]: `require('dotenv').config();
-const express = require('express');
+    [`${name}/src/server.js`]: `require('dotenv').config();
+const app = require('./app');
+const { connectDB } = require('./config/database');
+
+const PORT = process.env.PORT || 3000;
+
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log('━'.repeat(40));
+    console.log(\`🚀 Server running → http://localhost:\${PORT}\`);
+    console.log(\`📡 Environment    → \${process.env.NODE_ENV || 'development'}\`);
+    console.log('━'.repeat(40));
+  });
+});
+`,
+
+    [`${name}/src/app.js`]: `const express = require('express');
 const helmet  = require('helmet');
 const cors    = require('cors');
 const morgan  = require('morgan');
 const rateLimit = require('express-rate-limit');
-const { connectDB } = require('./config/db');
-const { errorHandler } = require('./middleware/errorHandler');
-const routes = require('./routes');
+const { errorHandler } = require('./middlewares/error.middleware');
+const routes = require('./modules/routes');
 
 const app = express();
 
+// Global Middlewares
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(morgan('dev'));
 app.use(express.json());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 10000 })); // Increased for development
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 10000 }));
 
+// API Routes
 app.use('/api', routes);
+
+// Global Error Handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3000;
-connectDB().then(() => app.listen(PORT, () => console.log(\`🚀 http://localhost:\${PORT}\`)));
+module.exports = app;
 `,
 
-    [`${name}/src/config/db.js`]: `const mongoose = require('mongoose');
+    [`${name}/src/config/database.js`]: `const mongoose = require('mongoose');
 const connectDB = async () => {
   let retries = 5;
   while (retries) {
@@ -382,7 +399,7 @@ const fail = (res, message, code = 400) =>
 module.exports = { success, fail };
 `,
 
-    [`${name}/src/middleware/errorHandler.js`]: `const errorHandler = (err, req, res, _next) => {
+    [`${name}/src/middlewares/error.middleware.js`]: `const errorHandler = (err, req, res, _next) => {
   const code = err.statusCode || 500;
   const msg  = err.isOperational ? err.message : 'Internal Server Error';
   console.error(\`[ERROR] \${req.method} \${req.path} \${code}:\`, err.message);
@@ -391,7 +408,7 @@ module.exports = { success, fail };
 module.exports = { errorHandler };
 `,
 
-    [`${name}/src/middleware/auth.js`]: `const jwt = require('jsonwebtoken');
+    [`${name}/src/middlewares/auth.middleware.js`]: `const jwt = require('jsonwebtoken');
 const AppError = require('../utils/AppError');
 
 const protect = (req, _res, next) => {
@@ -407,7 +424,7 @@ const protect = (req, _res, next) => {
 module.exports = { protect };
 `,
 
-    [`${name}/src/models/User.js`]: `const mongoose = require('mongoose');
+    [`${name}/src/modules/user/user.model.js`]: `const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const UserSchema = new mongoose.Schema({
@@ -430,36 +447,42 @@ UserSchema.methods.comparePassword = function (candidate) {
 module.exports = mongoose.model('User', UserSchema);
 `,
 
-    [`${name}/src/routes/index.js`]: `const express = require('express');
+    [`${name}/src/modules/routes.js`]: `const express = require('express');
 const router  = express.Router();
-router.use('/auth',  require('./auth.routes'));
-router.use('/users', require('./user.routes'));
+
+router.use('/auth',  require('./auth/auth.routes'));
+router.use('/users', require('./user/user.routes'));
 router.get('/health', (_req, res) => res.json({ success: true, status: 'ok', ts: new Date() }));
+
 module.exports = router;
 `,
 
-    [`${name}/src/routes/auth.routes.js`]: `const express = require('express');
-const r = express.Router();
-const ctrl = require('../controllers/auth.controller');
-r.post('/register', ctrl.register);
-r.post('/login',    ctrl.login);
-module.exports = r;
+    [`${name}/src/modules/auth/auth.routes.js`]: `const express = require('express');
+const router = express.Router();
+const controller = require('./auth.controller');
+
+router.post('/register', controller.register);
+router.post('/login',    controller.login);
+
+module.exports = router;
 `,
 
-    [`${name}/src/routes/user.routes.js`]: `const express  = require('express');
-const r = express.Router();
-const { protect } = require('../middleware/auth');
-const ctrl = require('../controllers/user.controller');
-r.use(protect);
-r.get('/',    ctrl.getAll);
-r.get('/:id', ctrl.getOne);
-module.exports = r;
+    [`${name}/src/modules/user/user.routes.js`]: `const express  = require('express');
+const router = express.Router();
+const { protect } = require('../../middlewares/auth.middleware');
+const controller = require('./user.controller');
+
+router.use(protect);
+router.get('/',    controller.getAll);
+router.get('/:id', controller.getOne);
+
+module.exports = router;
 `,
 
-    [`${name}/src/controllers/auth.controller.js`]: `const jwt  = require('jsonwebtoken');
-const User = require('../models/User');
-const AppError = require('../utils/AppError');
-const { success } = require('../utils/response');
+    [`${name}/src/modules/auth/auth.controller.js`]: `const jwt  = require('jsonwebtoken');
+const User = require('../user/user.model');
+const AppError = require('../../utils/AppError');
+const { success } = require('../../utils/response');
 
 const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
 
@@ -487,8 +510,8 @@ exports.login = async (req, res, next) => {
 };
 `,
 
-    [`${name}/src/controllers/user.controller.js`]: `const User = require('../models/User');
-const { success } = require('../utils/response');
+    [`${name}/src/modules/user/user.controller.js`]: `const User = require('./user.model');
+const { success } = require('../../utils/response');
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -508,7 +531,7 @@ exports.getOne = async (req, res, next) => {
 };
 `,
 
-    [`${name}/implementation.md`]: `# ${name} – Implementation\n\n## Stack\nExpress.js · MongoDB · JWT Auth · Layered Architecture\n\n## Endpoints\n- POST /api/auth/register\n- POST /api/auth/login\n- GET  /api/users        (protected)\n- GET  /api/users/:id    (protected)\n- GET  /api/health\n\n## Env Required\n- MONGO_URI, JWT_SECRET, JWT_EXPIRES_IN, PORT\n`,
+    [`${name}/implementation.md`]: `# ${name} – Implementation\n\n## Stack\nExpress.js · MongoDB · JWT Auth · Modular Feature-based Architecture\n\n## Endpoints\n- POST /api/auth/register\n- POST /api/auth/login\n- GET  /api/users        (protected)\n- GET  /api/users/:id    (protected)\n- GET  /api/health\n\n## Env Required\n- MONGO_URI, JWT_SECRET, JWT_EXPIRES_IN, PORT\n`,
     [`${name}/.env.example`]: `PORT=3000\nNODE_ENV=development\nMONGO_URI=mongodb://localhost:27017/${name}\nJWT_SECRET=changeme\nJWT_EXPIRES_IN=7d\n`,
     [`${name}/install.bat`]: `@echo off\necho Installing ${name}...\nnpm install\npause\n`,
     [`${name}/start.bat`]: `@echo off\ntitle ${name}\nnpm run dev\npause\n`,
@@ -730,7 +753,7 @@ const TEMPLATES = {
 };
 
 // ── scaffoldProject tool ──────────────────────────────────────────────────────
-async function scaffoldProject({ type, name } = {}, workspaceDir) {
+async function scaffoldProject({ type, name, flat = false } = {}, workspaceDir) {
   if (!type || !TEMPLATES[type]) {
     return { error: `Unknown type "${type}". Use: ${Object.keys(TEMPLATES).join(', ')}` };
   }
@@ -741,11 +764,20 @@ async function scaffoldProject({ type, name } = {}, workspaceDir) {
   const files = TEMPLATES[type](name);
   const created = [];
 
-  for (const [relPath, content] of Object.entries(files)) {
+  for (let [relPath, content] of Object.entries(files)) {
+    // FLAT MODE: If flat is true, strip the top-level directory (the project name)
+    // e.g., "my-app/package.json" becomes "package.json"
+    if (flat) {
+      const parts = relPath.split(/[/\\]/);
+      if (parts.length > 1 && parts[0] === name) {
+        relPath = parts.slice(1).join('/');
+      }
+    }
+
     const abs = path.join(workspaceDir, relPath);
     await fs.ensureDir(path.dirname(abs));
     await fs.writeFile(abs, content, 'utf-8');
-    console.log(`[DevAgent] Scaffold: ${abs}`);
+    console.log(`[DevAgent] Scaffold (${flat ? 'FLAT' : 'NESTED'}): ${abs}`);
     created.push(relPath);
   }
 
