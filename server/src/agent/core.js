@@ -57,7 +57,7 @@ function getSystemPrompt(isReview, targetFolder, fastMode = false) {
     .map(t => `  ${t.name.padEnd(16)} ${t.params}`)
     .join('\n');
 
-  return `${EXPERT_SKILLS ? EXPERT_SKILLS + '\n\n---\n\n' : ''}You are an expert MEAN Stack agentic AI developer.
+  return `${EXPERT_SKILLS && !fastMode ? EXPERT_SKILLS + '\n\n---\n\n' : ''}You are an expert MEAN Stack agentic AI developer.
 ${isReview ? 'You are currently in REVIEW MODE. AUDIT the codebase. You are STRICTLY AUTHORIZED to use `write_file` ONLY for `walkthrough_review_report.md`. DO NOT modify any other files.' : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never just describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}" (Your tool calls will be relative to this folder)` : ''}
 
@@ -90,16 +90,16 @@ RULES:
      - FINISH by providing a **simple and highly readable summary**. Use ### headers, bullet points, and bold text. No technical clutter in the final wrap-up.
 2. ALWAYS use tools to create/edit files in GENERATE mode. Never output code blocks in text.
 3. STRUCTURE: Always use headers (###), lists (-), and double newlines (\n\n) to ensure your responses are readable and well-formatted. Avoid long walls of text.
-4. BUILD-THEN-DOCUMENT: In GENERATE mode, write all actual source code files FIRST, then write the final \`walkthrough.md\` at the project root.
+${fastMode ? `4. BUILD THE CODE: Implement the requested logic immediately. Do not write a walkthrough.md file in Fast Mode.` : `4. BUILD-THEN-DOCUMENT: In GENERATE mode, write all actual source code files FIRST, then write the final \`walkthrough.md\` at the project root.
 5. **AI DEVELOPMENT THOUGHTS**: Every \`walkthrough.md\` MUST include a \`## AI Development Thoughts\` section detailing your reasoning and architecture.
-6. **FINISHING**: Call \`finish\` ONLY after both code and \`walkthrough.md\` are done. Your \`finish\` response MUST confirm that \`walkthrough.md\` exists and includes your thoughts.
+6. **FINISHING**: Call \`finish\` ONLY after both code and \`walkthrough.md\` are done. Your \`finish\` response MUST confirm that \`walkthrough.md\` exists and includes your thoughts.`}
 7. **JSDoc 3.0**: You MUST include JSDoc 3.0 documentation for EVERY method you generate.
 8. **WORKSPACE ADAPTATION**: Follow project naming conventions and folder structures exactly.
 9. **MODULAR ARCHITECTURE**: For Express.js, ALWAYS use the feature-based modular structure (\`src/modules/<feature>\`) and follow the "Route -> Controller -> Service -> Model" flow.
 10. **NO PLACEHOLDERS (CRITICAL)**: Write FULL, working code. NEVER write files that only contain comments like \`// Implementation goes here\`. If a file is too complex to write in one go, write the partial implementation, but never just a stub comment.
 11. **NO SHELL**: Never use \`write_file\` to run shell commands (e.g., \`mkdir\`). It handles directory creation automatically.
 12. **NO FILE LISTING LOOPS**: You are strictly forbidden from calling \`list_files\` more than twice without modifying a file.
-${fastMode ? `13. **FAST MODE**: Do NOT output any reasoning or thoughts before actions. Skip straight to ACTION and PARAMETERS.` : ''}
+${fastMode ? `13. **FAST MODE CRITCAL**: Do NOT output any reasoning or thoughts. Skip straight to ACTION and PARAMETERS. Output ONLY raw JSON parameters for speed.` : ''}
 `;
 }
 
@@ -216,6 +216,13 @@ function extractJSON(raw) {
       const mdMatch = slice.match(/^```(?:[a-z]*)\n?([\s\S]*?)```/i);
       if (mdMatch) return mdMatch[1].trim();
 
+      // Guard for truncated triple backticks
+      if (slice.startsWith('```')) {
+        const lineEnd = slice.indexOf('\n');
+        const contentStart = lineEnd === -1 ? 3 : lineEnd + 1;
+        return slice.slice(contentStart).replace(/\n?\}?\s*$/g, '').trim();
+      }
+
       const delimMatch = slice.match(/^["'`]/);
       if (delimMatch) {
         const delim = delimMatch[0];
@@ -236,6 +243,9 @@ function extractJSON(raw) {
         }
         if (foundEnd === -1) foundEnd = slice.lastIndexOf(delim); // Desperation
         if (foundEnd > 0) return slice.slice(1, foundEnd);
+
+        // Extreme desperation: the string is truncated and has no closing quote
+        return slice.slice(1).replace(/\n?\}?\s*$/g, '').trim();
       }
       return null;
     };
@@ -700,11 +710,12 @@ async function runAgent(opts) {
     // Prune history ONLY if it gets extremely long (avoid context window blowup)
     // We keep the system prompt, the original user request, and ALL tool results to maintain context 
     // of what was actually done. We prune pure conversational/thought turns.
-    if (history.length > 50) {
-      console.log(' [DevAgent] ✂️  Pruning history for context efficiency...');
+    const MAX_HISTORY = fastMode ? 20 : 50;
+    if (history.length > MAX_HISTORY) {
+      console.log(` [DevAgent] ✂️  Pruning history for context efficiency (Limit: ${MAX_HISTORY})...`);
       const essential = history.slice(0, 2);
-      const recent = history.slice(-20);
-      const toolResults = history.slice(2, -20).filter(m => m.role === 'user' && m.content && m.content.startsWith('Tool result'));
+      const recent = history.slice(fastMode ? -5 : -20);
+      const toolResults = history.slice(2, fastMode ? -5 : -20).filter(m => m.role === 'user' && m.content && m.content.startsWith('Tool result'));
       history = essential.concat(toolResults).concat(recent);
     }
 

@@ -1,7 +1,7 @@
 [
     {
-        "id": "qwen3-coder-next",
-        "label": "qwen3 Coder Next",
+        "id": "google/gemma-3-4b",
+        "label": "Gemma 3 4B",
         "description": "Best for large codebases and architectural tasks"
     },
     {
