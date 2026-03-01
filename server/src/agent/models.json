@@ -1,27 +1,34 @@
-[
-    {
-        "id": "google/gemma-3-4b",
-        "label": "Gemma 3 4B",
-        "description": "Best for large codebases and architectural tasks"
+{
+    "config": {
+        "dev": "qwen2.5-coder-7b-instruct",
+        "review": "google/gemma-3-4b",
+        "global": "qwen2.5-coder-7b-instruct"
     },
-    {
-        "id": "qwen2.5-coder-7b-instruct",
-        "label": "Qwen 2.5 Coder 7B",
-        "description": "Fast and lightweight — ideal for smaller edits"
-    },
-    {
-        "id": "deepseek-coder-v2-lite-instruct",
-        "label": "DeepSeek Coder V2 Lite",
-        "description": "Strong reasoning for complex algorithms"
-    },
-    {
-        "id": "yi-coder-9b-chat",
-        "label": "Yi Coder 9B",
-        "description": "General purpose, balanced performance"
-    },
-    {
-        "id": "zai-org/glm-4.7-flash",
-        "label": "GLM 4.7 Flash",
-        "description": "Open source, good for scaffolding tasks"
-    }
-]
+    "models": [
+        {
+            "id": "google/gemma-3-4b",
+            "label": "Gemma 3 4B",
+            "description": "Best for large codebases and architectural tasks"
+        },
+        {
+            "id": "qwen2.5-coder-7b-instruct",
+            "label": "Qwen 2.5 Coder 7B",
+            "description": "Fast and lightweight — ideal for smaller edits"
+        },
+        {
+            "id": "deepseek-coder-v2-lite-instruct",
+            "label": "DeepSeek Coder V2 Lite",
+            "description": "Strong reasoning for complex algorithms"
+        },
+        {
+            "id": "yi-coder-9b-chat",
+            "label": "Yi Coder 9B",
+            "description": "General purpose, balanced performance"
+        },
+        {
+            "id": "zai-org/glm-4.7-flash",
+            "label": "GLM 4.7 Flash",
+            "description": "Open source, good for scaffolding tasks"
+        }
+    ]
+}

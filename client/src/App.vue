@@ -50,12 +50,11 @@
           <span>{{ lmEndpoint }}</span>
         </div>
         <button class="clear-btn" :disabled="running" @click="clearChat">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6l-1 14H6L5 6"/>
-            <path d="M10 11v6M14 11v6"/>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          Clear chat
+          New Chat
         </button>
       </div>
     </aside>
@@ -174,10 +173,7 @@
           <h1 class="chat-title">DevAgent</h1>
           <div class="chat-badge">
             <span class="badge-dot"></span>
-            <select v-if="availableModels.length > 0" id="model-select" v-model="selectedModel" class="model-select-inline" :title="availableModels.find(m => m.id === selectedModel)?.description || ''">
-              <option v-for="m in availableModels" :key="m.id" :value="m.id">{{ m.label }}</option>
-            </select>
-            <span v-else>{{ lmModel }}</span>
+            <span>{{ lmModel }}</span>
           </div>
         </div>
 
@@ -196,6 +192,15 @@
               <span class="slider round"></span>
             </label>
             <span class="follow-label">Follow Review</span>
+          </div>
+
+          <!-- Auto Request Review toggle -->
+          <div class="follow-review-toggle" title="Automatically request a review upon completion">
+            <label class="switch">
+              <input type="checkbox" v-model="autoRequestReview">
+              <span class="slider round slider-review"></span>
+            </label>
+            <span class="follow-label">Auto Review</span>
           </div>
 
           <!-- Stop (visible only while running) -->
@@ -364,6 +369,7 @@ const lmModel          = ref('...')
 // ── Dynamic Model List ────────────────────────────────────────────────────────
 const availableModels  = ref([])
 const selectedModel    = ref('')
+const modelConfig      = ref({})
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const messages = ref([])
@@ -486,6 +492,7 @@ const examples = [
 ]
 const followReview    = ref(false)
 const fastMode        = ref(false)
+const autoRequestReview = ref(false)
 
 // ── Send message ──────────────────────────────────────────────────────────────
 async function send(text) {
@@ -510,6 +517,10 @@ async function send(text) {
   running.value = true
   abort = new AbortController()
   await scrollDown()
+
+  let wasReviewRequested = false
+  let wasFixOrdered = false
+  let wasReportSaved = false
 
   const history = []
   messages.value.slice(0, idx).forEach(m => {
@@ -537,7 +548,7 @@ async function send(text) {
     const res = await fetch('/api/agent/run', {
       method  : 'POST',
       headers : { 'Content-Type': 'application/json' },
-      body    : JSON.stringify({ messages: history, selectedModel: selectedModel.value || null, fastMode: fastMode.value }),
+      body    : JSON.stringify({ messages: history, fastMode: fastMode.value, autoRequestReview: autoRequestReview.value }),
       signal  : abort.signal
     })
 
@@ -558,10 +569,21 @@ async function send(text) {
             const ev = JSON.parse(line.slice(6));
             applyEvent(ev, idx); 
             
-            // REAL-TIME REFRESH: If any write tool finished, reload the file browser
             if (ev.type === 'tool_result' && WRITE_TOOLS.has(ev.tool)) {
               console.log(`[DevAgent] Tool ${ev.tool} finished. Refreshing file list...`);
               loadFiles();
+            }
+            if (ev.type === 'tool_call' && ev.tool === 'request_review') {
+              console.log('[DevAgent] 🛠 Review requested by agent.');
+              wasReviewRequested = true;
+            }
+            if (ev.type === 'tool_call' && ev.tool === 'order_fix') {
+              console.log('[DevAgent] 🛠 Fix ordered by reviewer.');
+              wasFixOrdered = true;
+            }
+            if (ev.type === 'tool_call' && ev.tool === 'write_file' && ev.parameters?.path === 'walkthrough_review_report.md') {
+              console.log('[DevAgent] 🛠 Report saving initiated.');
+              wasReportSaved = true;
             }
           } catch { /* ignore */ }
         }
@@ -581,8 +603,34 @@ async function send(text) {
     messages.value[idx].streaming = false
     running.value = false
     abort = null
-    await scrollDown()
     if (showBrowser.value) loadFiles()
+
+    // 🔄 AUTOMATED WORKFLOW: Dev -> Review -> Dev cycle
+    const isDevMode = agentMode.value === 'generate';
+    const isReviewMode = agentMode.value === 'review';
+    const isAccepted = wasReportSaved && messages.value[idx].text.includes('✅') && !wasFixOrdered;
+
+    if (isDevMode && wasReviewRequested && autoRequestReview.value) {
+      console.log('[DevAgent] 🔄 Auto-triggering Review handoff...');
+      messages.value[idx].status = '🔄 Handoff to Reviewer...';
+      agentMode.value = 'review';
+      setTimeout(() => {
+        messages.value[idx].status = null;
+        send('[MODE: REVIEW] Developer has finished. Please analyze the code and send feedback/orders.');
+      }, 1000);
+    } else if (isReviewMode && wasReportSaved && !isAccepted && autoRequestReview.value) {
+      console.log('[DevAgent] 🔄 Auto-triggering Developer return...');
+      messages.value[idx].status = '🔄 Returning to Developer...';
+      agentMode.value = 'generate';
+      setTimeout(() => {
+        messages.value[idx].status = null;
+        send('[MODE: GENERATE] [WORKFLOW: UPDATE] [FOLLOW REVIEW] The reviewer has provided feedback in walkthrough_review_report.md. Read the report first and address all identified issues.');
+      }, 1000);
+    } else if (isReviewMode && isAccepted) {
+      console.log('[DevAgent] ✅ Review accepted. Loop complete.');
+      messages.value[idx].status = '✅ Code Accepted';
+      setTimeout(() => { messages.value[idx].status = null; }, 4000);
+    }
   }
 }
 
@@ -756,17 +804,24 @@ async function loadModels() {
   try {
     const res = await fetch('/api/models')
     const data = await res.json()
-    if (data.models && data.models.length > 0) {
-      availableModels.value = data.models
-      // Pre-select: use env default if it matches, otherwise pick first
-      const envModel = lmModel.value
-      const match = data.models.find(m => m.id === envModel || m.label === envModel)
-      selectedModel.value = match ? match.id : data.models[0].id
-    }
+    if (data.models) availableModels.value = data.models
+    if (data.config) modelConfig.value = data.config
+    updateActiveModelDisplay()
   } catch (e) {
     console.error('[Models Load Error]', e)
   }
 }
+
+function updateActiveModelDisplay() {
+  if (!modelConfig.value) return
+  const mode = agentMode.value === 'review' ? 'review' : 'dev'
+  const modelId = modelConfig.value[mode] || modelConfig.value['global']
+  if (modelId) {
+    lmModel.value = modelId
+  }
+}
+
+watch(agentMode, updateActiveModelDisplay)
 
 onMounted(async () => {
   // Load persistence

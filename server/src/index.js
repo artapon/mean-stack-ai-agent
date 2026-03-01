@@ -39,8 +39,8 @@ app.get('/api/health', (_req, res) => {
 app.get('/api/models', (_req, res) => {
   try {
     const modelsPath = path.join(__dirname, 'agent', 'models.json');
-    const models = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
-    res.json({ models });
+    const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
+    res.json(data);
   } catch (e) {
     res.status(500).json({ error: 'Could not load models.json: ' + e.message });
   }

@@ -883,10 +883,115 @@ paths:
   };
 }
 
+// ── modular-api (Generic Professional Skeleton) ───────────────────────────
+function modularApiFiles(name) {
+  const base = expressApiSwaggerFiles(name);
+  return {
+    ...base,
+    [`${name}/package.json`]: JSON.stringify({
+      name, version: '1.0.0',
+      scripts: { dev: 'nodemon src/server.js', start: 'node src/server.js' },
+      dependencies: {
+        express: '^4.18.2', cors: '^2.8.5', dotenv: '^16.3.1',
+        helmet: '^7.1.0', morgan: '^1.10.0', mongoose: '^8.0.0',
+        'swagger-ui-express': '^5.0.0', yamljs: '^0.3.0'
+      },
+      devDependencies: { nodemon: '^3.0.2' }
+    }, null, 2),
+
+    [`${name}/src/routes/index.js`]: `const express = require('express');
+const router  = express.Router();
+const resourceRoutes = require('../modules/resource/resource.routes');
+
+router.get('/health', (_req, res) => res.json({ success: true, status: 'ok', ts: new Date() }));
+router.use('/resources', resourceRoutes);
+
+module.exports = router;
+`,
+
+    [`${name}/src/modules/resource/resource.model.js`]: `const mongoose = require('mongoose');
+
+const ResourceSchema = new mongoose.Schema({
+  title:       { type: String, required: true, index: true },
+  description: { type: String },
+  status:      { type: String, enum: ['active', 'inactive'], default: 'active' }
+}, { timestamps: true });
+
+module.exports = mongoose.model('Resource', ResourceSchema);
+`,
+
+    [`${name}/src/modules/resource/resource.service.js`]: `const Resource = require('./resource.model');
+
+exports.getAll = async (query = {}) => {
+  const { page = 1, limit = 10 } = query;
+  const skip = (page - 1) * limit;
+  return await Resource.find().sort('-createdAt').skip(skip).limit(limit).lean();
+};
+
+exports.create = async (data) => await Resource.create(data);
+`,
+
+    [`${name}/src/modules/resource/resource.controller.js`]: `const service = require('./resource.service');
+
+exports.create = async (req, res, next) => {
+  try {
+    const item = await service.create(req.body);
+    res.status(201).json({ success: true, data: item });
+  } catch (err) { next(err); }
+};
+
+exports.list = async (req, res, next) => {
+  try {
+    const items = await service.getAll(req.query);
+    res.json({ success: true, data: items });
+  } catch (err) { next(err); }
+};
+`,
+
+    [`${name}/src/modules/resource/resource.routes.js`]: `const express = require('express');
+const router  = express.Router();
+const controller = require('./resource.controller');
+
+router.get('/',  controller.list);
+router.post('/', controller.create);
+
+module.exports = router;
+`,
+
+    [`${name}/swagger.yaml`]: `openapi: 3.0.0
+info:
+  title: Modular API
+  version: 1.0.0
+servers:
+  - url: /api
+paths:
+  /health:
+    get:
+      responses:
+        '200':
+          description: OK
+  /resources:
+    get:
+      tags: [Resources]
+      responses:
+        '200':
+          description: OK
+    post:
+      tags: [Resources]
+      responses:
+        '201':
+          description: Created
+`,
+
+    [`${name}/implementation.md`]: `# Modular API - Implementation\n\n## Stack\n- Express.js (Modular Root -> Modules structure)\n- MongoDB (Mongoose)\n- Swagger UI\n\n## Endpoints\n- GET  /api/health\n- GET  /api/resources\n- POST /api/resources\n`
+  };
+}
+
 const TEMPLATES = {
   'express-api': expressApiFiles,
   'express-api-swagger': expressApiSwaggerFiles,
   'express-api-mongo': expressApiMongoFiles,
+  'modular-standard': modularApiFiles,
   'healthcare-api': healthcareApiFiles,
   'vue-app': vueAppFiles,
   'fullstack': fullstackFiles,

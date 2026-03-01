@@ -36,9 +36,10 @@ function loadSkills(isReview) {
  * @param {boolean} isReview - Whether the agent is in Review mode.
  * @param {string} [targetFolder] - Optional target workspace subdirectory label.
  * @param {boolean} [fastMode] - If true, restricts the AI from outputting THOUGHT.
+ * @param {boolean} [autoRequestReview] - If true, injects instructions to call request_review before finish.
  * @returns {string} Full system prompt string.
  */
-function getSystemPrompt(isReview, targetFolder, fastMode = false) {
+function getSystemPrompt(isReview, targetFolder, fastMode = false, autoRequestReview = false) {
   const EXPERT_SKILLS = loadSkills(isReview);
 
   const toolsList = [
@@ -49,7 +50,9 @@ function getSystemPrompt(isReview, targetFolder, fastMode = false) {
     { name: 'apply_blueprint', params: '{content}', safe: false },
     { name: 'list_files', params: '{path}', safe: true },
     { name: 'bulk_read', params: '{paths:[]}', safe: true },
-    { name: 'scaffold_project', params: '{type, name}', safe: false }
+    { name: 'scaffold_project', params: '{type, name}', safe: false },
+    { name: 'order_fix', params: '{instructions}', safe: true },
+    { name: 'request_review', params: '{}', safe: true }
   ];
 
   const availableTools = toolsList
@@ -99,7 +102,9 @@ ${fastMode ? `4. BUILD THE CODE: Implement the requested logic immediately. Do n
 10. **NO PLACEHOLDERS (CRITICAL)**: Write FULL, working code. NEVER write files that only contain comments like \`// Implementation goes here\`. If a file is too complex to write in one go, write the partial implementation, but never just a stub comment.
 11. **NO SHELL**: Never use \`write_file\` to run shell commands (e.g., \`mkdir\`). It handles directory creation automatically.
 12. **NO FILE LISTING LOOPS**: You are strictly forbidden from calling \`list_files\` more than twice without modifying a file.
-${fastMode ? `13. **FAST MODE CRITCAL**: Do NOT output any reasoning or thoughts. Skip straight to ACTION and PARAMETERS. Output ONLY raw JSON parameters for speed.` : ''}
+${fastMode ? `13. **FAST MODE CRITICAL**: Do NOT output any reasoning or thoughts. Skip straight to ACTION and PARAMETERS. Output ONLY raw JSON parameters for speed.` : ''}
+${autoRequestReview ? `14. **AUTO REVIEW REQUEST**: You MUST call \`request_review\` exactly once AFTER completing all code and documentation (\`walkthrough.md\`), but BEFORE calling \`finish\`.` : ''}
+15. **SINGLE ACTION**: You MUST ONLY output ONE set of [THOUGHT, ACTION, PARAMETERS] markers per response. Never output multiple actions at once.
 `;
 }
 
@@ -113,7 +118,23 @@ const TOOLS = {
   apply_blueprint: applyBlueprint,
   list_files: listFiles,
   bulk_read: bulkRead,
-  scaffold_project: scaffoldProject
+  scaffold_project: scaffoldProject,
+  order_fix: async (params, workspaceDir) => {
+    const { instructions } = params;
+    if (!instructions) throw new Error('Missing "instructions" parameter.');
+    const logPath = path.resolve(workspaceDir, 'agent-handoff.log');
+    const timestamp = new Date().toLocaleString();
+    const entry = `\n[${timestamp}] 🚩 REVIEWER ORDER:\n${instructions}\n${'-'.repeat(40)}\n`;
+    await fs.appendFile(logPath, entry, 'utf-8');
+    return { success: true, message: 'Command sent to Developer and logged to agent-handoff.log', path: 'agent-handoff.log' };
+  },
+  request_review: async (params, workspaceDir) => {
+    const logPath = path.resolve(workspaceDir, 'agent-handoff.log');
+    const timestamp = new Date().toLocaleString();
+    const entry = `\n[${timestamp}] 🛠 DEVELOPER REQUEST:\nCode is ready for review. Full generation completed.\n${'-'.repeat(40)}\n`;
+    await fs.appendFile(logPath, entry, 'utf-8');
+    return { success: true, message: 'Review request logged to agent-handoff.log', path: 'agent-handoff.log' };
+  }
 };
 
 // ── Extract message text from standard OpenAI and LM Studio responses ─────────
@@ -279,14 +300,15 @@ function sanitizeRawReply(raw) {
     .replace(/(?:^|\n)###\s*(ACTION|PARAMETERS|THOUGHT)[:\s]*/gi, (m, p1) => `\n\n${p1.toUpperCase()}: `)
 
 
-    // 2. Fix variants of merged markers (ACTIONMETERS, ACTIONETERS, etc.)
-    .replace(/(?:^|\n)ACTION[A-Z]*METERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
-    .replace(/(?:^|\n)ACTION[A-Z]*AMETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
-    .replace(/(?:^|\n)ACTION[A-Z]*ETERS:[A-Z:]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
-    .replace(/(?:^|\n)ACTIONPARAMETERS:/gi, '\n\nACTION: \n\nPARAMETERS: ')
-    .replace(/(?:^|\n)ACTIONSON[:\s]*/gi, '\n\nACTION: \n\nPARAMETERS: ')
-    .replace(/(?:^|\n)THOUGHTACTION:/gi, 'THOUGHT: \n\nACTION: ')
-    .replace(/(?:^|\n)THOUGHTPARAMETERS:/gi, 'THOUGHT: \n\nPARAMETERS: ')
+    // 2. Fix variants of merged markers (ACTIONMETERS, ACTIONARAMETERS, etc.)
+    // We try to extract the word immediately following the marker as the ACTION name.
+    .replace(/ACTION[A-Z]*METERS[:\s]*([a-z_]*)/gi, '\n\nACTION: $1\n\nPARAMETERS: ')
+    .replace(/ACTION[A-Z]*AMETERS[:\s]*([a-z_]*)/gi, '\n\nACTION: $1\n\nPARAMETERS: ')
+    .replace(/ACTION[A-Z]*ETERS[:\s]*([a-z_]*)/gi, '\n\nACTION: $1\n\nPARAMETERS: ')
+    .replace(/ACTIONPARAMETERS[:\s]*([a-z_]*)/gi, '\n\nACTION: $1\n\nPARAMETERS: ')
+    .replace(/ACTIONSON[:\s]*([a-z_]*)/gi, '\n\nACTION: $1\n\nPARAMETERS: ')
+    .replace(/THOUGHTACTION:[ \t]*([a-z_]*)/gi, 'THOUGHT: \n\nACTION: $1\n\nPARAMETERS: ')
+    .replace(/THOUGHTPARAMETERS:[ \t]*([a-z_]*)/gi, 'THOUGHT: \n\nPARAMETERS: $1')
 
     // 2B. Aggressive fix for infinite repeating markers (ACTIONMETERS:ACTIONMETERS:...)
     .replace(/(?:ACTION[A-Z]*METERS[:\s]*){2,}/gi, '\n\nACTION: \n\nPARAMETERS: ')
@@ -627,6 +649,16 @@ function summariseResult(action, params, result, isReview) {
     return '### 📂 Folders Scanned\n' + nudge;
   }
 
+  if (action === 'order_fix') {
+    return '### 🚩 Fix Ordered\n' +
+      'Reviewer command logged to `agent-handoff.log`. Developer will execute this upon next run.';
+  }
+
+  if (action === 'request_review') {
+    return '### 🔍 Review Requested (request_review)\n' +
+      'Developer has flagged the task as ready for review. Report logged to `agent-handoff.log`.';
+  }
+
   return '### ✅ Task Complete\n' +
     'All requested operations finished successfully.\n\n' +
     '**SUMMARY**: ' + (isReview ? 'Your audit is ready. Review the findings below.' : 'Your changes are live. Verify the files in the sidebar and project files panel.') + '\n\n' +
@@ -651,6 +683,7 @@ async function runAgent(opts) {
   var signal = opts.signal;
   var selectedModel = opts.selectedModel || null;
   var fastMode = !!opts.fastMode;
+  var autoRequestReview = !!opts.autoRequestReview;
 
   // Determine mode and TARGET FOLDER from the LATEST user instruction
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
@@ -676,13 +709,28 @@ async function runAgent(opts) {
     }
   }
 
-  const resolvedModel = selectedModel || process.env.LM_STUDIO_MODEL || 'openai/gpt-oss-20b';
-  console.log(`[DevAgent] 🤖 Using model: "${resolvedModel}" | fastMode: ${fastMode}`);
+  const agentDir = __dirname;
+  let modelConfig = {};
+  try {
+    const modelsPath = path.join(agentDir, 'models.json');
+    if (fs.existsSync(modelsPath)) {
+      modelConfig = JSON.parse(fs.readFileSync(modelsPath, 'utf-8')).config || {};
+    }
+  } catch (e) {
+    console.warn('[DevAgent] Could not load models.json config:', e.message);
+  }
 
-  const systemPrompt = getSystemPrompt(isReview, targetFolderName, fastMode);
+  const roleModel = isReview ? modelConfig.review : modelConfig.dev;
+  const resolvedModel = roleModel || selectedModel || process.env.LM_STUDIO_MODEL || modelConfig.global || 'openai/gpt-oss-20b';
+
+  console.log(`[DevAgent] 🤖 Using model: "${resolvedModel}" | role: ${isReview ? 'REVIEW' : 'DEV'} | fastMode: ${fastMode} | autoRequestReview: ${autoRequestReview}`);
+
+  const systemPrompt = getSystemPrompt(isReview, targetFolderName, fastMode, autoRequestReview);
 
   var MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
-  var step = 0;
+  let lastScaffoldedName = '';
+
+  var step = 1;
 
   // Read/List loop guard: prevent endless scanning without writing
   var listFilesCount = 0;
@@ -897,13 +945,11 @@ async function runAgent(opts) {
 
       // 🟢 REVIEW PERSISTENCE GUARD: Force report writing before finishing
       if (isReview) {
-        const hasSavedReport = history.some(m => {
+        const hasSavedReport = history.some(function (m) {
           const c = (m.content || '').toLowerCase();
-          // FIX: The check was failing because 'Tool' in 'Tool result' was capitalized.
-          // Using case-insensitive match for the entire result line is safer.
-          return (c.includes('tool result') || c.includes('tool_result')) &&
-            c.includes('walkthrough_review_report.md') &&
-            c.includes('"success": true');
+          // Broad check: looking for the file name AND a write-like tool attempt or result
+          return c.includes('walkthrough_review_report.md') &&
+            (c.includes('write_file') || c.includes('bulk_write') || c.includes('tool result') || c.includes('tool_result'));
         });
 
         if (!hasSavedReport) {
@@ -911,6 +957,23 @@ async function runAgent(opts) {
           const nudge = "MANDATORY: You must save your audit findings to `walkthrough_review_report.md` using `write_file` BEFORE calling finish. Include two sections: `## AGENT Reasoning` and `## Summary`. Do this now.";
           history.push({ role: 'user', content: nudge });
           if (onStep) onStep({ type: 'error', message: "Review report not saved yet. Persist Reasoning and Summary first." });
+          continue;
+        }
+      }
+
+      // 🟢 AUTO REVIEW REQUEST GUARD: Force request_review call before finishing
+      if (autoRequestReview && !isReview) {
+        const hasRequestedReview = history.some(m => {
+          const c = (m.content || '').toLowerCase();
+          // Match either the formatted backend summary OR the raw tool result from frontend history
+          return (c.includes('request_review') && (c.includes('review requested') || c.includes('success": true') || c.includes('tool result') || c.includes('tool_result')));
+        });
+
+        if (!hasRequestedReview) {
+          console.warn('[DevAgent] ⚠️ Auto-review request not found in history. Nudging agent to REQUEST.');
+          const nudge = "MANDATORY: You must call `request_review` exactly once BEFORE calling finish. Do NOT call finish in the same response. Call `request_review` NOW.";
+          history.push({ role: 'user', content: nudge });
+          if (onStep) onStep({ type: 'error', message: "Auto-review request not sent yet. Call request_review first." });
           continue;
         }
       }
@@ -941,10 +1004,12 @@ async function runAgent(opts) {
       const attemptedPath = String(p.path || p.file || p.filename || p.filepath || p.target || '').toLowerCase();
 
       // We ONLY allow write_file for walkthrough_review_report.md. 
+      // order_fix is also allowed.
       // bulk_write/replace_in_file/etc are ALWAYS blocked in Review mode.
       const isAllowedReport = action === 'write_file' && /walkthrough_review_report\.md$/i.test(attemptedPath);
+      const isOrderFix = action === 'order_fix';
 
-      if (!isAllowedReport) {
+      if (!isAllowedReport && !isOrderFix) {
         reviewWriteBlockCount++;
         const blockedMsg = `Tool "${action}" to "${attemptedPath}" is disabled in REVIEW mode inside "${effectiveWorkspaceDir}". You can ONLY use write_file for "walkthrough_review_report.md".`;
         console.warn(`[DevAgent] ⛔ BLOCKED: ${blockedMsg} (Attempt ${reviewWriteBlockCount}/2)`);
@@ -970,20 +1035,15 @@ async function runAgent(opts) {
       // If a specific target folder is pinned, we forcefully strip its name 
       // from any paths the AI tries to write to, preventing redundant subfolders.
       if (targetFolderName) {
-        if (action === 'scaffold_project') {
-          p.flat = true;
-        }
+        if (action === 'scaffold_project') p.flat = true;
 
         const stripPrefix = (filePath) => {
           if (!filePath || typeof filePath !== 'string') return filePath;
           const normalizedPath = filePath.replace(/\\/g, '/');
           const normalizedTarget = targetFolderName.replace(/\\/g, '/');
-
           if (normalizedPath === normalizedTarget) return '.';
           const prefix = normalizedTarget + '/';
-          if (normalizedPath.startsWith(prefix)) {
-            return normalizedPath.substring(prefix.length);
-          }
+          if (normalizedPath.startsWith(prefix)) return normalizedPath.substring(prefix.length);
           return filePath;
         };
 
@@ -998,13 +1058,29 @@ async function runAgent(opts) {
             });
           });
         }
-
-        if (action === 'apply_blueprint' && typeof p.content === 'string') {
-          const normalizedTarget = targetFolderName.replace(/\\/g, '/');
-          const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const regex = new RegExp(`(##\\s*)${escapeRegExp(normalizedTarget)}[/\\\\]`, 'g');
-          p.content = p.content.replace(regex, '$1');
+      }
+      // AUTO-NUDGE: If we just scaffolded a project, ensure the agent uses the prefix.
+      else if (lastScaffoldedName && (action === 'write_file' || action === 'replace_in_file' || action === 'bulk_write')) {
+        const attemptedPath = String(p.path || p.file || '').replace(/\\/g, '/');
+        if (attemptedPath.startsWith('src/') || attemptedPath.startsWith('middlewares/') || attemptedPath.startsWith('utils/')) {
+          const expectedPath = `${lastScaffoldedName}/${attemptedPath}`;
+          console.warn(`[DevAgent] 🚨 DUPLICATION DETECTED: Agent wrote to root "${attemptedPath}" but should be "${expectedPath}". Nudging...`);
+          const nudge = `STOP! You are writing to "${attemptedPath}" at the workspace root, which creates duplicate files. Since you just created project "${lastScaffoldedName}", all your files MUST start with "${lastScaffoldedName}/". Please skip any deletion and write ONLY to "${expectedPath}" instead. Do NOT repeat this mistake.`;
+          history.push({ role: 'user', content: `Error: ${nudge}` });
+          if (onStep) onStep({ type: 'tool_error', tool: action, error: nudge });
+          continue;
         }
+      }
+
+      // ── SKIP DELETE ACTIONS (USER REQUEST) ──────────────────────────────────
+      if (action.includes('delete') || action.includes('remove')) {
+        console.log(`[DevAgent] ⏩ SKIPPING ${action} (User handles deletions)`);
+        history.push({ role: 'assistant', content: `Skipping ${action} as requested by user.` });
+        continue;
+      }
+
+      if (action === 'scaffold_project' && p.name) {
+        lastScaffoldedName = p.name;
       }
       // ───────────────────────────────────────────────────────────────────────
 
