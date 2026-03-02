@@ -200,7 +200,7 @@
               <input type="checkbox" v-model="autoRequestReview">
               <span class="slider round slider-review"></span>
             </label>
-            <span class="follow-label">Auto Review</span>
+            <span class="follow-label">Auto Review & Feedback</span>
           </div>
 
           <!-- Stop (visible only while running) -->
@@ -380,6 +380,10 @@ const msgEl    = ref(null)
 const inputEl  = ref(null)
 let   abort    = null
 
+// ── Handoff Loop Guard ──
+const handoffCount = ref(0)
+const maxAgentLoops = ref(5)
+
 // ── Workspace State ──
 const workspacePath = ref('')
 const fbLoading    = ref(false)
@@ -495,8 +499,13 @@ const fastMode        = ref(false)
 const autoRequestReview = ref(false)
 
 // ── Send message ──────────────────────────────────────────────────────────────
-async function send(text) {
+async function send(text, isAutoHandoff = false) {
   let msg = (text || input.value).trim()
+
+  // Reset handoff count if this is a fresh user request
+  if (!isAutoHandoff) {
+    handoffCount.value = 0
+  }
 
   const tags = []
   if (targetFolder.value) tags.push(`[TARGET FOLDER: ${targetFolder.value}]`)
@@ -581,9 +590,13 @@ async function send(text) {
               console.log('[DevAgent] 🛠 Fix ordered by reviewer.');
               wasFixOrdered = true;
             }
-            if (ev.type === 'tool_call' && ev.tool === 'write_file' && ev.parameters?.path === 'walkthrough_review_report.md') {
-              console.log('[DevAgent] 🛠 Report saving initiated.');
-              wasReportSaved = true;
+            if (ev.type === 'tool_call' && ev.tool === 'write_file') {
+              const p = ev.parameters || {};
+              const targetPath = String(p.path || p.file || '').toLowerCase();
+              if (targetPath.endsWith('walkthrough_review_report.md')) {
+                console.log('[DevAgent] 🛠 Report saving initiated:', targetPath);
+                wasReportSaved = true;
+              }
             }
           } catch { /* ignore */ }
         }
@@ -608,28 +621,71 @@ async function send(text) {
     // 🔄 AUTOMATED WORKFLOW: Dev -> Review -> Dev cycle
     const isDevMode = agentMode.value === 'generate';
     const isReviewMode = agentMode.value === 'review';
-    const isAccepted = wasReportSaved && messages.value[idx].text.includes('✅') && !wasFixOrdered;
+    
+    // HISTORY-AWARE DETECTION: Look back through the whole chat for the report and fix orders
+    // This ensures handoff works even if the report was saved in a previous turn!
+    let sessionReportSaved = wasReportSaved;
+    let sessionFixOrdered = wasFixOrdered;
+
+    if (!sessionReportSaved || !sessionFixOrdered) {
+      messages.value.forEach(m => {
+        if (!m.activity) return;
+        m.activity.forEach(act => {
+          if (act.type === 'tool_call' || act.type === 'tool') {
+            if (act.tool === 'order_fix') sessionFixOrdered = true;
+            if (act.tool === 'write_file' || act.tool === 'bulk_write') {
+              const p = act.parameters || {};
+              const targetPath = String(p.path || p.file || '').toLowerCase();
+              if (targetPath.endsWith('walkthrough_review_report.md')) sessionReportSaved = true;
+            }
+          }
+        });
+      });
+    }
+
+    const currentMsgText = messages.value[idx].text || '';
+    const isOk = currentMsgText.includes('[CODE: OK]');
+    const isNotOk = currentMsgText.includes('[CODE: NOT OK]');
+    
+    // Accepted only if report is saved, marked OK, and NO fixes were ordered, and NOT marked NOT OK
+    const isAccepted = sessionReportSaved && isOk && !sessionFixOrdered && !isNotOk;
+
+    console.log(`[DevAgent] Fin: mode=${agentMode.value} auto=${autoRequestReview.value} report=${sessionReportSaved} fix=${sessionFixOrdered} ok=${isOk} notOk=${isNotOk} accepted=${isAccepted}`);
+
+    if (handoffCount.value >= maxAgentLoops.value && autoRequestReview.value) {
+      console.warn(`[DevAgent] 🛑 Agent loop limit reached (${maxAgentLoops.value}). Stopping automatic handoff.`);
+      messages.value[idx].status = `⚠️ Loop limit reached (${maxAgentLoops.value})`;
+      setTimeout(() => { messages.value[idx].status = null; }, 5000);
+      return;
+    }
 
     if (isDevMode && wasReviewRequested && autoRequestReview.value) {
       console.log('[DevAgent] 🔄 Auto-triggering Review handoff...');
-      messages.value[idx].status = '🔄 Handoff to Reviewer...';
+      handoffCount.value++;
+      messages.value[idx].status = `🔄 Handoff to Reviewer (${handoffCount.value}/${maxAgentLoops.value})...`;
       agentMode.value = 'review';
       setTimeout(() => {
         messages.value[idx].status = null;
-        send('[MODE: REVIEW] Developer has finished. Please analyze the code and send feedback/orders.');
+        send('[MODE: REVIEW] Developer has finished. Please analyze the code and send feedback/orders.', true);
       }, 1000);
-    } else if (isReviewMode && wasReportSaved && !isAccepted && autoRequestReview.value) {
-      console.log('[DevAgent] 🔄 Auto-triggering Developer return...');
-      messages.value[idx].status = '🔄 Returning to Developer...';
+    } else if (isReviewMode && (sessionReportSaved || sessionFixOrdered || isNotOk) && !isAccepted && autoRequestReview.value) {
+      console.log('[DevAgent] 🔄 Auto-triggering Developer return (Report:', sessionReportSaved, 'FixOrdered:', sessionFixOrdered, 'isNotOk:', isNotOk, ')');
+      handoffCount.value++;
+      messages.value[idx].status = `🔄 Returning to Developer (${handoffCount.value}/${maxAgentLoops.value})...`;
       agentMode.value = 'generate';
       setTimeout(() => {
         messages.value[idx].status = null;
-        send('[MODE: GENERATE] [WORKFLOW: UPDATE] [FOLLOW REVIEW] The reviewer has provided feedback in walkthrough_review_report.md. Read the report first and address all identified issues.');
+        send(`[MODE: GENERATE] [WORKFLOW: UPDATE] [FOLLOW REVIEW] [CODE: NOT OK] 
+The reviewer has rejected the current implementation. 
+You are now in a HARD LOCK. You MUST read "walkthrough_review_report.md" immediately and perform surgical fixes for EVERY identified issue. 
+Do NOT call finish until all issues are resolved.`, true);
       }, 1000);
     } else if (isReviewMode && isAccepted) {
       console.log('[DevAgent] ✅ Review accepted. Loop complete.');
       messages.value[idx].status = '✅ Code Accepted';
       setTimeout(() => { messages.value[idx].status = null; }, 4000);
+    } else if (isReviewMode && autoRequestReview.value) {
+      console.log('[DevAgent] ⚠️ Auto-loop criteria NOT met. Ensure report is saved and [CODE: OK/NOT OK] verdict is present.');
     }
   }
 }
@@ -834,6 +890,7 @@ onMounted(async () => {
     lmEndpoint.value = data.endpoint
     lmModel.value = data.model
     workspacePath.value = data.workspace
+    if (data.maxAgentLoops) maxAgentLoops.value = data.maxAgentLoops
   } catch (e) {
     lmEndpoint.value = 'Offline'
   }

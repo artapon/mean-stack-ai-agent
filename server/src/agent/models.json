@@ -1,7 +1,7 @@
 {
     "config": {
         "dev": "qwen2.5-coder-7b-instruct",
-        "review": "google/gemma-3-4b",
+        "review": "yi-coder-9b-chat",
         "global": "qwen2.5-coder-7b-instruct"
     },
     "models": [

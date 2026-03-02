@@ -31,7 +31,8 @@ app.get('/api/health', (_req, res) => {
     status: 'ok',
     endpoint: `${process.env.LM_STUDIO_BASE_URL || 'http://localhost:1234'}/api/v1/chat`,
     model: process.env.LM_STUDIO_MODEL || 'openai/gpt-oss-20b',
-    workspace: workspaceDir
+    workspace: workspaceDir,
+    maxAgentLoops: Number(process.env.MAX_AGENT_LOOPS) || 5
   });
 });
 
