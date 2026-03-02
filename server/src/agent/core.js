@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { readFile, writeFile, listFiles, bulkWrite, applyBlueprint, bulkRead, replaceInFile } = require('../tools/filesystem');
 const { scaffoldProject } = require('../tools/scaffolder');
-const { logError } = require('../utils/logger');
+const { logError, logInfo } = require('../utils/logger');
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -427,18 +427,19 @@ function parseReply(rawText, isReview, fastMode) {
     return { action: 'finish', response: json ? (json.response || json.message || cleanResponse) : cleanResponse, thought };
   }
 
-  if (action) {
-    if (!json && raw.toLowerCase().includes('parameters:')) {
-      logError('parse_error', `Unparseable PARAMETERS for "${action}"`, { rawBuffer: raw }, thought);
-      return {
-        action: 'chain_error',
-        isGarbled: false,
-        error: `ACTION "${action}" found but PARAMETERS block is not valid JSON. Use double-quoted keys.`,
-        thought: thought || 'Unparseable parameters.'
-      };
+    if (action) {
+      if (!json && raw.toLowerCase().includes('parameters:')) {
+        // Model formatting issue — keep it out of agent-errors.log.
+        logInfo('parse_error', `Unparseable PARAMETERS for "${action}"`, { rawBuffer: '[omitted]' });
+        return {
+          action: 'chain_error',
+          isGarbled: false,
+          error: `ACTION "${action}" found but PARAMETERS block is not valid JSON. Use double-quoted keys.`,
+          thought: thought || 'Unparseable parameters.'
+        };
+      }
+      return { action, parameters: json || {}, thought };
     }
-    return { action, parameters: json || {}, thought };
-  }
 
   if (json?.action || json?.tool) {
     const fb = getSafeAction(json.action || json.tool);
@@ -599,6 +600,66 @@ function summariseResult(action, params, result, isReview) {
   return `Done. ${isReview ? 'Review complete.' : 'Verify files.'} FINISH if done.`;
 }
 
+/**
+ * Redacts large / sensitive-ish fields before logging to agent-infos.log.
+ * Prevents accidental multi-MB logs when tool parameters include file contents.
+ *
+ * @param {any} value
+ * @param {number} [maxStrLen]
+ * @returns {any}
+ */
+function redactForInfoLog(value, maxStrLen = 800) {
+  const seen = new WeakSet();
+
+  const redactString = (s) => {
+    if (typeof s !== 'string') return s;
+    if (s.length <= maxStrLen) return s;
+    return `[omitted ${s.length} chars] ` + s.slice(0, Math.min(120, maxStrLen)) + '…';
+  };
+
+  const walk = (v, keyHint = '') => {
+    if (v == null) return v;
+    if (typeof v === 'string') return redactString(v);
+    if (typeof v === 'number' || typeof v === 'boolean') return v;
+    if (Array.isArray(v)) return v.slice(0, 50).map((x) => walk(x, keyHint));
+    if (typeof v !== 'object') return String(v);
+
+    if (seen.has(v)) return '[circular]';
+    seen.add(v);
+
+    const out = {};
+    for (const [k, val] of Object.entries(v)) {
+      const lk = String(k).toLowerCase();
+      const isLargeField = ['content', 'replace', 'search', 'text', 'blueprint', 'rawtext', 'rawbuffer'].includes(lk);
+      const isNestedFiles = lk === 'files' && Array.isArray(val);
+
+      if (isNestedFiles) {
+        out[k] = val.slice(0, 50).map((f) => {
+          if (!f || typeof f !== 'object') return walk(f, 'files');
+          const fo = {};
+          for (const [fk, fv] of Object.entries(f)) {
+            const lfk = String(fk).toLowerCase();
+            fo[fk] = (lfk === 'content' || lfk === 'replace' || lfk === 'search')
+              ? `[omitted ${typeof fv === 'string' ? fv.length : 'n/a'}]`
+              : walk(fv, fk);
+          }
+          return fo;
+        });
+        continue;
+      }
+
+      if (isLargeField) {
+        out[k] = `[omitted ${typeof val === 'string' ? val.length : 'n/a'}]`;
+      } else {
+        out[k] = walk(val, k);
+      }
+    }
+    return out;
+  };
+
+  return walk(value);
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ReAct agent loop
@@ -662,6 +723,15 @@ async function runAgent(opts) {
     || selectedModel || process.env.LM_STUDIO_MODEL || modelConfig.global || 'openai/gpt-oss-20b';
 
   console.log(`[DevAgent] Model: "${resolvedModel}" | ${isReview ? 'REVIEW' : 'DEV'} | fast:${fastMode}`);
+  // Fire-and-forget info log (logger is internally try/catch guarded).
+  logInfo('agent_start', 'Agent run started', {
+    model: resolvedModel,
+    mode: isReview ? 'review' : 'dev',
+    fastMode: !!fastMode,
+    workspaceDir,
+    targetFolder: targetFolderName || '',
+    maxSteps: Number(process.env.AGENT_MAX_STEPS) || 50
+  });
 
   const systemPrompt = getSystemPrompt(isReview, targetFolderName, fastMode, autoRequestReview);
   const MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
@@ -752,7 +822,9 @@ async function runAgent(opts) {
 
     // ── No action ────────────────────────────────────────────────────────────
     if (!action) {
-      logError('parse_warning', 'No action', { rawText });
+      // Not a system failure — model produced an answer without an ACTION.
+      // Keep it out of agent-errors.log so that file reflects real runtime/tool failures.
+      logInfo('parse_warning', 'Model output had no ACTION', { step, rawText: '[omitted]' });
       if (onStep) onStep({ type: 'response', content: rawText });
       return { success: true, response: rawText };
     }
@@ -771,7 +843,8 @@ async function runAgent(opts) {
       console.warn(`[DevAgent] Duplicate (${lastActionRepeat}/3): ${action}`);
       if (lastActionRepeat >= 3) {
         const msg = `Loop: "${action}" repeated 3x identically.`;
-        logError('loop_guard', msg, { action }, parsed.thought);
+        // Guardrail event — don't write to agent-errors.log.
+        logInfo('loop_guard', msg, { step, action });
         if (onStep) onStep({ type: 'error', message: msg });
         // Use pushNudge for loop correction — smoother than bare error push
         pushNudge(history,
@@ -797,6 +870,7 @@ async function runAgent(opts) {
           `THOUGHT: I have been scanning without writing. I must start implementing.`
         );
         if (onStep) onStep({ type: 'status', text: 'Nudging: must write files now.' });
+        logInfo('nudge', 'No-progress guard triggered', { step, action, listFilesCount });
         continue;
       }
     } else if (['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'].includes(action)) {
@@ -823,6 +897,7 @@ async function runAgent(opts) {
         console.warn(`[DevAgent] FORMAT RECOVERY injected (${formatRecoveryCount})`);
         const nextAction = isReview ? 'write_file' : 'write_file';
         pushFormatRecovery(history, rawText, parsed.error, nextAction);
+        logInfo('format_recovery', 'Injected format recovery block', { step, error: parsed.error });
         if (onStep) onStep({ type: 'status', text: 'Format recovery: re-anchoring model output format...' });
       } else {
         // Non-garbled chain error (orphaned code block, bad JSON) — use nudge
@@ -832,6 +907,7 @@ async function runAgent(opts) {
           `2. Use ACTION: write_file with PARAMETERS: { "path": "...", "content": "..." }`,
           `THOUGHT: My last response had a format error. I will use the correct tool call format.`
         );
+        logInfo('nudge', 'Injected nudge due to format error', { step, error: parsed.error });
         if (onStep) onStep({ type: 'error', message: parsed.error });
       }
       continue;
@@ -986,7 +1062,7 @@ async function runAgent(opts) {
     if (!toolFn) {
       const errMsg = `Unknown tool "${action}". Available: ${Object.keys(TOOLS).join(', ')}`;
       console.error('[DevAgent]', errMsg);
-      logError('tool_error', errMsg, { action }, parsed.thought);
+      logInfo('tool_error', errMsg, { step, action });
       if (onStep) onStep({ type: 'tool_error', tool: action, error: errMsg });
       pushNudge(history,
         `Tool "${action}" does not exist.\n\nAvailable tools: ${Object.keys(TOOLS).join(', ')}\n\nChoose a valid tool and try again.`,
@@ -996,6 +1072,11 @@ async function runAgent(opts) {
     }
 
     if (onStep) onStep({ type: 'tool_call', tool: action, parameters: parsed.parameters });
+    logInfo('tool_call', `Calling tool "${action}"`, {
+      step,
+      action,
+      parameters: redactForInfoLog(parsed.parameters || {})
+    });
 
     // ── Review mode write restrictions ────────────────────────────────────────
     const writeTools = ['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'];
@@ -1100,12 +1181,19 @@ async function runAgent(opts) {
       }
 
       if (onStep) onStep({ type: 'tool_result', tool: action, result });
+      logInfo('tool_result', `Tool "${action}" completed`, {
+        step,
+        action,
+        ok: !result?.error,
+        error: result?.error || null
+      });
 
     } catch (toolErr) {
       console.error(`[DevAgent] ${action} failed:`, toolErr.message);
       logError('tool_execution_error', toolErr.message, { action, parameters: parsed.parameters }, parsed.thought);
       result = { error: toolErr.message };
       if (onStep) onStep({ type: 'tool_error', tool: action, error: toolErr.message });
+      logInfo('tool_result', `Tool "${action}" failed`, { step, action, ok: false, error: toolErr.message });
     }
 
     if (signal?.aborted) {

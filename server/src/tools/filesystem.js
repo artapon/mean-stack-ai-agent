@@ -76,38 +76,61 @@ async function writeFile(params, workspaceDir) {
 
 // ── list_files ────────────────────────────────────────────────────────────────
 async function listFiles({ path: dirPath = '.' } = {}, workspaceDir) {
-  const abs = safePath(dirPath, workspaceDir);
-  if (!await fs.pathExists(abs)) return { error: `Directory not found: ${dirPath}` };
+  try {
+    const abs = safePath(dirPath, workspaceDir);
+    if (!await fs.pathExists(abs)) return { error: `Directory not found: ${dirPath}` };
 
-  const SKIP = new Set(['node_modules', '.git', 'dist', '.nuxt', '.output', '.vite', '.next', '.cache', 'build', 'coverage', 'bower_components']);
-
-  async function walk(dir, depth = 0) {
-    if (depth > 5) return { items: [], flat: [] };
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    const items = [];
-    let flat = [];
-
-    for (const e of entries) {
-      if (SKIP.has(e.name)) continue;
-      const full = path.join(dir, e.name);
-      const rel = path.relative(workspaceDir, full).replace(/\\/g, '/');
-
-      if (e.isDirectory()) {
-        const sub = await walk(full, depth + 1);
-        items.push({ type: 'directory', name: e.name, path: rel, children: sub.items });
-        flat = flat.concat(sub.flat);
-      } else {
-        const stat = await fs.stat(full);
-        items.push({ type: 'file', name: e.name, path: rel, size: stat.size });
-        flat.push(rel);
-      }
+    // If the model accidentally passes a FILE path to list_files, degrade gracefully:
+    // return a one-item listing instead of throwing ENOTDIR.
+    const rootStat = await fs.stat(abs);
+    if (!rootStat.isDirectory()) {
+      const rel = path.relative(workspaceDir, abs).replace(/\\/g, '/');
+      return {
+        path: dirPath,
+        items: [{ type: 'file', name: path.basename(abs), path: rel, size: rootStat.size }],
+        filesList: [rel],
+        note: 'Provided path is a file; returned a single-item listing.'
+      };
     }
-    return { items, flat };
-  }
 
-  const result = await walk(abs);
-  console.log(`[DevAgent] list_files: found ${result.flat.length} files in "${dirPath}"`);
-  return { path: dirPath, items: result.items, filesList: result.flat };
+    const SKIP = new Set(['node_modules', '.git', 'dist', '.nuxt', '.output', '.vite', '.next', '.cache', 'build', 'coverage', 'bower_components']);
+
+    async function walk(dir, depth = 0) {
+      if (depth > 5) return { items: [], flat: [] };
+      let entries;
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+      } catch (e) {
+        // Never throw out of tool — return partial results and a warning.
+        return { items: [{ type: 'error', name: path.basename(dir), path: path.relative(workspaceDir, dir).replace(/\\/g, '/'), error: e.message }], flat: [] };
+      }
+      const items = [];
+      let flat = [];
+
+      for (const e of entries) {
+        if (SKIP.has(e.name)) continue;
+        const full = path.join(dir, e.name);
+        const rel = path.relative(workspaceDir, full).replace(/\\/g, '/');
+
+        if (e.isDirectory()) {
+          const sub = await walk(full, depth + 1);
+          items.push({ type: 'directory', name: e.name, path: rel, children: sub.items });
+          flat = flat.concat(sub.flat);
+        } else {
+          const stat = await fs.stat(full);
+          items.push({ type: 'file', name: e.name, path: rel, size: stat.size });
+          flat.push(rel);
+        }
+      }
+      return { items, flat };
+    }
+
+    const result = await walk(abs);
+    console.log(`[DevAgent] list_files: found ${result.flat.length} files in "${dirPath}"`);
+    return { path: dirPath, items: result.items, filesList: result.flat };
+  } catch (err) {
+    return { error: err.message };
+  }
 }
 
 // ── bulk_write ────────────────────────────────────────────────────────────────

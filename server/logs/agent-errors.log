@@ -163,3 +163,63 @@ The project structure is well-organized, following the feature-based modular app
 ### THOUGHT:
 The project structure is well-organized, following the feature-based modular approach. The `src` directory contains all necessary files and subdirectories for a basic Express.js application with user management.
 
+[2026-03-02T04:45:12.833Z] [LOOP_GUARD] Agent stuck in a loop: "replace_in_file" repeated 3 times with identical parameters.
+      Metadata: {
+  "action": "replace_in_file",
+  "actionSig": "replace_in_file|{\"path\":\"demo-express-app/src/server.js\",\"search\":\"//constexpress=require('express');//constapp=express();constport=process.env.PORT||3000;app.listen(port,()=>{console.log(`Serverisrunningonport${port}`);});\",\"replace\":\"constexpress=require('express');constapp=express();constport=process.env.PORT||3000;app.use(express.json());constroutes=require('./src/routes/index');app.use('/',routes);app.listen(port,()=>{console.log(`Serverisrunningonport${port}`);});\"}"
+}
+
+[2026-03-02T04:45:38.966Z] [LOOP_GUARD] Agent stuck in a loop: "finish" repeated 3 times with identical parameters.
+      Metadata: {
+  "action": "finish",
+  "actionSig": "finish|{}"
+}
+
+[2026-03-02T04:45:40.336Z] [LOOP_GUARD] Agent stuck in a loop: "finish" repeated 3 times with identical parameters.
+      Metadata: {
+  "action": "finish",
+  "actionSig": "finish|{}"
+}
+
+[2026-03-02T07:53:16.935Z] [LOOP_GUARD] Agent stuck in a loop: "finish" repeated 3 times with identical parameters.
+      Metadata: {
+  "action": "finish",
+  "actionSig": "finish|{}"
+}
+
+[2026-03-02T07:53:19.199Z] [LOOP_GUARD] Agent stuck in a loop: "finish" repeated 3 times with identical parameters.
+      Metadata: {
+  "action": "finish",
+  "actionSig": "finish|{}"
+}
+
+[2026-03-02T07:57:22.386Z] [TOOL_EXECUTION_ERROR] ENOTDIR: not a directory, scandir 'D:\Projects\devagent\workspace\demo-simple-express\src\app.js'
+      Metadata: {
+  "action": "list_files",
+  "parameters": {
+    "path": "./demo-simple-express/src/app.js"
+  }
+}
+
+[2026-03-02T07:57:48.939Z] [CHAIN_ERROR] Orphaned code block without tool call
+      Metadata: {
+  "rawBuffer": "### 📂 Folders Scanned\nFound **17** files. READ relevant files now to build context.\n\nRaw Data:\n```json\n{\n  \"path\": \"./demo-simple-express\",\n  \"items\": [\n    {\n      \"type\": \"file\",\n      \"name\": \".env.example\",\n      \"path\": \"demo-simple-express/.env.example\",\n      \"size\": 31\n    },\n    {\n      \"type\": \"file\",\n      \"name\": \"implementation.md\",\n      \"path\": \"demo-simple-express/implementation.md\",\n      \"size\": 201\n    },\n    {\n      \"type\": \"file\",\n      \"name\": \"install.bat\",\n      \"path\": \"demo-simple-express/install.bat\",\n      \"size\": 78\n    },\n    {\n      \"type\": \"file\",\n      \"name\": \"install.sh\",\n      \"path\": \"demo-simple-express/install.sh\",\n      \"size\": 82\n    },\n    {\n      \"type\": \"file\",\n      \"name\": \"package.json\",\n      \"path\": \"demo-simple-express/package.json\",\n      \"size\": 431\n    },\n    {\n      \"type\": \"file\",\n      \"name\": \"README.md\",\n      \"path\": \"demo-simple-express/README.md\",\n      \"size\": 156\n    },\n    {\n      \"type\": \"directory\",\n      \"name\": \"src\",\n      \"path\": \"demo-simple-express/src\",\n      \"children\": [\n        {\n          \"type\": \"file\",\n          \"name\": \"app.js\",\n          \"path\": \"demo-simple-express/src/app.js\",\n          \"size\": 756\n        },\n        {\n          \"type\": \"directory\",\n          \"name\": \"middlewares\",\n          \"path\": \"demo-simple-express/src/middlewares\",\n          \"children\": [\n            {\n              \"type\": \"file\",\n              \"name\": \"error.middleware.js\",\n              \"path\": \"demo-simple-express/src/middlewares/error.middleware.js\",\n              \"size\": 336\n            }\n          ]\n        },\n        {\n          \"type\": \"directory\",\n          \"name\": \"modules\",\n          \"path\": \"demo-simple-express/src/modules\",\n          \"children\": [\n            {\n              \"type\": \"directory\",\n              \"name\": \"resource\",\n              \"path\": \"demo-simple-express/src/modules/resource\",\n              \"children\": [\n                {\n                  \"type\": \"file\",\n                  \"name\": \"resource.controller.js\",\n                  \"path\": \"demo-simple-express/src/modules/resource/resource.controller.js\",\n                  \"size\": 424\n                },\n                {\n                  \"type\": \"file\",\n                  \"name\": \"resource.model.js\",\n                  \"path\": \"demo-simple-express/src/modules/resource/resource.model.js\",\n                  \"size\": 348\n                },\n                {\n                  \"type\": \"file\",\n                  \"name\": \"resource.routes.js\",\n                  \"path\": \"demo-simple-express/src/modules/resource/resource.routes.js\",\n                  \"size\": 222\n                },\n                {\n                  \"type\": \"file\",\n                  \"name\": \"resource.service.js\",\n                  \"path\": \"demo-simple-express/src/modules/resource/resource.service.js\",\n                  \"size\": 313\n                }\n              ]\n            }\n          ]\n        },\n        {\n          \"type\": \"directory\",\n          \"name\": \"routes\",\n          \"path\": \"demo-simple-express/src/routes\",\n          \"children\": [\n            {\n              \"type\": \"file\",\n              \"name\": \"index.js\",\n              \"path\": \"demo-simple-express/src/routes/index.js\",\n              \"size\": 307\n            }\n          ]\n        },\n        {\n          \"type\": \"file\",\n          \"name\": \"server.js\",\n          \"path\": \"demo-simple-express/src/server.js\",\n          \"size\": 187\n        }\n      ]\n    },\n    {\n      \"type\": \"file\",\n      \"name\": \"start.bat\",\n      \"path\": \"demo-simple-express/start.bat\",\n      \"size\": 48\n    },\n    {\n      \"type\": \"file\",\n      \"name\": \"start.sh\",\n      \"path\": \"demo-simple-express/start.sh\",\n      \"size\": 24\n    },\n    {\n      \"type\": \"file\",\n      \"name\": \"swagger.yaml\",\n      \"path\": \"demo-simple-express/swagger.yaml\",\n      \"size\": 369\n    }\n  ],\n  \"filesList\": [\n    \"demo-simple-express/.env.example\",\n    \"demo-simple-express/implementation.md\",\n    \"demo-simple-express/install.bat\",\n    \"demo-simple-express/install.sh\",\n    \"demo-simple-express/package.json\",\n    \"demo-simple-express/README.md\",\n    \"demo-simple-express/src/app.js\",\n    \"demo-simple-express/src/middlewares/error.middleware.js\",\n    \"demo-simple-express/src/modules/resource/resource.controller.js\",\n    \"demo-simple-express/src/modules/resource/resource.model.js\",\n    \"demo-simple-express/src/modules/resource/resource.routes.js\",\n    \"demo-simple-express/src/modules/resource/resource.service.js\",\n    \"demo-simple-express/src/routes/index.js\",\n    \"demo-simple-express/src/server.js\",\n    \"demo-simple-express/start.bat\",\n    \"demo-simple-express/start.sh\",\n    \"demo-simple-express/swagger.yaml\"\n  ]\n}\n```"
+}
+
+[2026-03-02T07:58:21.872Z] [LOOP_GUARD] Agent stuck in a loop: "finish" repeated 3 times with identical parameters.
+      Metadata: {
+  "action": "finish",
+  "actionSig": "finish|{}"
+}
+
+[2026-03-02T07:58:28.374Z] [LOOP_GUARD] Agent stuck in a loop: "finish" repeated 3 times with identical parameters.
+      Metadata: {
+  "action": "finish",
+  "actionSig": "finish|{}"
+}
+
+[2026-03-02T09:40:47.150Z] [LOOP_GUARD] Loop: "replace_in_file" repeated 3x identically.
+      Metadata: {
+  "action": "replace_in_file"
+}
+
