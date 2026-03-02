@@ -722,6 +722,9 @@ async function runAgent(opts) {
   const resolvedModel = (isReview ? modelConfig.review : modelConfig.dev)
     || selectedModel || process.env.LM_STUDIO_MODEL || modelConfig.global || 'openai/gpt-oss-20b';
 
+  const MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
+  const MAX_REVIEW_LOOPS = Number(process.env.AGENT_MAX_LOOPS) || 3;
+
   console.log(`[DevAgent] Model: "${resolvedModel}" | ${isReview ? 'REVIEW' : 'DEV'} | fast:${fastMode}`);
   // Fire-and-forget info log (logger is internally try/catch guarded).
   logInfo('agent_start', 'Agent run started', {
@@ -730,11 +733,11 @@ async function runAgent(opts) {
     fastMode: !!fastMode,
     workspaceDir,
     targetFolder: targetFolderName || '',
-    maxSteps: Number(process.env.AGENT_MAX_STEPS) || 50
+    maxSteps: MAX_STEPS,
+    maxReviewLoops: MAX_REVIEW_LOOPS
   });
 
   const systemPrompt = getSystemPrompt(isReview, targetFolderName, fastMode, autoRequestReview);
-  const MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
 
   let lastScaffoldedName = '';
   let step = 1, listFilesCount = 0, lastActionSig = null, lastActionRepeat = 0;
@@ -754,6 +757,8 @@ async function runAgent(opts) {
     reviewRequested: false,
     codeModified: false,
     planWritten: false,
+    reviewLoopCount: 0,
+    replaceFailCounts: {}, // per-path replace_in_file failure counters
   };
 
   let history = [
@@ -973,6 +978,23 @@ async function runAgent(opts) {
         );
         if (onStep) onStep({ type: 'status', text: 'Nudging: must read review report and fix code.' });
         continue;
+      }
+
+      // ── Auto re-request review loops after fixing [CODE: NOT OK] ───────────
+      // If we are in DEV mode, there is a prior [CODE: NOT OK], and we've now
+      // both read the review report and modified code, automatically prepare
+      // to request another review, up to MAX_REVIEW_LOOPS.
+      if (!isReview && isFollowReview && autoRequestReview) {
+        if (agentState.reviewLoopCount >= MAX_REVIEW_LOOPS) {
+          console.warn('[DevAgent] Max review loops reached — allowing finish without new request_review.');
+        } else {
+          // Clear the flag so the auto review-request guard below will fire
+          // again and nudge the model to call request_review before finishing.
+          agentState.reviewRequested = false;
+          agentState.reviewLoopCount += 1;
+          reviewRequestNudgeCount = 0;
+          console.log(`[DevAgent] Preparing review loop #${agentState.reviewLoopCount}/${MAX_REVIEW_LOOPS}`);
+        }
       }
 
       // ── Review mode guards ────────────────────────────────────────────────
@@ -1214,17 +1236,38 @@ async function runAgent(opts) {
       }
     }
 
-    // replace_in_file failure: inject actual content to break retry loop
+    // replace_in_file failure: inject actual content AND discourage retry loops
     if (action === 'replace_in_file' && result?.error) {
       const tp = (parsed.parameters || {}).path || (parsed.parameters || {}).file;
       if (tp) {
         try {
-          const actual = await fs.readFile(path.resolve(effectiveWorkspaceDir, tp.replace(/^[/\\]+/, '')), 'utf-8');
+          const absPath = path.resolve(effectiveWorkspaceDir, tp.replace(/^[/\\]+/, ''));
+          const actual = await fs.readFile(absPath, 'utf-8');
           const MAX_CH = 6000;
           const content = actual.length > MAX_CH ? actual.slice(0, MAX_CH) + '\n...[TRUNCATED]' : actual;
           result.currentFileContent =
             `CURRENT "${tp}":\n\`\`\`\n${content}\n\`\`\`\n\nSearch block NOT found. Fix whitespace/match or rewrite with write_file.`;
         } catch (_) { }
+      }
+
+      const msgLower = String(result.error || '').toLowerCase();
+      const isSearchMissing = msgLower.includes('search block was not found');
+      if (isSearchMissing && tp) {
+        const key = tp.toLowerCase();
+        agentState.replaceFailCounts[key] = (agentState.replaceFailCounts[key] || 0) + 1;
+        const failCount = agentState.replaceFailCounts[key];
+
+        if (failCount >= 2) {
+          console.warn(`[DevAgent] replace_in_file search-miss loop on "${tp}" (${failCount})`);
+          // Nudge the model away from further replace_in_file attempts for this file.
+          pushNudge(history,
+            `Your last replace_in_file call on "${tp}" failed because the search block was not found.\n\n` +
+            `1. STOP calling replace_in_file on this file.\n` +
+            `2. Instead, call ACTION: write_file with PARAMETERS: { "path": "${tp}", "content": "FULL UPDATED FILE CONTENT HERE" }.\n` +
+            `3. Use the CURRENT file content shown in the latest tool result as a starting point and edit it directly.`,
+            `THOUGHT: replace_in_file is not matching the target block. I must switch to write_file and provide the full updated file content instead of retrying.`
+          );
+        }
       }
     }
 

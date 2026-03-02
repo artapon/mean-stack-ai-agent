@@ -666,7 +666,9 @@ async function send(text, isAutoHandoff = false) {
       agentMode.value = 'review';
       setTimeout(() => {
         messages.value[idx].status = null;
-        send('[MODE: REVIEW] Developer has finished. Please analyze the code and send feedback/orders.', true);
+        // Log and then send — let send() inject the [MODE: REVIEW] tag automatically.
+        appendHandoffLog('DEV → REVIEW', 'Developer finished implementation. Requesting review feedback/orders.');
+        send('Developer has finished. Please analyze the code and send feedback/orders.', true);
       }, 1000);
     } else if (isReviewMode && (sessionReportSaved || sessionFixOrdered || isNotOk) && !isAccepted && autoRequestReview.value) {
       console.log('[DevAgent] 🔄 Auto-triggering Developer return (Report:', sessionReportSaved, 'FixOrdered:', sessionFixOrdered, 'isNotOk:', isNotOk, ')');
@@ -675,9 +677,14 @@ async function send(text, isAutoHandoff = false) {
       agentMode.value = 'generate';
       setTimeout(() => {
         messages.value[idx].status = null;
-        send(`[MODE: GENERATE] [WORKFLOW: UPDATE] [FOLLOW REVIEW] [CODE: NOT OK] 
-The reviewer has rejected the current implementation. 
-You are now in a HARD LOCK. You MUST read "walkthrough_review_report.md" immediately and perform surgical fixes for EVERY identified issue. 
+        // Log and then send — let send() inject [MODE: GENERATE] + tags automatically.
+        appendHandoffLog(
+          'REVIEW → DEV',
+          `Reviewer responded with ${isNotOk ? '[CODE: NOT OK]' : 'issues/fix orders'}. Returning to developer to apply fixes.`
+        );
+        send(`[WORKFLOW: UPDATE] [FOLLOW REVIEW] [CODE: NOT OK]
+The reviewer has rejected the current implementation.
+You are now in a HARD LOCK. You MUST read "walkthrough_review_report.md" immediately and perform surgical fixes for EVERY identified issue.
 Do NOT call finish until all issues are resolved.`, true);
       }, 1000);
     } else if (isReviewMode && isAccepted) {
@@ -687,6 +694,39 @@ Do NOT call finish until all issues are resolved.`, true);
     } else if (isReviewMode && autoRequestReview.value) {
       console.log('[DevAgent] ⚠️ Auto-loop criteria NOT met. Ensure report is saved and [CODE: OK/NOT OK] verdict is present.');
     }
+  }
+}
+
+// ── Handoff logging helper ─────────────────────────────────────────────────────
+async function appendHandoffLog(direction, details) {
+  try {
+    const timestamp = new Date().toLocaleString()
+    const entry =
+      `\n[${timestamp}] HANDOFF: ${direction}\n` +
+      `${details}\n` +
+      `${'-'.repeat(40)}\n`
+
+    // Read existing log (if any)
+    let previous = ''
+    try {
+      const res = await fetch('/api/files/read?path=agent-handoff.log')
+      if (res.ok) {
+        const data = await res.json()
+        if (data && typeof data.content === 'string') previous = data.content
+      }
+    } catch { /* ignore */ }
+
+    // Write back with appended entry
+    await fetch('/api/files/write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: 'agent-handoff.log',
+        content: previous + entry
+      })
+    })
+  } catch {
+    // Logging must never break the main flow
   }
 }
 
