@@ -190,7 +190,7 @@ RULES:
 7. NO shell commands in write_file.
 8. Single action per response — ONE THOUGHT + ONE ACTION + ONE PARAMETERS block.
 ${fastMode ? '9. FAST MODE: No THOUGHT block at all.' : ''}
-${autoRequestReview ? '9. Call request_review once after all code + walkthrough.md, before finish.' : ''}
+${autoRequestReview ? '10. Call "request_review" after EVERYTHING else (code, documentation) is done, and BEFORE "finish". This is MANDATORY.' : ''}
 `;
 }
 
@@ -427,19 +427,19 @@ function parseReply(rawText, isReview, fastMode) {
     return { action: 'finish', response: json ? (json.response || json.message || cleanResponse) : cleanResponse, thought };
   }
 
-    if (action) {
-      if (!json && raw.toLowerCase().includes('parameters:')) {
-        // Model formatting issue — keep it out of agent-errors.log.
-        logInfo('parse_error', `Unparseable PARAMETERS for "${action}"`, { rawBuffer: '[omitted]' });
-        return {
-          action: 'chain_error',
-          isGarbled: false,
-          error: `ACTION "${action}" found but PARAMETERS block is not valid JSON. Use double-quoted keys.`,
-          thought: thought || 'Unparseable parameters.'
-        };
-      }
-      return { action, parameters: json || {}, thought };
+  if (action) {
+    if (!json && raw.toLowerCase().includes('parameters:')) {
+      // Model formatting issue — keep it out of agent-errors.log.
+      logInfo('parse_error', `Unparseable PARAMETERS for "${action}"`, { rawBuffer: '[omitted]' });
+      return {
+        action: 'chain_error',
+        isGarbled: false,
+        error: `ACTION "${action}" found but PARAMETERS block is not valid JSON. Use double-quoted keys.`,
+        thought: thought || 'Unparseable parameters.'
+      };
     }
+    return { action, parameters: json || {}, thought };
+  }
 
   if (json?.action || json?.tool) {
     const fb = getSafeAction(json.action || json.tool);
@@ -831,7 +831,7 @@ async function runAgent(opts) {
       // Keep it out of agent-errors.log so that file reflects real runtime/tool failures.
       logInfo('parse_warning', 'Model output had no ACTION', { step, rawText: '[omitted]' });
       if (onStep) onStep({ type: 'response', content: rawText });
-      return { success: true, response: rawText };
+      return { success: true, response: rawText, history };
     }
 
     // ── Duplicate action guard ───────────────────────────────────────────────
@@ -858,7 +858,7 @@ async function runAgent(opts) {
           `2. Either provide DIFFERENT parameters, or call ACTION: finish if the task is done.`,
           `THOUGHT: I have been repeating the same action. I must change my approach.`
         );
-        if (lastActionRepeat >= 4) return { success: false, response: msg };
+        if (lastActionRepeat >= 4) return { success: false, response: msg, history };
         continue;
       }
     } else { lastActionSig = sig; lastActionRepeat = 0; }
@@ -891,7 +891,7 @@ async function runAgent(opts) {
         const msg = `Aborted: malformed output ${chainErrorCount}x. ${parsed.error}`;
         console.error('[DevAgent] chain_error limit. Aborting.');
         if (onStep) onStep({ type: 'error', message: msg });
-        return { success: false, response: msg };
+        return { success: false, response: msg, history };
       }
 
       if (parsed.isGarbled) {
@@ -968,7 +968,7 @@ async function runAgent(opts) {
       if (!isReview && isFollowReview && (!history.some(m => (m.content || '').toLowerCase().includes('read_file') && m.content.toLowerCase().includes('walkthrough_review_report.md')) || !agentState.codeModified)) {
         followReviewNudgeCount++;
         console.warn(`[DevAgent] Follow-review nudge (${followReviewNudgeCount}/3)`);
-        if (followReviewNudgeCount >= 3) return { success: false, response: 'Aborted: refused to address [CODE: NOT OK] after 3 nudges.' };
+        if (followReviewNudgeCount >= 3) return { success: false, response: 'Aborted: refused to address [CODE: NOT OK] after 3 nudges.', history };
         pushNudge(history,
           `The reviewer issued [CODE: NOT OK].\n\n` +
           `1. Call ACTION: read_file with walkthrough_review_report.md\n` +
@@ -1015,7 +1015,7 @@ async function runAgent(opts) {
         if (!agentState.reportSaved) {
           reviewNudgeCount++;
           console.warn(`[DevAgent] Report missing (${reviewNudgeCount}/3)`);
-          if (reviewNudgeCount >= 3) return { success: false, response: 'Review aborted: refused to write report after 3 nudges.' };
+          if (reviewNudgeCount >= 3) return { success: false, response: 'Review aborted: refused to write report after 3 nudges.', history };
           // ── BLOCK RESPONSE: smooth nudge pair ───────────────────────────
           pushNudge(history,
             `You must write the review report before finishing.\n\n` +
@@ -1033,7 +1033,7 @@ async function runAgent(opts) {
         if (!verdict.includes('[CODE: OK]') && !verdict.includes('[CODE: NOT OK]')) {
           reviewNudgeCount++;
           console.warn(`[DevAgent] Verdict missing (${reviewNudgeCount}/3)`);
-          if (reviewNudgeCount >= 3) return { success: false, response: 'Review aborted: refused to include verdict after 3 nudges.' };
+          if (reviewNudgeCount >= 3) return { success: false, response: 'Review aborted: refused to include verdict after 3 nudges.', history };
           // ── BLOCK RESPONSE: smooth nudge pair ───────────────────────────
           pushNudge(history,
             `Your finish response is missing the required verdict.\n\n` +
@@ -1058,7 +1058,7 @@ async function runAgent(opts) {
         if (!agentState.reviewRequested) {
           reviewRequestNudgeCount++;
           console.warn(`[DevAgent] request_review nudge (${reviewRequestNudgeCount}/3)`);
-          if (reviewRequestNudgeCount >= 3) return { success: false, response: 'Aborted: refused to call request_review after 3 nudges.' };
+          if (reviewRequestNudgeCount >= 3) return { success: false, response: 'Aborted: refused to call request_review after 3 nudges.', history };
           // ── BLOCK RESPONSE: smooth nudge pair ───────────────────────────
           pushNudge(history,
             `You must call request_review before finishing.\n\n` +
@@ -1075,7 +1075,7 @@ async function runAgent(opts) {
       // All guards passed — emit final response
       const finalMsg = parsed.response || '';
       if (onStep) onStep({ type: 'response', content: finalMsg });
-      return { success: true, response: finalMsg };
+      return { success: true, response: finalMsg, history };
     }
 
     // ── Execute tool ──────────────────────────────────────────────────────────
@@ -1291,7 +1291,7 @@ async function runAgent(opts) {
   const timeout = `Agent reached MAX_STEPS (${MAX_STEPS}). Increase AGENT_MAX_STEPS or simplify the task.`;
   console.error('[DevAgent]', timeout);
   if (onStep) onStep({ type: 'error', message: timeout });
-  return { success: false, response: timeout };
+  return { success: false, response: timeout, history };
 }
 
 module.exports = { runAgent };

@@ -395,6 +395,12 @@ const fbItems      = ref([])
 const currentPath  = ref('.')
 const selectedFile = ref(null)
 const fileContent  = ref('')
+const sessionId    = ref(localStorage.getItem('devagent_session_id') || uid())
+
+// Ensure we have a session ID
+if (!localStorage.getItem('devagent_session_id')) {
+  localStorage.setItem('devagent_session_id', sessionId.value)
+}
 
 function setTargetFolder(path) {
   targetFolder.value = path === targetFolder.value ? null : path
@@ -557,7 +563,12 @@ async function send(text, isAutoHandoff = false) {
     const res = await fetch('/api/agent/run', {
       method  : 'POST',
       headers : { 'Content-Type': 'application/json' },
-      body    : JSON.stringify({ messages: history, fastMode: fastMode.value, autoRequestReview: autoRequestReview.value }),
+      body    : JSON.stringify({ 
+        messages: history, 
+        fastMode: fastMode.value, 
+        autoRequestReview: autoRequestReview.value,
+        sessionId: sessionId.value
+      }),
       signal  : abort.signal
     })
 
@@ -684,12 +695,17 @@ async function send(text, isAutoHandoff = false) {
         );
         send(`[WORKFLOW: UPDATE] [FOLLOW REVIEW] [CODE: NOT OK]
 The reviewer has rejected the current implementation.
-You are now in a HARD LOCK. You MUST read "walkthrough_review_report.md" immediately and perform surgical fixes for EVERY identified issue.
-Do NOT call finish until all issues are resolved.`, true);
+You are now in a HARD LOCK. You MUST:
+1. Read "walkthrough_review_report.md" immediately.
+2. Perform surgical fixes for EVERY identified issue.
+3. Update "walkthrough.md" with your changes.
+4. MANDATORY: Call "request_review" to hand back to the reviewer.
+5. ONLY then call "finish".`, true);
       }, 1000);
     } else if (isReviewMode && isAccepted) {
       console.log('[DevAgent] ✅ Review accepted. Loop complete.');
       messages.value[idx].status = '✅ Code Accepted';
+      agentMode.value = 'generate'; // Switch back to Dev mode for next prompt
       setTimeout(() => { messages.value[idx].status = null; }, 4000);
     } else if (isReviewMode && autoRequestReview.value) {
       console.log('[DevAgent] ⚠️ Auto-loop criteria NOT met. Ensure report is saved and [CODE: OK/NOT OK] verdict is present.');
@@ -776,7 +792,22 @@ async function stop() {
   } catch (e) { console.warn('[Stop Error]', e) }
 }
 
-function clearChat() { messages.value = [] }
+async function clearChat() {
+  if (sessionId.value) {
+    try {
+      await fetch('/api/agent/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sessionId.value })
+      })
+    } catch (e) {
+      console.warn('[Session] Failed to clear server session:', e)
+    }
+  }
+  messages.value = []
+  sessionId.value = uid()
+  localStorage.setItem('devagent_session_id', sessionId.value)
+}
 
 // ── SSE event handler ─────────────────────────────────────────────────────────
 
@@ -967,6 +998,27 @@ onMounted(async () => {
       console.error('Failed to copy text:', err);
     }
   });
+
+  // Load session history
+  if (sessionId.value) {
+    try {
+      const res = await fetch(`/api/agent/session/${sessionId.value}`)
+      const data = await res.json()
+      if (data.history && data.history.length > 0) {
+        messages.value = data.history.map(m => ({
+          id: uid(),
+          role: m.role,
+          text: m.content,
+          streaming: false,
+          activity: []
+        }))
+        await nextTick()
+        await scrollDown()
+      }
+    } catch (e) {
+      console.warn('[Session] Failed to load history:', e)
+    }
+  }
 })
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────

@@ -1,19 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const { runAgent } = require('../agent/core');
+const { loadSession, saveSession, clearSession } = require('../utils/session');
 
 // TRACKER: Allow manual stop of the running agent
 let activeAgentRun = null;
 
 // POST /api/agent/run — streams agent steps via Server-Sent Events
 router.post('/run', async (req, res) => {
-  const { messages, fastMode, autoRequestReview } = req.body;
+  const { messages, fastMode, autoRequestReview, sessionId } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: '"messages" must be a non-empty array.' });
   }
 
-  console.log(`\n[DevAgent] 🟢 NEW REQUEST /api/agent/run (${messages.length} messages, fast: ${fastMode})`);
+  console.log(`\n[DevAgent] 🟢 NEW REQUEST /api/agent/run (${messages.length} messages, fast: ${fastMode}, session: ${sessionId || 'none'})`);
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -41,7 +42,9 @@ router.post('/run', async (req, res) => {
   });
 
   try {
-    await runAgent({
+    // 3. Run the agent (In this version, we assume 'messages' sent from client already contains 
+    //    the full history if desired, or just the new turn if they want a fresh start.)
+    const result = await runAgent({
       messages,
       workspaceDir: req.app.locals.workspaceDir,
       signal: abort.signal,
@@ -49,6 +52,15 @@ router.post('/run', async (req, res) => {
       fastMode: !!fastMode,
       autoRequestReview: !!autoRequestReview
     });
+
+    // 4. Update session
+    if (sessionId && result.history) {
+      // Store history without system prompt
+      const historyToSave = result.history.filter(m => m.role !== 'system');
+      await saveSession(sessionId, historyToSave);
+      console.log(`[DevAgent] Session ${sessionId} saved.`);
+    }
+
     console.log('[DevAgent] ✅ runAgent successfully finished.');
     send({ type: 'done' });
   } catch (err) {
@@ -59,6 +71,31 @@ router.post('/run', async (req, res) => {
     if (!res.writableEnded) {
       res.end();
     }
+  }
+});
+
+// GET /api/agent/session/:sessionId — Get session history
+router.get('/session/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  try {
+    const session = await loadSession(sessionId);
+    res.json(session);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load session: ' + err.message });
+  }
+});
+
+// POST /api/agent/clear — Clear session memory
+router.post('/clear', async (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId) {
+    return res.status(400).json({ error: 'sessionId is required.' });
+  }
+  try {
+    await clearSession(sessionId);
+    res.json({ success: true, message: `Session ${sessionId} cleared.` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to clear session: ' + err.message });
   }
 });
 
