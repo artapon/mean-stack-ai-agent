@@ -1027,7 +1027,7 @@ function md(text) {
   if (!text) return '';
   
   // Handle Thought Callouts: wrap THOUGHT: ... blocks in a container
-  let t = text.replace(/THOUGHT:\s*([\s\S]*?)(?=ACTION:|$)/gi, (match, content) => {
+  let t = text.replace(/THOUGHT:\s*([\s\S]*?)(?=THOUGHT:|ACTION:|$)/gi, (match, content) => {
     if (!content.trim()) return '';
     return `
       <div class="thought-container">

@@ -339,7 +339,7 @@ function isGarbledOutput(raw) {
 
 // ── Sanitize raw model reply ───────────────────────────────────────────────────
 /** @param {string} raw @returns {string} */
-function sanitizeRawReply(raw) {
+const sanitizeRawReply = (raw) => {
   if (!raw) return '';
   return raw
     .replace(/(?:^|\n)(?:\d+\.)?\*?\*?\s*(ACTION|PARAMETERS|THOUGHT)\s*\*?\*?\s*(?:[:\s]+)?/gi,
@@ -356,6 +356,7 @@ function sanitizeRawReply(raw) {
     .replace(/(?:ACTION[A-Z]*METERS[:\s]*){2,}/gi, '\n\nACTION: \n\nPARAMETERS: ')
     .replace(/(?:ACTION[:\s]*){2,}/gi, '\n\nACTION: ')
     .replace(/(?:PARAMETERS[:\s]*){2,}/gi, '\n\nPARAMETERS: ')
+    .replace(/(?:THOUGHT[:\s]*){2,}/gi, '\n\nTHOUGHT: ')
     .replace(/(\n\nACTION:\s*\w+)\s*\n+(?=(?:```[a-z]*\s*)?\{)/gi, '$1\n\nPARAMETERS: ')
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
     .trim();
@@ -1050,7 +1051,7 @@ async function runAgent(opts) {
       // ── Auto review-request guard ─────────────────────────────────────────
       if (autoRequestReview && !isReview) {
         if (!agentState.reviewRequested) {
-          agentState.reviewRequested = history.some(m => {
+          agentState.reviewRequested = history.slice(history.findLastIndex(m => (m.content || '').includes('[CODE: NOT OK]')) + 1).some(m => {
             const c = (m.content || '').toLowerCase();
             return c.includes('request_review') && (c.includes('tool result') || c.includes('logged'));
           });
@@ -1228,6 +1229,7 @@ async function runAgent(opts) {
     if (isReview && parsed.response) {
       const r = parsed.response;
       if (r.includes('[CODE: NOT OK]') || r.toLowerCase().includes('issue')) {
+        agentState.reviewRequested = false; // RESET STATE ON REJECTION
         try {
           const lp = path.resolve(workspaceDir, 'agent-handoff.log');
           await fs.ensureDir(path.dirname(lp));
