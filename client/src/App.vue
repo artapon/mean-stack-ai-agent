@@ -655,8 +655,8 @@ async function send(text, isAutoHandoff = false) {
     }
 
     const currentMsgText = messages.value[idx].text || '';
-    const isOk = currentMsgText.includes('[CODE: OK]');
-    const isNotOk = currentMsgText.includes('[CODE: NOT OK]');
+    const isOk = /\[CODE:\s*OK\]/i.test(currentMsgText);
+    const isNotOk = /\[CODE:\s*NOT\s*OK\]/i.test(currentMsgText);
     
     // Accepted only if report is saved, marked OK, and NO fixes were ordered, and NOT marked NOT OK
     const isAccepted = sessionReportSaved && isOk && !sessionFixOrdered && !isNotOk;
@@ -970,6 +970,17 @@ onMounted(async () => {
 
   // Global Copy Logic: Handles both Thought callouts and Full Message bubbles
   window.addEventListener('click', async (e) => {
+    // Handle Thought Toggling
+    const toggle = e.target.closest('.thought-toggle');
+    if (toggle) {
+      const container = toggle.closest('.thought-container');
+      const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', !isExpanded);
+      container.classList.toggle('collapsed', isExpanded);
+      container.classList.toggle('expanded', !isExpanded);
+      return;
+    }
+
     const btn = e.target.closest('.thought-copy, .copy-btn');
     if (!btn) return;
     
@@ -1027,16 +1038,23 @@ function md(text) {
   if (!text) return '';
   
   // Handle Thought Callouts: wrap THOUGHT: ... blocks in a container
-  let t = text.replace(/THOUGHT:\s*([\s\S]*?)(?=THOUGHT:|ACTION:|$)/gi, (match, content) => {
+  let t = text.replace(/(?:^|\n)THOUGHT[:\s]*([\s\S]*?)(?=(?:\n(?:THOUGHT|ACTION):)|$)/gi, (match, content) => {
     if (!content.trim()) return '';
     return `
-      <div class="thought-container">
+      <div class="thought-container collapsed">
         <div class="thought-section-header">
-          <span class="thought-tag">THOUGHT</span>
+          <div class="thought-header-left">
+            <button class="thought-toggle" aria-expanded="false" title="Toggle Thought">
+              <span class="thought-chevron">▶</span>
+              <span class="thought-tag">THOUGHT</span>
+            </button>
+          </div>
           <button class="thought-copy" title="Copy Thought">Copy</button>
         </div>
-        <div class="thought-ca">
-          <div class="thought-content">${content.trim()}</div>
+        <div class="thought-wrapper">
+          <div class="thought-ca">
+            <div class="thought-content">${content.trim()}</div>
+          </div>
         </div>
       </div>
     `.trim();
@@ -1841,6 +1859,8 @@ input:checked + .slider.slider-fast:before {
   border-radius: var(--r);
   padding: 14px 18px;
   line-height: 1.7; font-size: 14px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .msg-bubble.user {
   background: linear-gradient(135deg, #162560, #0e1a45);
@@ -1882,28 +1902,66 @@ input:checked + .slider.slider-fast:before {
 
 /* Thought Callouts */
 .msg-bubble :deep(.thought-container) {
-  margin: 20px 0;
+  margin: 16px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+.msg-bubble :deep(.thought-container.expanded) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border2);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 .msg-bubble :deep(.thought-section-header) {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 10px;
-  padding: 0 4px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.1);
+}
+.msg-bubble :deep(.thought-header-left) {
+  display: flex; align-items: center; gap: 8px;
+}
+.msg-bubble :deep(.thought-toggle) {
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: none; padding: 4px 8px;
+  cursor: pointer; border-radius: 4px;
+  transition: background 0.15s;
+}
+.msg-bubble :deep(.thought-toggle:hover) {
+  background: rgba(255,255,255,0.05);
+}
+.msg-bubble :deep(.thought-toggle .thought-chevron) {
+  font-size: 10px; color: var(--t3);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.msg-bubble :deep(.thought-container.expanded .thought-chevron) {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+.msg-bubble :deep(.thought-wrapper) {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.msg-bubble :deep(.thought-container.expanded .thought-wrapper) {
+  grid-template-rows: 1fr;
 }
 .msg-bubble :deep(.thought-ca) {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(4px);
+  min-height: 0;
   border-left: 3px solid var(--accent);
-  padding: 16px 20px;
-  border-radius: 4px 10px 10px 4px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  margin: 0 12px 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0 4px 4px 0;
 }
 .msg-bubble :deep(.thought-content),
 .msg-bubble :deep(.thought-content *) {
   color: #ffffff !important; /* Sharp white for maximum readability */
   font-size: 14.5px;
-  line-height: 1.7;
-  font-style: normal !important; /* Non-italic for authoritative look */
   opacity: 1;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .msg-bubble :deep(.thought-tag) {
   font-size: 10px;
@@ -2017,6 +2075,8 @@ input:checked + .slider.slider-fast:before {
   color: var(--t1); font-family: var(--sans); font-size: 13px;
   line-height: 1.6; border-top: 1px solid rgba(91,156,255,.08);
   white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .act-card.tool {
   background: rgba(61,220,132,.04);

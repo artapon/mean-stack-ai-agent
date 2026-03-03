@@ -332,7 +332,9 @@ function isGarbledOutput(raw) {
     /ACTION[A-Z]{3,}ETERS/i.test(raw) ||                    // ACTIONARAMETERS, ACTIONMETERS etc.
     /(?:ACTION[A-Z]*METERS[:\s]*){2,}/i.test(raw) ||        // repeated merged markers
     /^(?:\d+\.\s*)?ACTION[A-Z]+METERS/im.test(raw) ||       // numbered ACTIONARAMETERS
-    /^(ACTION[A-Z]*ETERS:[A-Z:]{10,})/i.test(raw.trim())    // pure garbage stream
+    /^(ACTION[A-Z]*ETERS:[A-Z:]{10,})/i.test(raw.trim()) || // pure garbage stream
+    /(?:THOUGHT[:\s]*){3,}/i.test(raw) ||                   // excessive THOUGHT repetition
+    /^(THOUGHT){3,}/im.test(raw)                            // pure repeated markers without colons
   );
 }
 
@@ -357,6 +359,7 @@ const sanitizeRawReply = (raw) => {
     .replace(/(?:ACTION[:\s]*){2,}/gi, '\n\nACTION: ')
     .replace(/(?:PARAMETERS[:\s]*){2,}/gi, '\n\nPARAMETERS: ')
     .replace(/(?:THOUGHT[:\s]*){2,}/gi, '\n\nTHOUGHT: ')
+    .replace(/(?:THOUGHT){2,}/gi, '\n\nTHOUGHT: ')
     .replace(/(\n\nACTION:\s*\w+)\s*\n+(?=(?:```[a-z]*\s*)?\{)/gi, '$1\n\nPARAMETERS: ')
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
     .trim();
@@ -803,7 +806,10 @@ async function runAgent(opts) {
           .replace(/ACTION:\s*[\w_]*/gi, '')
           .replace(/PARAMETERS:\s*\{[\s\S]*?\}/gi, '')
           .replace(/PARAMETERS:\s*\{[\s\S]*/gi, '');
-        if (fastMode) clean = clean.replace(/THOUGHT:\s*[\s\S]*?(?=ACTION:|$)/gi, '');
+        if (fastMode) {
+          clean = clean.replace(/THOUGHT[:\s]*[\s\S]*?(?=ACTION:|$)/gi, '');
+          clean = clean.replace(/THOUGHT+/gi, ''); // extra aggressive fix for markers without colon
+        }
         const delta = clean.slice(sentLen);
         if (delta.length > 0) { onStep({ type: 'chunk', content: delta }); sentLen = clean.length; }
         const isInternal = stepFull.toLowerCase().includes('action:') ||
