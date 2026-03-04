@@ -8,6 +8,19 @@ const path = require('path');
 const fs = require('fs-extra');
 
 /**
+ * Removes <think>...</think> blocks from model responses.
+ * Also cleans common garbled artifacts like ACTIONMETERS.
+ */
+function cleanResponse(text) {
+    if (!text || typeof text !== 'string') return text;
+    // Strip <think> blocks and their content
+    let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    // Clean merged markers if any leaked through
+    cleaned = cleaned.replace(/ACTIONARAMETERS|ACTIONMETERS|THOUGHTACTION|ACTIONPARAMETERS/i, '').trim();
+    return cleaned;
+}
+
+/**
  * Custom Output Parser for DevAgent's specific THOUGHT/ACTION/PARAMETERS format.
  * This ensures the model's response adheres to our required structure.
  */
@@ -19,13 +32,23 @@ class DevAgentOutputParser extends BaseOutputParser {
 
     async parse(text) {
         try {
+            // DETECT MERGED MARKERS (Known LM Studio / Context Panic Issue)
+            const isMerged = /ACTIONARAMETERS|ACTIONMETERS|THOUGHTACTION|ACTIONPARAMETERS/i.test(text);
+            if (isMerged) {
+                return {
+                    action: "error",
+                    response: text,
+                    error: "GARBLED OUTPUT DETECTED: Merged markers (e.g. ACTIONMETERS) found. Re-anchoring format."
+                };
+            }
+
             const thoughtMatch = text.match(/THOUGHT:\s*([\s\S]*?)(?=ACTION:|$)/i);
             const actionMatch = text.match(/ACTION:\s*([\w_]+)/i);
             const paramsMatch = text.match(/PARAMETERS:\s*(\{[\s\S]*?\})/i);
 
             const result = {
                 thought: thoughtMatch ? thoughtMatch[1].trim() : "",
-                action: actionMatch ? actionMatch[1].trim().toLowerCase() : "finish",
+                action: actionMatch ? actionMatch[1].trim().toLowerCase() : (isMerged ? "error" : "finish"),
                 parameters: {},
                 response: text
             };
@@ -37,6 +60,12 @@ class DevAgentOutputParser extends BaseOutputParser {
                     result.error = "Invalid JSON in PARAMETERS";
                 }
             }
+
+            // Final validation: if no action found and not finish, it's a parse error
+            if (!actionMatch && text.length > 50) {
+                result.error = "Could not identify ACTION marker. Please ensure format is: THOUGHT: ... ACTION: ... PARAMETERS: { ... }";
+            }
+
             return result;
         } catch (e) {
             return { action: "finish", response: text, error: "Parser failed: " + e.message };
@@ -85,6 +114,9 @@ class LangchainWorkflow {
 
         try {
             let fullText = "";
+            let isThinking = false;
+            let thinkBuffer = "";
+
             const stream = await this.chat.stream(messages, { signal });
 
             for await (const chunk of stream) {
@@ -92,10 +124,27 @@ class LangchainWorkflow {
                 const content = chunk.content;
                 if (content) {
                     fullText += content;
-                    if (onChunk) onChunk(content);
+
+                    // STREAM FILTERING: Skip content inside <think> tags
+                    if (content.includes('<think>')) isThinking = true;
+
+                    if (!isThinking) {
+                        // Regular content - send to UI
+                        if (onChunk) onChunk(content);
+                    } else {
+                        // Buffer thinking content to check for end tag
+                        thinkBuffer += content;
+                        if (thinkBuffer.includes('</think>')) {
+                            const parts = thinkBuffer.split('</think>');
+                            const afterThink = parts.slice(1).join('</think>');
+                            if (afterThink && onChunk) onChunk(afterThink);
+                            isThinking = false;
+                            thinkBuffer = "";
+                        }
+                    }
                 }
             }
-            return fullText;
+            return cleanResponse(fullText);
         } catch (err) {
             throw err;
         }
@@ -147,7 +196,7 @@ class LangchainPlanner {
 
         const chain = RunnableSequence.from([prompt, this.chat]);
         const response = await chain.invoke({ objective, context });
-        return response.content;
+        return cleanResponse(response.content);
     }
 }
 
@@ -157,7 +206,14 @@ class LangchainPlanner {
 async function callLangchain(history, onChunk, signal, selectedModel, options = {}) {
     const model = selectedModel || process.env.LM_STUDIO_MODEL || 'openai/gpt-oss-20b';
     const workflow = new LangchainWorkflow(model, options);
-    return await workflow.call(history, onChunk, signal);
+    let result = await workflow.call(history, onChunk, signal);
+
+    // FORMATTING: If in Review mode and the message looks like a summary, wrap with code block for readability
+    if (options.isReview && result.length > 100 && !result.includes('```')) {
+        result = "```markdown\n" + result + "\n```";
+    }
+
+    return result;
 }
 
 module.exports = {

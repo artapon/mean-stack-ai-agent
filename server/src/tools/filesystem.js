@@ -75,13 +75,14 @@ async function writeFile(params, workspaceDir) {
 }
 
 // ── list_files ────────────────────────────────────────────────────────────────
+const ignore = require('ignore');
+
 async function listFiles({ path: dirPath = '.' } = {}, workspaceDir) {
   try {
     const abs = safePath(dirPath, workspaceDir);
     if (!await fs.pathExists(abs)) return { error: `Directory not found: ${dirPath}` };
 
     // If the model accidentally passes a FILE path to list_files, degrade gracefully:
-    // return a one-item listing instead of throwing ENOTDIR.
     const rootStat = await fs.stat(abs);
     if (!rootStat.isDirectory()) {
       const rel = path.relative(workspaceDir, abs).replace(/\\/g, '/');
@@ -95,38 +96,58 @@ async function listFiles({ path: dirPath = '.' } = {}, workspaceDir) {
 
     const SKIP = new Set(['node_modules', '.git', 'dist', '.nuxt', '.output', '.vite', '.next', '.cache', 'build', 'coverage', 'bower_components']);
 
+    // Load .gitignore if it exists in the workspaceDir
+    const ig = ignore();
+    const gitignorePath = path.join(workspaceDir, '.gitignore');
+    if (await fs.pathExists(gitignorePath)) {
+      const gitignoreContent = await fs.readFile(gitignorePath, 'utf-8');
+      ig.add(gitignoreContent);
+      console.log(`[DevAgent] list_files: Loaded .gitignore from ${workspaceDir}`);
+    }
+
     async function walk(dir, depth = 0) {
-      if (depth > 5) return { items: [], flat: [] };
+      if (depth > 10) return { items: [], flat: [] }; // Increased depth slightly
       let entries;
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
       } catch (e) {
-        // Never throw out of tool — return partial results and a warning.
         return { items: [{ type: 'error', name: path.basename(dir), path: path.relative(workspaceDir, dir).replace(/\\/g, '/'), error: e.message }], flat: [] };
       }
       const items = [];
       let flat = [];
 
       for (const e of entries) {
-        if (SKIP.has(e.name)) continue;
         const full = path.join(dir, e.name);
         const rel = path.relative(workspaceDir, full).replace(/\\/g, '/');
+
+        // Check hardcoded skip list
+        if (SKIP.has(e.name)) continue;
+
+        // Check .gitignore rules
+        if (ig.ignores(rel)) {
+          // console.log(`[DevAgent] list_files: Ignored by .gitignore: ${rel}`);
+          continue;
+        }
 
         if (e.isDirectory()) {
           const sub = await walk(full, depth + 1);
           items.push({ type: 'directory', name: e.name, path: rel, children: sub.items });
           flat = flat.concat(sub.flat);
         } else {
-          const stat = await fs.stat(full);
-          items.push({ type: 'file', name: e.name, path: rel, size: stat.size });
-          flat.push(rel);
+          try {
+            const stat = await fs.stat(full);
+            items.push({ type: 'file', name: e.name, path: rel, size: stat.size });
+            flat.push(rel);
+          } catch (statErr) {
+            console.warn(`[DevAgent] list_files: Could not stat "${rel}": ${statErr.message}`);
+          }
         }
       }
       return { items, flat };
     }
 
     const result = await walk(abs);
-    console.log(`[DevAgent] list_files: found ${result.flat.length} files in "${dirPath}"`);
+    console.log(`[DevAgent] list_files: found ${result.flat.length} files in "${dirPath}" (after filtering)`);
     return { path: dirPath, items: result.items, filesList: result.flat };
   } catch (err) {
     return { error: err.message };

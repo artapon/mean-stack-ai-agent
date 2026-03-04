@@ -674,6 +674,7 @@ async function runAgent(opts) {
 
   // ── Escape counters — all nudge branches have hard abort limits ────────────
   let chainErrorCount = 0;
+  let planNudgeCount = 0;
   let reviewNudgeCount = 0;
   let reviewRequestNudgeCount = 0;
   let prematureFinishCount = 0;
@@ -996,6 +997,36 @@ async function runAgent(opts) {
             `THOUGHT: My finish response was missing the [CODE: OK] or [CODE: NOT OK] verdict. I will include it now.`
           );
           if (onStep) onStep({ type: 'status', text: 'Nudging: verdict missing in finish response.' });
+          continue;
+        }
+      }
+
+      // ── Walkthrough.md guard ──────────────────────────────────────────────
+      if (!isReview) {
+        if (!agentState.planWritten) {
+          // Double check history as agentState might have missed it if it was from a previous partial turn
+          agentState.planWritten = history.some(m => {
+            if (m.role !== 'user' || !m.content) return false;
+            const c = m.content.toLowerCase();
+            return (c.includes('walkthrough.md') || c.includes('plan.md')) && (
+              c.includes('file written') || c.includes('file updated') || c.includes('tool result (write_file)')
+            );
+          });
+        }
+
+        if (!agentState.planWritten) {
+          planNudgeCount++;
+          console.warn(`[DevAgent] Walkthrough missing (${planNudgeCount}/3)`);
+          if (planNudgeCount >= 3) return { success: false, response: 'Generation aborted: refused to write walkthrough.md after 3 nudges.', history };
+
+          pushNudge(history,
+            `You must write a summary of your implementations to walkthrough.md before finishing.\n\n` +
+            `1. ACTION: write_file\n` +
+            `2. PARAMETERS: { "path": "walkthrough.md", "content": "# Project Walkthrough\\n\\n## Changes\\n- Feature X\\n- Fix Y\\n..." }\n\n` +
+            `This is mandatory for every task. Do it NOW.`,
+            `THOUGHT: I must document my implemented changes in walkthrough.md before I can finish.`
+          );
+          if (onStep) onStep({ type: 'status', text: 'Nudging: must write walkthrough.md first.' });
           continue;
         }
       }
