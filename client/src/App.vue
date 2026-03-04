@@ -681,11 +681,12 @@ async function send(text, isAutoHandoff = false) {
         appendHandoffLog('DEV → REVIEW', 'Developer finished implementation. Requesting review feedback/orders.');
         send('Developer has finished. Please analyze the code and send feedback/orders.', true);
       }, 1000);
-    } else if (isReviewMode && (sessionReportSaved || sessionFixOrdered || isNotOk) && !isAccepted && autoRequestReview.value) {
-      console.log('[DevAgent] 🔄 Auto-triggering Developer return (Report:', sessionReportSaved, 'FixOrdered:', sessionFixOrdered, 'isNotOk:', isNotOk, ')');
-      handoffCount.value++;
-      messages.value[idx].status = `🔄 Returning to Developer (${handoffCount.value}/${maxAgentLoops.value})...`;
+    } else if (isReviewMode && (isOk || isNotOk || sessionFixOrdered)) {
       agentMode.value = 'generate';
+      if (!isAccepted && (sessionReportSaved || sessionFixOrdered || isNotOk) && autoRequestReview.value) {
+        console.log('[DevAgent] 🔄 Auto-triggering Developer return (Report:', sessionReportSaved, 'FixOrdered:', sessionFixOrdered, 'isNotOk:', isNotOk, ')');
+        handoffCount.value++;
+        messages.value[idx].status = `🔄 Returning to Developer (${handoffCount.value}/${maxAgentLoops.value})...`;
       setTimeout(() => {
         messages.value[idx].status = null;
         // Log and then send — let send() inject [MODE: GENERATE] + tags automatically.
@@ -702,11 +703,11 @@ You are now in a HARD LOCK. You MUST:
 4. MANDATORY: Call "request_review" to hand back to the reviewer.
 5. ONLY then call "finish".`, true);
       }, 1000);
-    } else if (isReviewMode && isAccepted) {
-      console.log('[DevAgent] ✅ Review accepted. Loop complete.');
-      messages.value[idx].status = '✅ Code Accepted';
-      agentMode.value = 'generate'; // Switch back to Dev mode for next prompt
-      setTimeout(() => { messages.value[idx].status = null; }, 4000);
+      } else if (isAccepted) {
+        console.log('[DevAgent] ✅ Review accepted. Loop complete.');
+        messages.value[idx].status = '✅ Code Accepted';
+        setTimeout(() => { messages.value[idx].status = null; }, 4000);
+      }
     } else if (isReviewMode && autoRequestReview.value) {
       console.log('[DevAgent] ⚠️ Auto-loop criteria NOT met. Ensure report is saved and [CODE: OK/NOT OK] verdict is present.');
     }

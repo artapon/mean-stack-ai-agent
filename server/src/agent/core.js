@@ -114,17 +114,37 @@ function pushFormatRecovery(history, lastBadOutput, errorReason, exampleAction) 
  * @returns {string}
  */
 function loadSkills(isReview) {
+  const stack = process.env.SUB_AGENT || 'default';
   const agentDir = __dirname;
-  const read = (filename) => {
+  const stackDir = path.join(agentDir, 'agents', stack);
+
+  console.log(`[DevAgent] 🛠 Loading prompts for stack: ${stack}`);
+
+  const read = (dir, filename) => {
     try {
-      const p = path.join(agentDir, filename);
-      return fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : '';
+      const p = path.join(dir, filename);
+      if (fs.existsSync(p)) return fs.readFileSync(p, 'utf-8');
+
+      // Fallback to default if not found in requested stack
+      if (stack !== 'default') {
+        const fallBackPath = path.join(agentDir, 'agents', 'default', filename);
+        if (fs.existsSync(fallBackPath)) return fs.readFileSync(fallBackPath, 'utf-8');
+      }
+
+      // Legacy fallback (mean_stack)
+      if (stack !== 'mean_stack') {
+        const meanPath = path.join(agentDir, 'agents', 'mean_stack', filename);
+        if (fs.existsSync(meanPath)) return fs.readFileSync(meanPath, 'utf-8');
+      }
+
+      return '';
     } catch (e) {
       console.warn(`[DevAgent] Could not load ${filename}:`, e.message);
       return '';
     }
   };
-  return [read('skill.md'), isReview ? read('review.md') : read('developer.md')]
+
+  return [read(stackDir, 'skill.md'), isReview ? read(stackDir, 'review.md') : read(stackDir, 'developer.md')]
     .filter(Boolean).join('\n\n---\n\n');
 }
 
