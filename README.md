@@ -1,85 +1,91 @@
-# ⚡ DevAgent
+# ⚡ DevAgent: Local Agentic AI Developer
 
-Agentic AI developer for **Node.js + Express.js + Vue.js**, powered by your local **LM Studio** instance.
+> **Powered by Langchain + LM Studio.** A high-performance, local-first agentic developer that plans, scaffolds, and implements full-stack applications with architectural integrity.
 
-## Quick Start (Windows)
+---
 
-1. Install [Node.js](https://nodejs.org) >= 18
-2. Open **LM Studio** → load `openai/gpt-oss-20b` → enable **Local Server** on port 1234
-3. Double-click **`start.bat`** — installs everything and opens the app
-4. Next time use **`dev.bat`** to launch instantly
+## 🚀 Key Features
 
-## Manual Start
+*   **🧠 Langchain-Powered Brain**: Advanced orchestration using the Langchain framework for complex reasoning and state management.
+*   **🗺️ Action Roadmaps**: Before writing code, the agent generates a high-level architectural plan (Roadmap) using a specialized Planner system.
+*   **🔄 Multi-Agent Workflow**: Autonomous transition between **Developer Mode** (Implementation) and **Reviewer Mode** (Rigorous Audit).
+*   **📦 Dynamic Scaffolding**: Support for multiple stacks: `Express API`, `Vue App`, `MEAN Stack`, and `Healthcare APIs`.
+*   **🛠️ Robust Toolset**: Surgical file editing with `replace_in_file`, `bulk_write`, and `blueprint` application.
+*   **💻 100% Local**: Optimized for **LM Studio**. No API keys required, no data leaves your machine.
 
-```bash
-# Install all dependencies
-npm run install:all
+---
 
-# Start both servers
-npm run dev
+## 🛠️ Quick Start (Recommended)
 
-# Open browser
-http://localhost:5173
-```
+1.  **Prerequisites**:
+    *   [Node.js](https://nodejs.org) (v20 or v22 Recommended)
+    *   [LM Studio](https://lmstudio.ai) (Load `openai/gpt-oss-20b` or similar)
+2.  **Initialize**:
+    *   Open LM Studio → **Local Server** (Port 1234)
+    *   Double-click **`start.bat`** (Installs dependencies and launches the app)
+3.  **Future Starts**:
+    *   Use **`dev.bat`** for instant launch.
 
-## Configuration
+---
 
-Edit `server/.env` (auto-created from `.env.example` on first run):
+## 🏗️ Architecture
+
+DevAgent uses a specialized **ReAct (Reasoning + Acting)** loop enhanced by Langchain.
+
+### 1. Planning Layer
+Every new task starts with the **Langchain Planner**. It analyzes your objective and injects an `[ACTION ROADMAP]` into the conversation to ensure consistent file naming and modularity.
+
+### 2. Implementation Layer (Developer)
+The Developer agent follows the Roadmap using surgical file tools to implement logic, styling, and tests.
+
+### 3. Audit Layer (Reviewer)
+The Reviewer agent performs a **file-by-file audit**, cross-matching the code against the original `walkthrough.md` plan. It looks for security holes, architectural flaws, and incomplete functions.
+
+---
+
+## 🧰 Agent Toolset
+
+| Category | Tools | Purpose |
+| :--- | :--- | :--- |
+| **Project** | `scaffold_project` | Generate complex boilerplates (Express, Vue, MEAN). |
+| **Surgical** | `replace_in_file` | Precise code updates using regex/text blocks. |
+| **Filesystem**| `read_file`, `write_file`, `list_files`, `bulk_read` | Standard I/O operations. |
+| **Advanced** | `apply_blueprint`, `bulk_write` | Massive structural changes in a single step. |
+| **Workflow** | `request_review`, `order_fix` | Autonomous handoff between Dev and Review agents. |
+
+---
+
+## ⚙️ Configuration
+
+Located in `server/.env`:
 
 ```env
 LM_STUDIO_BASE_URL=http://localhost:1234
-LM_STUDIO_MODEL=openai/gpt-oss-20b
-PORT=3000
-CLIENT_URL=http://localhost:5173
-WORKSPACE_DIR=./workspace
+LM_STUDIO_MODEL=openai/gpt-oss-20b  # Or your loaded model
+WORKSPACE_DIR=./workspace           # Main directory for agent projects
+PORT=3000                           # Express Server Port
 ```
 
-## API Endpoint Used
+---
 
-```
-POST http://localhost:1234/api/v1/chat
-{ "model": "...", "system_prompt": "...", "input": "..." }
-```
+## 📂 Project Structure
 
-## Agent Tools
-
-| Tool | What it does |
-|------|-------------|
-| `read_file` | Read an existing file |
-| `write_file` | Create or overwrite a file |
-| `list_files` | Browse the workspace |
-| `scaffold_project` | Generate express-api / vue-app / fullstack structure |
-
-All files are written to `server/workspace/`.
-
-## Project Structure
-
-```
+```bash
 devagent/
-├── start.bat                   ← First-time setup + launch
-├── dev.bat                     ← Quick launch (after install)
-├── package.json
 ├── server/
-│   ├── .env.example
-│   ├── package.json
-│   ├── workspace/              ← Agent writes files here
+│   ├── src/
+│   │   ├── agent/
+│   │   │   ├── core.js        # The ReAct Loop & Agent State
+│   │   │   ├── langchain.js   # Langchain Orchestration Layer
+│   │   │   └── agents/        # Specialized Multi-Agent Personas
+│   │   └── tools/             # Low-level Filesystem & Scaffolding logic
+├── client/
 │   └── src/
-│       ├── index.js            ← Express entry point
-│       ├── agent/
-│       │   └── core.js         ← ReAct loop + LM Studio calls
-│       ├── routes/
-│       │   ├── agent.js        ← POST /api/agent/run  (SSE)
-│       │   └── files.js        ← GET/POST /api/files
-│       └── tools/
-│           ├── filesystem.js   ← read / write / list
-│           └── scaffolder.js   ← project templates
-└── client/
-    ├── index.html
-    ├── package.json
-    ├── vite.config.js
-    └── src/
-        ├── main.js
-        ├── App.vue             ← Full chat UI
-        └── assets/
-            └── styles.css
+│       └── App.vue            # Modern SSE-powered Chat Interface
+└── workspace/                 # Your generated projects live here
 ```
+
+---
+
+## 📄 License
+MIT

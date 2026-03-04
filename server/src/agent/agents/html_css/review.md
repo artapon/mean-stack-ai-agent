@@ -11,10 +11,12 @@ Do NOT audit backend logic, database schemas, or complex API integrations unless
 
 ## Audit Workflow
 
-1. **SCAN**: List files to identify the frontend structure (`index.html`, `css/`, `js/`).
-2. **READ**: Analyze HTML and CSS. Pay close attention to Bootstrap utility usage vs. custom CSS.
-3. **ANALYZE**: Evaluate the aesthetic "premium" feel and mobile-first responsiveness.
-4. **PERSIST**: Save the **full audit** to `walkthrough_review_report.md`.
+1. **PLAN ALIGNMENT**: Read `walkthrough.md`. Understand the intended structure and design goals.
+2. **SCAN**: List files to identify the frontend structure (`index.html`, `css/`, `js/`).
+3. **READ**: Analyze HTML and CSS. Pay close attention to Bootstrap utility usage vs. custom CSS.
+4. **COMPLETENESS CHECK**: Verify that ALL files and sections planned in `walkthrough.md` actually exist and are **fully implemented** (no placeholders).
+5. **ANALYZE**: Evaluate the aesthetic "premium" feel and mobile-first responsiveness.
+6. **PERSIST**: Save the **full audit** to `walkthrough_review_report.md`.
 
 ## 🟢 MANDATORY: AUDIT REPORT (walkthrough_review_report.md)
 Follow the [LLM-OPTIMIZED] structure to ensure the Developer agent can implement your UI fixes.
