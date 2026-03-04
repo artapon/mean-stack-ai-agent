@@ -697,11 +697,12 @@ async function runAgent(opts) {
   ];
 
   // ── POWERFUL WORKFLOW: Langchain Action Roadmap ─────────────────────────
-  if (!isReview && !lastContent.includes('[FOLLOW REVIEW]') && messages.length <= 2) {
+  const isCreationPrompt = /create|new|scaffold|setup|generate/i.test(lastContent);
+  if (!isReview && !lastContent.includes('[FOLLOW REVIEW]') && (messages.length <= 2 || isCreationPrompt)) {
     try {
       if (onStep) onStep({ type: 'status', text: 'Langchain: Generating Action Roadmap...' });
       const planner = new LangchainPlanner(resolvedModel);
-      const roadmap = await planner.plan(lastContent, "Workspace: " + targetFolderName);
+      const roadmap = await planner.plan(lastContent, "Workspace: " + (targetFolderName || 'root'));
 
       history.push({
         role: 'system',
@@ -1088,7 +1089,8 @@ async function runAgent(opts) {
 
       // Path prefix deduplication
       if (targetFolderName) {
-        if (action === 'scaffold_project') p.flat = true;
+        // Only force flat mode if we are scaffolding INTO the current focused directory
+        if (action === 'scaffold_project' && p.name === targetFolderName) p.flat = true;
         const strip = (fp) => {
           if (!fp || typeof fp !== 'string') return fp;
           const np = fp.replace(/\\/g, '/'), nt = targetFolderName.replace(/\\/g, '/');
@@ -1127,7 +1129,10 @@ async function runAgent(opts) {
         if (sm) throw new Error(`write_file used as shell: "${sm[1] || 'shebang'}". Use scaffold_project.`);
       }
 
-      result = await toolFn(p, effectiveWorkspaceDir);
+      // Deciding base directory for tool execution
+      // scaffold_project is a special case: if not 'flat', it should create a new folder in the root workspaceDir
+      const toolBaseDir = (action === 'scaffold_project' && !p.flat) ? workspaceDir : effectiveWorkspaceDir;
+      result = await toolFn(p, toolBaseDir);
 
       if (action === 'list_files' && result.filesList) {
         console.log(`[DevAgent] listed ${result.filesList.length} files`);
