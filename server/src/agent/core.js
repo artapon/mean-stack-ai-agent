@@ -1,9 +1,8 @@
-const axios = require('axios');
-const { StringDecoder } = require('string_decoder');
 const path = require('path');
 const fs = require('fs-extra');
 const { readFile, writeFile, listFiles, bulkWrite, applyBlueprint, bulkRead, replaceInFile } = require('../tools/filesystem');
 const { scaffoldProject } = require('../tools/scaffolder');
+const { callLangchain } = require('./langchain');
 const { logError, logInfo } = require('../utils/logger');
 
 
@@ -487,100 +486,7 @@ function parseReply(rawText, isReview, fastMode) {
 }
 
 
-// ── LM Studio streaming call ───────────────────────────────────────────────────
-/**
- * @param {Array}       history
- * @param {Function}    onChunk
- * @param {AbortSignal} signal
- * @param {string}     [selectedModel]
- * @returns {Promise<string>}
- */
-async function callLMStudio(history, onChunk, signal, selectedModel) {
-  const baseUrl = (process.env.LM_STUDIO_BASE_URL || 'http://localhost:1234').replace(/\/$/, '');
-  const model = selectedModel || process.env.LM_STUDIO_MODEL || 'openai/gpt-oss-20b';
-  console.log(`[DevAgent] API -> ${baseUrl} | model: "${model}"`);
 
-  const messages = history.map(m => ({
-    role: m.role,
-    content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-  }));
-
-  try {
-    const response = await axios.post(
-      `${baseUrl}/v1/chat/completions`,
-      { model, messages, stream: true, temperature: 0.1, max_tokens: 8192, stop: null },
-      { headers: { 'Content-Type': 'application/json' }, responseType: 'stream', timeout: 120000, signal }
-    );
-
-    let fullText = '', buffer = '';
-    const decoder = new StringDecoder('utf8');
-
-    return new Promise((resolve, reject) => {
-      if (signal?.aborted) return reject(new Error('AbortSignal triggered'));
-
-      // Rolling 90s stall timeout — resets on every chunk
-      let stallTimer = setTimeout(() => {
-        console.error('[DevAgent] Stream stalled 90s. Destroying.');
-        response.data.destroy();
-        reject(new Error('Stream stalled: no data for 90 seconds.'));
-      }, 90000);
-      const resetStall = () => {
-        clearTimeout(stallTimer);
-        stallTimer = setTimeout(() => {
-          response.data.destroy();
-          reject(new Error('Stream stalled mid-response: 90 seconds silence.'));
-        }, 90000);
-      };
-
-      const onAbort = () => { clearTimeout(stallTimer); response.data.destroy(); reject(new Error('AbortSignal triggered')); };
-      if (signal) signal.addEventListener('abort', onAbort);
-
-      response.data.on('data', (chunk) => {
-        if (signal?.aborted) return;
-        resetStall();
-        buffer += decoder.write(chunk);
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-        for (const line of lines) {
-          const t = line.trim();
-          if (!t || !t.startsWith('data: ')) continue;
-          const ds = t.replace('data: ', '');
-          if (ds.trim() === '[DONE]') continue;
-          try {
-            const content = extractReply(JSON.parse(ds));
-            if (content) { fullText += content; onChunk?.(content); }
-          } catch (_) { }
-        }
-      });
-
-      response.data.on('end', () => {
-        clearTimeout(stallTimer);
-        if (signal) signal.removeEventListener('abort', onAbort);
-        if (buffer.trim().startsWith('data: ')) {
-          try {
-            const ds = buffer.trim().replace('data: ', '');
-            if (ds !== '[DONE]') { const c = extractReply(JSON.parse(ds)); if (c) fullText += c; }
-          } catch (_) { }
-        }
-        resolve(fullText);
-      });
-
-      response.data.on('error', (err) => {
-        clearTimeout(stallTimer);
-        if (signal) signal.removeEventListener('abort', onAbort);
-        reject(err);
-      });
-    });
-  } catch (err) {
-    if (['AbortError', 'canceled', 'AbortSignal triggered'].some(s => err.name === s || err.message === s)) {
-      throw new Error('Agent stopped by user.');
-    }
-    if (err.code === 'ECONNABORTED') throw new Error('LM Studio timed out (2m).');
-    if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND')
-      throw new Error(`Cannot reach LM Studio at ${baseUrl}.`);
-    throw err;
-  }
-}
 
 
 // ── Tool result summary ────────────────────────────────────────────────────────
@@ -820,7 +726,7 @@ async function runAgent(opts) {
     let rawText;
     try {
       let stepFull = '', sentLen = 0;
-      rawText = await callLMStudio(history, (chunk) => {
+      rawText = await callLangchain(history, (chunk) => {
         if (!onStep) return;
         stepFull += chunk;
         let clean = stepFull
