@@ -188,7 +188,7 @@ ${availableTools}
 
 TOOL CALL FORMAT (MANDATORY & RIGID):
 ${fastMode
-      ? `ACTION: (tool name)\n\nPARAMETERS: (JSON)\n\nDO NOT OUTPUT THOUGHT IN FAST MODE.`
+      ? `ACTION: (tool name)\n\nPARAMETERS: (JSON)\n\nCRITICAL: DO NOT OUTPUT ANY "THOUGHT" OR REASONING BLOCK. DO NOT REPEAT "ACTION" OR "PARAMETERS" MARKERS. JUST ONE ACTION BLOCK.`
       : `THOUGHT: (reasoning)\n\nACTION: (tool name)\n\nPARAMETERS: (JSON)`}
 
 CRITICAL: Each marker must be on its own line with a BLANK LINE before it.
@@ -349,12 +349,13 @@ function extractJSON(raw) {
 function isGarbledOutput(raw) {
   if (!raw) return false;
   return (
-    /ACTION[A-Z]{3,}ETERS/i.test(raw) ||                    // ACTIONARAMETERS, ACTIONMETERS etc.
+    /ACTION[A-Z]{2,}ETERS/i.test(raw) ||                    // ACTIONMETERS, ACTIONPARAMETERS, etc.
     /(?:ACTION[A-Z]*METERS[:\s]*){2,}/i.test(raw) ||        // repeated merged markers
-    /^(?:\d+\.\s*)?ACTION[A-Z]+METERS/im.test(raw) ||       // numbered ACTIONARAMETERS
-    /^(ACTION[A-Z]*ETERS:[A-Z:]{10,})/i.test(raw.trim()) || // pure garbage stream
-    /(?:THOUGHT[:\s]*){3,}/i.test(raw) ||                   // excessive THOUGHT repetition
-    /^(THOUGHT){3,}/im.test(raw)                            // pure repeated markers without colons
+    /^(?:\d+\.\s*)?ACTION[A-Z]*METERS/im.test(raw) ||       // numbered or bare ACTIONMETERS
+    /^(ACTION[A-Z]*ETERS:[A-Z:]{5,})/i.test(raw.trim()) ||  // pure garbage stream
+    /(?:THO[A-Z]*[:\s]*){3,}/i.test(raw) ||                 // excessive THO/THOUGHT repetition
+    /^(THO[A-Z]*){3,}/im.test(raw) ||                       // pure repeated markers without colons
+    /(?:THO[A-Z]*\s*){10,}/i.test(raw)                       // very long string of THO/THOUGHT tokens
   );
 }
 
@@ -378,9 +379,10 @@ const sanitizeRawReply = (raw) => {
     .replace(/(?:ACTION[A-Z]*METERS[:\s]*){2,}/gi, '\n\nACTION: \n\nPARAMETERS: ')
     .replace(/(?:ACTION[:\s]*){2,}/gi, '\n\nACTION: ')
     .replace(/(?:PARAMETERS[:\s]*){2,}/gi, '\n\nPARAMETERS: ')
-    .replace(/(?:THOUGHT[:\s]*){2,}/gi, '\n\nTHOUGHT: ')
+    .replace(/(?:THO[A-Z]*[:\s]*){2,}/gi, '\n\nTHOUGHT: ')
     .replace(/(?:THOUGHT){2,}/gi, '\n\nTHOUGHT: ')
     .replace(/(\n\nACTION:\s*\w+)\s*\n+(?=(?:```[a-z]*\s*)?\{)/gi, '$1\n\nPARAMETERS: ')
+    .replace(/(?:^|\n)(?:THO[A-Z]*[:\s]*)+/gi, '\n\nTHOUGHT: ') // merge repeated variations
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
     .trim();
 }
@@ -828,7 +830,7 @@ async function runAgent(opts) {
           .replace(/PARAMETERS:\s*\{[\s\S]*/gi, '');
         if (fastMode) {
           clean = clean.replace(/THOUGHT[:\s]*[\s\S]*?(?=ACTION:|$)/gi, '');
-          clean = clean.replace(/THOUGHT+/gi, ''); // extra aggressive fix for markers without colon
+          clean = clean.replace(/THO[A-Z]*[:\s]*/gi, ''); // extra aggressive fix for markers without colon
         }
         const delta = clean.slice(sentLen);
         if (delta.length > 0) { onStep({ type: 'chunk', content: delta }); sentLen = clean.length; }
