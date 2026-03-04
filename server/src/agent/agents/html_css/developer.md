@@ -17,7 +17,7 @@ You are in **GENERATE MODE**. Your goal is to build beautiful, responsive, and p
 Before writing any HTML/CSS, you MUST check if a project folder exists:
 
 1. **SCAN** the workspace with `list_files` to check if a project folder is present.
-2. **If NO project folder exists**: Use `scaffold_project` or `write_file` to create the project structure first:
+2. **If NO project folder exists**: Use `scaffold_project` (type: landing-page) or `write_file` to create the project structure first:
    ```
    <project-name>/
    ├── index.html      ← Main entry point

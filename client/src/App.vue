@@ -108,42 +108,111 @@
         </div>
       </div>
 
-      <div class="sidebar-section">
-        <div class="sidebar-label">QUICK START</div>
-        <nav class="nav">
-          <button
-            v-for="p in currentPresets" :key="p.label"
-            class="preset" :disabled="running"
-            @click="send(p.prompt)"
-          >
-            <span class="preset-icon">{{ p.icon }}</span>
-            <span class="preset-label">{{ p.label }}</span>
+
+      <!-- ── Workspace (inline in sidebar) ───────────────────────────── -->
+      <div class="sidebar-workspace">
+        <div class="sidebar-label" style="padding: 0 6px;">WORKSPACE</div>
+        <div class="fb-header-inline">
+          <button class="icon-btn-sm" @click="loadFiles" :disabled="fbLoading" title="Refresh">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="fbLoading ? 'spin-sm' : ''">
+              <path v-if="!fbLoading" d="M23 4v6h-6M1 20v-6h6"/>
+              <path v-if="!fbLoading" d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
           </button>
-        </nav>
+        </div>
+
+        <div class="fb-path-bar compact">
+          <button class="fb-crumb home" @click="navigateTo('.')">🏠</button>
+          <template v-for="(seg, i) in pathSegments" :key="i">
+            <span class="fb-sep">›</span>
+            <div class="fb-crumb-wrap" :class="{ pinned: targetFolder === pathSegments.slice(0, i+1).join('/') }">
+              <button class="fb-crumb" @click="navigateTo(pathSegments.slice(0, i+1).join('/'))">{{ seg }}</button>
+              <button class="fb-crumb-pin" @click.stop="setTargetFolder(pathSegments.slice(0, i+1).join('/'))" title="Pin this folder">📌</button>
+            </div>
+          </template>
+          <button
+            v-if="currentPath !== '.'"
+            class="fb-pin-btn-top"
+            :class="{ pinned: targetFolder === currentPath }"
+            @click="setTargetFolder(currentPath)"
+            :title="targetFolder === currentPath ? 'Unpin current folder' : 'Pin current folder'"
+          >
+            {{ targetFolder === currentPath ? '📌 Pinned' : '📌 Pin' }}
+          </button>
+        </div>
+
+        <div v-if="fbError" class="fb-error">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          {{ fbError }}
+        </div>
+
+        <div class="fb-list sidebar-fb-list" v-if="!fbLoading">
+          <div v-if="currentPath !== '.'" class="fb-item fb-back" @click="goUp">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            ..
+          </div>
+          <div
+            v-for="item in fbFolders" :key="item.name"
+            class="fb-item fb-dir"
+            :class="{ pinned: targetFolder === item.path }"
+            @click="navigateTo(item.path)"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span class="fb-name">{{ item.name }}</span>
+            <button 
+              class="fb-item-pin" 
+              :class="{ active: targetFolder === item.path }"
+              @click.stop="setTargetFolder(item.path)" 
+              :title="targetFolder === item.path ? 'Unpin folder' : 'Pin folder'"
+            >
+              📌
+            </button>
+          </div>
+          <div
+            v-for="item in fbFiles" :key="item.name"
+            class="fb-item fb-file"
+            @click="openFile(item)"
+            :class="{ active: selectedFile?.path === item.path }"
+          >
+            <span class="fb-file-icon">{{ fileIcon(item.name) }}</span>
+            <span class="fb-name">{{ item.name }}</span>
+            <span class="fb-size">{{ fmtSize(item.size) }}</span>
+          </div>
+          <div v-if="!fbFolders.length && !fbFiles.length && currentPath !== '.'" class="fb-empty">
+            Empty folder
+          </div>
+        </div>
+
+        <div v-if="fbLoading" class="fb-loading">
+          <div class="spin-sm green"></div> Loading…
+        </div>
+
+        <div v-if="selectedFile" class="fb-preview">
+          <div class="fb-preview-header">
+            <span class="fb-file-icon">{{ fileIcon(selectedFile.name) }}</span>
+            <span class="fb-preview-name">{{ selectedFile.name }}</span>
+            <button class="icon-btn" @click="selectedFile = null">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <pre class="fb-preview-code"><code>{{ fileContent }}</code></pre>
+        </div>
       </div>
 
-      <div class="sidebar-spacer"/>
-
       <div class="sidebar-footer">
-        <div class="stack-badge" @click="currentPage = 'selection'" title="Click to change agent stack">
-          <span class="stack-badge-icon">
-            <span v-if="selectedStack === 'default'">🏗</span>
-            <span v-else-if="selectedStack === 'mean_stack'">🍃</span>
-            <span v-else-if="selectedStack === 'html_css'">🎨</span>
-          </span>
-          <span class="stack-badge-name">{{ stacksMetadata[selectedStack]?.name || 'Agent' }}</span>
-        </div>
         <div class="status-pill" :class="running ? 'running' : 'idle'">
           <span class="status-dot"></span>
           <span>{{ running ? 'Agent running' : 'Ready' }}</span>
         </div>
-        <div class="lm-chip">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <circle cx="5" cy="5" r="4" stroke="#5b9cff" stroke-width="1.5"/>
-            <circle cx="5" cy="5" r="2" fill="#5b9cff"/>
-          </svg>
-          <span>{{ lmEndpoint }}</span>
-        </div>
+
         <button class="clear-btn" :disabled="running" @click="clearChat">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -154,117 +223,18 @@
       </div>
     </aside>
 
-    <!-- ── File Browser Panel ─────────────────────────────────────────── -->
-    <aside class="file-browser" :class="{ open: showBrowser }">
-      <div class="fb-header">
-        <div class="fb-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          </svg>
-          Workspace
-        </div>
-        <div class="fb-actions">
-          <button class="icon-btn" @click="loadFiles" :disabled="fbLoading" title="Refresh">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="fbLoading ? 'spin-sm' : ''">
-              <path v-if="!fbLoading" d="M23 4v6h-6M1 20v-6h6"/>
-              <path v-if="!fbLoading" d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div class="fb-path-bar">
-        <button class="fb-crumb home" @click="navigateTo('.')">🏠</button>
-        <template v-for="(seg, i) in pathSegments" :key="i">
-          <span class="fb-sep">›</span>
-          <div class="fb-crumb-wrap" :class="{ pinned: targetFolder === pathSegments.slice(0, i+1).join('/') }">
-            <button class="fb-crumb" @click="navigateTo(pathSegments.slice(0, i+1).join('/'))">{{ seg }}</button>
-            <button class="fb-crumb-pin" @click.stop="setTargetFolder(pathSegments.slice(0, i+1).join('/'))" title="Pin this folder">📌</button>
-          </div>
-        </template>
-        <button
-          v-if="currentPath !== '.'"
-          class="fb-pin-btn-top"
-          :class="{ pinned: targetFolder === currentPath }"
-          @click="setTargetFolder(currentPath)"
-          :title="targetFolder === currentPath ? 'Unpin current folder' : 'Pin current folder'"
-        >
-          {{ targetFolder === currentPath ? '📌 Pinned' : '📌 Pin' }}
-        </button>
-      </div>
-
-      <div v-if="fbError" class="fb-error">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        {{ fbError }}
-      </div>
-
-      <div class="fb-list" v-if="!fbLoading">
-        <div v-if="currentPath !== '.'" class="fb-item fb-back" @click="goUp">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-          ..
-        </div>
-        <div
-          v-for="item in fbFolders" :key="item.name"
-          class="fb-item fb-dir"
-          :class="{ pinned: targetFolder === item.path }"
-          @click="navigateTo(item.path)"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          </svg>
-          <span class="fb-name">{{ item.name }}</span>
-          <button 
-            class="fb-item-pin" 
-            :class="{ active: targetFolder === item.path }"
-            @click.stop="setTargetFolder(item.path)" 
-            :title="targetFolder === item.path ? 'Unpin folder' : 'Pin folder'"
-          >
-            📌
-          </button>
-        </div>
-        <div
-          v-for="item in fbFiles" :key="item.name"
-          class="fb-item fb-file"
-          @click="openFile(item)"
-          :class="{ active: selectedFile?.path === item.path }"
-        >
-          <span class="fb-file-icon">{{ fileIcon(item.name) }}</span>
-          <span class="fb-name">{{ item.name }}</span>
-          <span class="fb-size">{{ fmtSize(item.size) }}</span>
-        </div>
-        <div v-if="!fbFolders.length && !fbFiles.length && currentPath !== '.'" class="fb-empty">
-          Empty folder
-        </div>
-      </div>
-
-      <div v-if="fbLoading" class="fb-loading">
-        <div class="spin-sm green"></div> Loading…
-      </div>
-
-      <div v-if="selectedFile" class="fb-preview">
-        <div class="fb-preview-header">
-          <span class="fb-file-icon">{{ fileIcon(selectedFile.name) }}</span>
-          <span class="fb-preview-name">{{ selectedFile.name }}</span>
-          <button class="icon-btn" @click="selectedFile = null">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <pre class="fb-preview-code"><code>{{ fileContent }}</code></pre>
-      </div>
-    </aside>
-
     <!-- ── Main Chat ──────────────────────────────────────────────────── -->
     <main class="chat">
 
       <header class="chat-header">
         <!-- Left: Branding + live model -->
         <div class="chat-header-left">
+          <button class="home-btn" @click="currentPage = 'selection'" title="Change agent stack">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </button>
           <h1 class="chat-title">DevAgent</h1>
           <div class="chat-badge">
             <span class="badge-dot"></span>
@@ -323,15 +293,24 @@
           <div class="welcome-orb">⚡</div>
           <h2 class="welcome-title">What do you want to build?</h2>
           <p class="welcome-sub">Describe your application and I'll generate every file directly into your workspace.</p>
-          <div class="examples-grid">
+          <div class="examples-panel">
             <button
-              v-for="ex in examples" :key="ex.label"
-              class="example-card"
+              v-for="ex in currentExamples" :key="ex.label"
+              class="example-card" :disabled="running"
               @click="send(ex.prompt)"
             >
-              <span class="example-icon">{{ ex.icon }}</span>
-              <span class="example-label">{{ ex.label }}</span>
-              <span class="example-sub">{{ ex.sub }}</span>
+              <div class="example-main">
+                <span class="example-icon">{{ ex.icon }}</span>
+                <div class="example-info">
+                  <span class="example-label">{{ ex.label }}</span>
+                  <span class="example-sub">{{ ex.sub }}</span>
+                </div>
+              </div>
+              <div class="example-arrow">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </div>
             </button>
           </div>
         </div>
@@ -596,7 +575,7 @@ const examples = [
   { icon: '🏥', label: 'Healthcare API',  sub: 'Patients, visits, reports',         prompt: 'Create a healthcare REST API with patient CRUD, JWT auth and Swagger docs' },
 ]
 const followReview    = ref(false)
-const fastMode        = ref(false)
+const fastMode        = ref(true)
 const autoRequestReview = ref(false)
 
 // ── Agent Stacks ─────────────────────────────────────────────────────────────
@@ -638,6 +617,19 @@ const currentPresets = computed(() => {
   return meta.prompts.map(p => ({
     icon: icons[selectedStack.value] || '✨',
     label: p.length > 20 ? p.slice(0, 20) + '...' : p,
+    prompt: p
+  }))
+})
+
+const currentExamples = computed(() => {
+  const meta = stacksMetadata.value[selectedStack.value]
+  const icons = { 'default': '🏗', 'mean_stack': '🍃', 'html_css': '🎨' }
+  const stackIcon = icons[selectedStack.value] || '✨'
+  if (!meta || !meta.prompts) return examples // Fallback to hardcoded examples
+  return meta.prompts.map(p => ({
+    icon: stackIcon,
+    label: p,
+    sub: meta.name,
     prompt: p
   }))
 })
@@ -1363,15 +1355,15 @@ textarea {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background: var(--bg);
+  background: #080a10;
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar {
-  width: 230px;
-  min-width: 230px;
-  background: var(--bg1);
-  border-right: 1px solid var(--border);
+  width: 280px;
+  min-width: 280px;
+  background: #0b0d14;
+  border-right: 1px solid rgba(255,255,255,0.04);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1381,44 +1373,82 @@ textarea {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 20px 18px 16px;
-  border-bottom: 1px solid var(--border);
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 
 .brand-icon {
-  width: 38px; height: 38px;
-  background: linear-gradient(135deg, #162a5e, #0e1d45);
-  border: 1px solid #1e3574;
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, rgba(91,156,255,0.15), rgba(64,128,255,0.08));
+  border: 1px solid rgba(91,156,255,0.2);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 0 12px rgba(91,156,255,.15);
 }
 
 .brand-name {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -.02em;
-  color: var(--t0);
+  color: #fff;
 }
 .brand-sub {
-  font-size: 11px;
-  color: var(--t2);
-  margin-top: 1px;
-  letter-spacing: .02em;
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 2px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
-.sidebar-section { padding: 16px 12px 0; }
+.sidebar-section { padding: 16px 14px 0; }
+
+
+/* ── Sidebar Workspace (inline file browser) ────────────────────────────── */
+.sidebar-workspace {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  padding: 12px 14px 0;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.sidebar-workspace .sidebar-label { margin-bottom: 6px; }
+.fb-header-inline {
+  display: flex; align-items: center; justify-content: flex-end;
+  margin-bottom: 4px;
+}
+.icon-btn-sm {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  border-radius: 6px; color: var(--t2);
+  transition: all .15s; cursor: pointer;
+}
+.icon-btn-sm:hover:not(:disabled) { background: rgba(255,255,255,0.06); color: var(--t0); }
+.icon-btn-sm:disabled { opacity: .4; cursor: not-allowed; }
+.fb-path-bar.compact { padding: 4px 0; font-size: 11px; }
+.sidebar-fb-list { max-height: none; }
+.sidebar-workspace .fb-preview-code { max-height: 200px; }
+
+/* ── Home Button (header) ───────────────────────────────────────────────── */
+.home-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  border: 1px solid var(--border2);
+  border-radius: var(--r-sm);
+  color: var(--t2); cursor: pointer;
+  transition: all .15s;
+}
+.home-btn:hover { background: var(--bg3); color: var(--accent); border-color: var(--accent); }
 
 .sidebar-label {
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .1em;
-  color: var(--t3);
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: rgba(255,255,255,0.25);
   padding: 0 6px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   text-transform: uppercase;
 }
 
@@ -1428,21 +1458,21 @@ textarea {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--r-sm);
+  padding: 9px 12px;
+  border-radius: 8px;
   width: 100%;
   text-align: left;
-  color: var(--t1);
+  color: rgba(255,255,255,0.55);
   font-size: 13px;
-  transition: background .15s, color .15s;
+  transition: all .15s;
   border: 1px solid transparent;
 }
 .preset:hover:not(:disabled) {
-  background: var(--bg3);
-  color: var(--t0);
-  border-color: var(--border);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.85);
+  border-color: rgba(255,255,255,0.06);
 }
-.preset:disabled { opacity: .35; cursor: default; }
+.preset:disabled { opacity: .3; cursor: default; }
 .preset-icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
 .preset-label { flex: 1; font-weight: 500; }
 
@@ -1450,7 +1480,7 @@ textarea {
 
 .sidebar-footer {
   padding: 16px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(255,255,255,0.04);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1460,15 +1490,23 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 5px 10px;
+  padding: 5px 12px;
   border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   align-self: flex-start;
   transition: all .3s;
 }
-.status-pill.idle    { background: var(--bg3);       border: 1px solid var(--border2); color: var(--t1); }
-.status-pill.running { background: var(--green-dim); border: 1px solid var(--green);   color: var(--green); }
+.status-pill.idle {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.4);
+}
+.status-pill.running {
+  background: rgba(61,220,132,0.08);
+  border: 1px solid rgba(61,220,132,0.25);
+  color: var(--green);
+}
 
 .status-dot {
   width: 6px; height: 6px;
@@ -1482,7 +1520,7 @@ textarea {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: var(--t2);
+  color: rgba(255,255,255,0.25);
   font-family: var(--mono);
 }
 
@@ -1490,20 +1528,20 @@ textarea {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 10px;
+  padding: 8px 12px;
   width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  color: var(--t2);
-  font-size: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  color: rgba(255,255,255,0.4);
+  font-size: 12px; font-weight: 500;
   transition: all .15s;
 }
 .clear-btn:hover:not(:disabled) {
-  background: rgba(255,107,107,.07);
-  border-color: rgba(255,107,107,.3);
+  background: rgba(255,107,107,.06);
+  border-color: rgba(255,107,107,.2);
   color: var(--red);
 }
-.clear-btn:disabled { opacity: .3; cursor: default; }
+.clear-btn:disabled { opacity: .25; cursor: default; }
 
 /* ── File Browser ─────────────────────────────────────────────────────────── */
 .file-browser {
@@ -1659,34 +1697,37 @@ textarea {
 .chat {
   flex: 1; display: flex; flex-direction: column;
   overflow: hidden; min-width: 0; order: 2;
+  background: #0a0c12;
 }
 
 /* ── Chat Header ─────────────────────────────────────────────────────────── */
 .chat-header {
   display: flex; align-items: center; justify-content: space-between;
-  height: auto; min-height: 52px; padding: 0 20px;
-  background: var(--bg1);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0; gap: 12px;
+  height: auto; min-height: 56px; padding: 0 24px;
+  background: rgba(10,12,18,0.7);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  flex-shrink: 0; gap: 16px;
 }
-.chat-header-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.chat-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.chat-header-left { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.chat-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
 
 /* Pill group for Mode+Workflow */
 .header-pill-group {
   display: flex; align-items: center; gap: 2px;
-  background: var(--bg2); padding: 3px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03); padding: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.06);
 }
 .pill-btn {
-  padding: 4px 10px; font-size: 11.5px; font-weight: 500;
-  color: var(--t2); border-radius: 5px;
+  padding: 5px 12px; font-size: 11.5px; font-weight: 500;
+  color: rgba(255,255,255,0.35); border-radius: 6px;
   transition: all 0.15s; cursor: pointer;
 }
 .pill-btn.active {
-  background: var(--bg4); color: var(--t0);
-  box-shadow: var(--shadow-sm); font-weight: 600;
+  background: rgba(255,255,255,0.06); color: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3); font-weight: 600;
 }
 .pill-btn:hover:not(.active) { color: var(--t1); background: var(--bg3); }
 .pill-sep { width: 1px; height: 14px; background: var(--border2); margin: 0 3px; }
@@ -1711,20 +1752,20 @@ textarea {
 .btn-icon:disabled { opacity: .4; cursor: not-allowed; }
 
 .chat-title {
-  font-size: 15px; font-weight: 700; color: var(--t0);
+  font-size: 15px; font-weight: 700; color: #fff;
   letter-spacing: -.02em;
 }
 .chat-badge {
   display: flex; align-items: center; gap: 6px;
-  padding: 3px 10px;
-  background: var(--bg3);
-  border: 1px solid var(--border2);
+  padding: 4px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
   border-radius: 20px;
-  font-size: 11px; font-weight: 500; color: var(--t1);
+  font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.45);
   font-family: var(--mono);
 }
 .chat-header-right {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 14px;
 }
 
 .model-selector {
@@ -1911,105 +1952,113 @@ input:checked + .slider.slider-fast:before {
 /* ── Messages Area ───────────────────────────────────────────────────────── */
 .messages {
   flex: 1; overflow-y: auto;
-  padding: 28px 24px;
-  display: flex; flex-direction: column; gap: 24px;
+  padding: 32px 28px;
+  display: flex; flex-direction: column; gap: 28px;
 }
 
-/* ── Welcome screen ──────────────────────────────────────────────────────── */
+
+/* ── Welcome screen ──────────────────────────────────────────────────── */
 .welcome {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   text-align: center; padding: 48px 24px;
   position: relative;
-  animation: fadeIn .4s ease;
+  animation: fadeIn .5s ease;
 }
 .welcome-glow {
-  position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%);
-  width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(91,156,255,.06) 0%, transparent 70%);
+  position: absolute; top: 35%; left: 50%; transform: translate(-50%,-50%);
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(91,156,255,.04) 0%, transparent 70%);
   pointer-events: none;
 }
 .welcome-orb {
-  font-size: 52px; margin-bottom: 20px;
-  filter: drop-shadow(0 0 18px rgba(91,156,255,.5));
+  font-size: 48px; margin-bottom: 24px;
+  filter: drop-shadow(0 0 20px rgba(91,156,255,.35));
 }
 .welcome-title {
-  font-size: 28px; font-weight: 700; letter-spacing: -.04em;
-  color: var(--t0); margin-bottom: 12px;
+  font-size: 26px; font-weight: 800; letter-spacing: -.03em;
+  color: #fff; margin-bottom: 12px;
   line-height: 1.2;
 }
 .welcome-sub {
-  color: var(--t2); font-size: 14px; line-height: 1.7;
-  max-width: 480px; margin-bottom: 36px;
+  color: rgba(255,255,255,0.35); font-size: 14px; line-height: 1.7;
+  max-width: 440px; margin-bottom: 40px;
 }
-.examples-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-  max-width: 580px; width: 100%;
+.examples-panel {
+  display: flex; flex-direction: column; gap: 4px;
+  max-width: 480px; width: 100%;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 16px;
+  padding: 8px;
 }
 .example-card {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-  padding: 16px 18px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
   text-align: left; cursor: pointer;
-  transition: all .2s;
+  transition: all .15s;
 }
-.example-card:hover {
-  background: var(--bg3);
-  border-color: var(--border3);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+.example-card:hover:not(:disabled) {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(91,156,255,0.1);
 }
-.example-icon { font-size: 22px; margin-bottom: 4px; }
-.example-label { font-size: 13px; font-weight: 600; color: var(--t0); }
-.example-sub   { font-size: 11px; color: var(--t2); }
+.example-card:disabled { opacity: .4; cursor: default; }
+.example-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.example-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.example-icon { font-size: 18px; flex-shrink: 0; }
+.example-label { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.4; }
+.example-sub   { font-size: 11px; color: rgba(255,255,255,0.3); }
+.example-arrow { color: rgba(255,255,255,0.1); transition: all .15s; }
+.example-card:hover:not(:disabled) .example-arrow { color: var(--accent); transform: translateX(2px); }
 
-/* ── Message bubbles ─────────────────────────────────────────────────────── */
+/* ── Message bubbles ─────────────────────────────────────────────────── */
 .msg-wrap {
   display: flex; gap: 14px;
-  animation: fadeUp .25s ease;
+  animation: fadeUp .3s ease;
 }
 .msg-wrap.user { flex-direction: row-reverse; }
 .msg-wrap.user .msg-body { align-items: flex-end; }
 
 .avatar {
-  width: 34px; height: 34px;
-  border-radius: 50%;
+  width: 32px; height: 32px;
+  border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700;
+  font-size: 12px; font-weight: 700;
   flex-shrink: 0; margin-top: 2px;
 }
 .avatar.user {
-  background: linear-gradient(135deg, #1a3a80, #0d2055);
-  border: 1px solid #1e3a7a;
-  color: var(--accent);
+  background: linear-gradient(135deg, rgba(91,156,255,0.2), rgba(64,128,255,0.1));
+  border: 1px solid rgba(91,156,255,0.25);
+  color: #5b9cff;
 }
 .avatar.assistant {
-  background: linear-gradient(135deg, #111827, #0d1220);
-  border: 1px solid var(--border2);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
 }
 
 .msg-body {
   display: flex; flex-direction: column; gap: 8px;
-  max-width: 76%; min-width: 0;
+  max-width: 72%; min-width: 0;
 }
 
 .msg-bubble {
-  border-radius: var(--r);
+  border-radius: 14px;
   padding: 14px 18px;
   line-height: 1.7; font-size: 14px;
   word-break: break-all;
   overflow-wrap: anywhere;
 }
 .msg-bubble.user {
-  background: linear-gradient(135deg, #162560, #0e1a45);
-  border: 1px solid #1e3070;
+  background: linear-gradient(135deg, rgba(91,156,255,0.12), rgba(64,128,255,0.08));
+  border: 1px solid rgba(91,156,255,0.15);
   border-radius: 14px 4px 14px 14px;
 }
 .msg-bubble.assistant {
-  background: var(--bg2);
-  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.05);
   border-radius: 4px 14px 14px 14px;
 }
 
@@ -2262,86 +2311,88 @@ input:checked + .slider.slider-fast:before {
 }
 .spin-sm.gray { border-left-color: var(--t3); }
 
-/* ── Input Area ──────────────────────────────────────────────────────────── */
+/* ── Input Area ────────────────────────────────────────────────────────── */
 .input-area {
   display: flex; flex-direction: column; gap: 6px;
-  padding: 16px 24px 20px;
-  border-top: 1px solid var(--border);
-  background: var(--bg1);
+  padding: 16px 28px 22px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  background: rgba(10,12,18,0.6);
+  backdrop-filter: blur(12px);
   flex-shrink: 0;
 }
 .input-wrapper { display: flex; align-items: flex-end; gap: 10px; }
 
 .input-fast-mode {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px; height: 50px; padding: 0 10px; background: var(--bg3);
-  border: 1px solid var(--border2); border-radius: var(--r); flex-shrink: 0;
+  gap: 4px; height: 50px; padding: 0 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; flex-shrink: 0;
 }
 .input-fast-mode .follow-label { font-size: 10px; margin-top: -2px; }
 
 .input-area textarea {
   flex: 1;
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: var(--r);
-  color: var(--t0);
-  padding: 13px 18px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  color: #fff;
+  padding: 14px 18px;
   font-size: 14px; line-height: 1.65;
   resize: none; min-height: 50px; max-height: 160px;
   transition: border-color .2s, box-shadow .2s;
 }
 .input-area textarea:focus {
   outline: none;
-  border-color: rgba(91,156,255,.5);
-  box-shadow: 0 0 0 3px rgba(91,156,255,.08);
+  border-color: rgba(91,156,255,.35);
+  box-shadow: 0 0 0 3px rgba(91,156,255,.06);
 }
-.input-area textarea::placeholder { color: var(--t3); }
-.input-area textarea:disabled { opacity: .45; }
+.input-area textarea::placeholder { color: rgba(255,255,255,0.2); }
+.input-area textarea:disabled { opacity: .4; }
 
 .continue-btn {
   height: 50px;
-  padding: 0 16px;
-  border-radius: var(--r);
-  background: var(--bg3);
-  color: var(--t1);
-  font-size: 14px; font-weight: 600; flex-shrink: 0;
-  border: 1px solid var(--border2);
+  padding: 0 18px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.6);
+  font-size: 13px; font-weight: 600; flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.08);
   display: flex; align-items: center; justify-content: center;
   transition: all .15s;
 }
 .continue-btn:hover:not(:disabled) {
-  background: var(--accent-glow);
-  color: var(--accent);
-  border-color: rgba(91,156,255,.4);
+  background: rgba(91,156,255,0.1);
+  color: #5b9cff;
+  border-color: rgba(91,156,255,.3);
 }
 .continue-btn:active:not(:disabled) { transform: translateY(1px); }
-.continue-btn:disabled { opacity: .35; cursor: not-allowed; }
+.continue-btn:disabled { opacity: .3; cursor: not-allowed; }
 
 .send-btn {
   width: 50px; height: 50px;
-  border-radius: var(--r);
-  background: var(--accent);
+  border-radius: 12px;
+  background: #5b9cff;
   color: #fff; font-size: 16px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   transition: background .15s, box-shadow .15s, transform .1s;
-  box-shadow: 0 2px 8px rgba(91,156,255,.3);
+  box-shadow: 0 2px 10px rgba(91,156,255,.25);
 }
 .send-btn:hover:not(:disabled) {
   background: #7ab4ff;
-  box-shadow: 0 4px 16px rgba(91,156,255,.5);
+  box-shadow: 0 4px 18px rgba(91,156,255,.4);
   transform: translateY(-1px);
 }
 .send-btn:active:not(:disabled) { transform: translateY(0); }
-.send-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+.send-btn:disabled { opacity: .3; cursor: not-allowed; box-shadow: none; }
 
 .input-hint {
   display: flex; align-items: center; gap: 8px;
-  font-size: 11px; color: var(--t3); padding: 0 2px;
+  font-size: 11px; color: rgba(255,255,255,0.15); padding: 0 2px;
 }
 .input-hint-target {
   font-family: var(--mono);
   color: var(--yellow);
-  opacity: .7;
+  opacity: .6;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;
 }
 

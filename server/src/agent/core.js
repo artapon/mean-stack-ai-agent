@@ -166,7 +166,7 @@ function getSystemPrompt(isReview, targetFolder, fastMode = false, autoRequestRe
     { name: 'apply_blueprint', params: '{content}', safe: false },
     { name: 'list_files', params: '{path}', safe: true },
     { name: 'bulk_read', params: '{paths:[]}', safe: true },
-    { name: 'scaffold_project', params: '{type, name}', safe: false },
+    { name: 'scaffold_project', params: '{type, name} (types: express-api, express-api-swagger, express-api-mongo, modular-standard, healthcare-api, vue-app, landing-page, fullstack, fullstack-auth)', safe: false },
     { name: 'order_fix', params: '{instructions}', safe: true },
     { name: 'request_review', params: '{}', safe: true }
   ];

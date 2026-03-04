@@ -987,6 +987,101 @@ paths:
   };
 }
 
+// ── landing-page ─────────────────────────────────────────────────────────────
+function landingPageFiles(name) {
+  return {
+    [`${name}/index.html`]: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${name} - Premium Landing Page</title>
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top shadow-sm">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="#">${name.toUpperCase()}</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="nav">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+          <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
+          <li class="nav-item"><a class="btn btn-primary ms-lg-3" href="#contact">Get Started</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <header class="py-5 bg-light border-bottom">
+    <div class="container px-5">
+      <div class="row gx-5 justify-content-center">
+        <div class="col-lg-8 col-xl-7">
+          <div class="text-center my-5">
+            <h1 class="display-5 fw-bolder text-dark mb-2">Welcome to your new landing page</h1>
+            <p class="lead text-muted mb-4">Quickly design and customize responsive mobile-first sites with Bootstrap, the world’s most popular front-end open source toolkit!</p>
+            <div class="d-grid gap-3 d-sm-flex justify-content-sm-center">
+              <a class="btn btn-primary btn-lg px-4 me-sm-3" href="#features">Get Started</a>
+              <a class="btn btn-outline-dark btn-lg px-4" href="#!">Learn More</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="py-5" id="features">
+    <div class="container px-5 my-5">
+      <div class="row gx-5">
+        <div class="col-lg-4 mb-5 mb-lg-0">
+          <h2 class="h4 fw-bolder">Modern UI</h2>
+          <p>Clean, minimalist design optimized for conversion and clarity.</p>
+        </div>
+        <div class="col-lg-4 mb-5 mb-lg-0">
+          <h2 class="h4 fw-bolder">Fully Responsive</h2>
+          <p>Looks great on any device, from smartphones to desktop monitors.</p>
+        </div>
+        <div class="col-lg-4">
+          <h2 class="h4 fw-bolder">Blazing Fast</h2>
+          <p>Optimized for speed and performance out of the box.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="py-5 bg-dark">
+    <div class="container px-5"><p class="m-0 text-center text-white">Copyright &copy; ${name} 2024</p></div>
+  </footer>
+
+  <!-- Bootstrap JS Bundle with Popper -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>`,
+    [`${name}/css/style.css`]: `body {
+  font-family: 'Inter', sans-serif;
+  color: #333;
+}
+.navbar-brand {
+  letter-spacing: -0.02em;
+}
+section {
+  padding: 100px 0;
+}
+`,
+    [`${name}/js/main.js`]: `// Custom JS for ${name}
+console.log('Landing page loaded');
+`,
+    [`${name}/walkthrough.md`]: `# ${name} - UI/UX Documentation\n\n## Objective\nResponsive landing page built with Bootstrap 5.\n\n## Structure\n- \`index.html\`: Semantic HTML5 structure with Bootstrap integration.\n- \`css/style.css\`: Custom styling overrides.\n- \`js/main.js\`: Frontend interactivity.\n`
+  };
+}
+
 const TEMPLATES = {
   'express-api': expressApiFiles,
   'express-api-swagger': expressApiSwaggerFiles,
@@ -995,7 +1090,8 @@ const TEMPLATES = {
   'healthcare-api': healthcareApiFiles,
   'vue-app': vueAppFiles,
   'fullstack': fullstackFiles,
-  'fullstack-auth': fullstackAuthFiles
+  'fullstack-auth': fullstackAuthFiles,
+  'landing-page': landingPageFiles
 };
 
 // ── scaffoldProject tool ──────────────────────────────────────────────────────

@@ -125,6 +125,7 @@ src/
 | `express-api-swagger` | Quick API + Swagger UI |
 | `vue-app` | Vue 3 + Pinia + Router |
 | `fullstack-auth` | Complete Fullstack with JWT Login |
+| `landing-page` | Responsive HTML/CSS Landing Page (Bootstrap 5) |
 
 ---
 
