@@ -109,14 +109,15 @@ function pushFormatRecovery(history, lastBadOutput, errorReason, exampleAction) 
 // ── System prompt & Skills ─────────────────────────────────────────────────────
 /**
  * Loads the agent's skill files dynamically based on the current mode.
- * @param {boolean} isReview
+ * @param {string} mode - 'developer', 'review', or 'analysis'
+ * @param {string} stack
  * @returns {string}
  */
-function loadSkills(isReview, stack = 'default') {
+function loadSkills(mode, stack = 'default') {
   const agentDir = __dirname;
   const stackDir = path.join(agentDir, 'agents', stack);
 
-  console.log(`[DevAgent] 🛠 Loading prompts for stack: ${stack}`);
+  console.log(`[DevAgent] 🛠 Loading prompts for stack: ${stack} | Mode: ${mode}`);
 
   const read = (dir, filename) => {
     try {
@@ -142,20 +143,26 @@ function loadSkills(isReview, stack = 'default') {
     }
   };
 
-  return [read(stackDir, 'skill.md'), isReview ? read(stackDir, 'review.md') : read(stackDir, 'developer.md')]
+  const filenameMap = {
+    'developer': 'developer.md',
+    'review': 'review.md',
+    'analysis': 'system_analysis.md'
+  };
+
+  return [read(stackDir, 'skill.md'), read(stackDir, filenameMap[mode] || 'developer.md')]
     .filter(Boolean).join('\n\n---\n\n');
 }
 
 /**
  * Builds the full system prompt.
- * @param {boolean} isReview
+ * @param {string} mode - 'developer', 'review', or 'analysis'
  * @param {string}  [targetFolder]
  * @param {boolean} [fastMode]
  * @param {boolean} [autoRequestReview]
  * @returns {string}
  */
-function getSystemPrompt(isReview, targetFolder, fastMode = false, autoRequestReview = false, stack = 'default') {
-  const EXPERT_SKILLS = loadSkills(isReview, stack);
+function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview = false, stack = 'default') {
+  const EXPERT_SKILLS = loadSkills(mode, stack);
 
   const toolsList = [
     { name: 'read_file', params: '{path}', safe: true },
@@ -171,14 +178,16 @@ function getSystemPrompt(isReview, targetFolder, fastMode = false, autoRequestRe
   ];
 
   const availableTools = toolsList
-    .filter(t => !isReview || t.safe || t.name === 'write_file')
+    .filter(t => (mode === 'developer') || t.safe || t.name === 'write_file')
     .map(t => `  ${t.name.padEnd(16)} ${t.params}`)
     .join('\n');
 
-  return `${EXPERT_SKILLS && !fastMode ? EXPERT_SKILLS + '\n\n---\n\n' : ''}You are an expert MEAN Stack agentic AI developer.
-${isReview
+  return `${EXPERT_SKILLS && !fastMode ? EXPERT_SKILLS + '\n\n---\n\n' : ''}You are an expert ${stack === 'mean_stack' ? 'MEAN Stack' : ''} agentic AI developer.
+${mode === 'review'
       ? 'You are currently in REVIEW MODE. AUDIT the codebase. ONLY use write_file for walkthrough_review_report.md.'
-      : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never describe code.'}
+      : mode === 'analysis'
+        ? 'You are currently in ANALYSIS MODE. SCAN and ANALYZE the codebase. ONLY use write_file for walkthrough_system_analysis_report.md. DO NOT modify source code.'
+        : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}"` : ''}
 
 TOOLS:
@@ -201,14 +210,15 @@ ${fastMode
 RULES:
 1. GENERATE mode: SCAN -> READ -> IMPLEMENT -> DOCUMENT (walkthrough.md) -> FINISH.
 2. REVIEW mode: READ all files -> ANALYZE -> WRITE walkthrough_review_report.md -> FINISH with [CODE: OK] or [CODE: NOT OK].
-3. ALWAYS use tools to write files. Never output code blocks in plain text.
-4. JSDoc 3.0 on every method.
-5. Modular Express: src/modules/<feature> / Route -> Controller -> Service -> Model.
-6. NO placeholders. Write full working code.
-7. NO shell commands in write_file.
-8. Single action per response — ONE THOUGHT + ONE ACTION + ONE PARAMETERS block.
-${fastMode ? '9. FAST MODE: No THOUGHT block at all.' : ''}
-${autoRequestReview ? '10. Call "request_review" after EVERYTHING else (code, documentation) is done, and BEFORE "finish". This is MANDATORY.' : ''}
+3. ANALYSIS mode: SCAN -> IDENTIFY STACK -> MAP MODULES -> WRITE walkthrough_system_analysis_report.md -> FINISH with [ANALYSIS: COMPLETE].
+4. ALWAYS use tools to write files. Never output code blocks in plain text.
+5. JSDoc 3.0 on every method.
+6. Modular Express: src/modules/<feature> / Route -> Controller -> Service -> Model.
+7. NO placeholders. Write full working code.
+8. NO shell commands in write_file.
+9. Single action per response — ONE THOUGHT + ONE ACTION + ONE PARAMETERS block.
+${fastMode ? '10. FAST MODE: No THOUGHT block at all.' : ''}
+${autoRequestReview ? '11. Call "request_review" after EVERYTHING else (code, documentation) is done, and BEFORE "finish". This is MANDATORY.' : ''}
 `;
 }
 
@@ -629,6 +639,9 @@ async function runAgent(opts) {
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
   const lastContent = lastUserMsg?.content || '';
   const isReview = lastContent.includes('[MODE: REVIEW]');
+  const isAnalysis = lastContent.includes('[MODE: ANALYSIS]');
+
+  const mode = isReview ? 'review' : (isAnalysis ? 'analysis' : 'developer');
 
   // Target folder resolution
   let effectiveWorkspaceDir = workspaceDir, targetFolderName = '';
@@ -649,17 +662,17 @@ async function runAgent(opts) {
     if (fs.existsSync(mp)) modelConfig = JSON.parse(fs.readFileSync(mp, 'utf-8')).config || {};
   } catch (e) { console.warn('[DevAgent] models.json:', e.message); }
 
-  const resolvedModel = (isReview ? modelConfig.review : modelConfig.dev)
+  const resolvedModel = (isReview ? modelConfig.review : (isAnalysis ? (modelConfig.analysis || modelConfig.review) : modelConfig.dev))
     || selectedModel || process.env.LM_STUDIO_MODEL || modelConfig.global || 'openai/gpt-oss-20b';
 
   const MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
   const MAX_REVIEW_LOOPS = Number(process.env.AGENT_MAX_LOOPS) || 3;
 
-  console.log(`[DevAgent] Model: "${resolvedModel}" | ${isReview ? 'REVIEW' : 'DEV'} | fast:${fastMode}`);
+  console.log(`[DevAgent] Model: "${resolvedModel}" | ${mode.toUpperCase()} | fast:${fastMode}`);
   // Fire-and-forget info log (logger is internally try/catch guarded).
   logInfo('agent_start', 'Agent run started', {
     model: resolvedModel,
-    mode: isReview ? 'review' : 'dev',
+    mode: mode,
     fastMode: !!fastMode,
     workspaceDir,
     targetFolder: targetFolderName || '',
@@ -667,7 +680,7 @@ async function runAgent(opts) {
     maxReviewLoops: MAX_REVIEW_LOOPS
   });
 
-  const systemPrompt = getSystemPrompt(isReview, targetFolderName, fastMode, autoRequestReview, stack);
+  const systemPrompt = getSystemPrompt(mode, targetFolderName, fastMode, autoRequestReview, stack);
 
   let lastScaffoldedName = '';
   let step = 0, listFilesCount = 0, lastActionSig = null, lastActionRepeat = 0;
@@ -675,6 +688,7 @@ async function runAgent(opts) {
   // ── Escape counters — all nudge branches have hard abort limits ────────────
   let chainErrorCount = 0;
   let planNudgeCount = 0;
+  let analysisNudgeCount = 0;
   let reviewNudgeCount = 0;
   let reviewRequestNudgeCount = 0;
   let prematureFinishCount = 0;
@@ -699,7 +713,9 @@ async function runAgent(opts) {
 
   // ── POWERFUL WORKFLOW: Langchain Action Roadmap ─────────────────────────
   const isCreationPrompt = /create|new|scaffold|setup|generate/i.test(lastContent);
-  if (!isReview && !lastContent.includes('[FOLLOW REVIEW]') && (messages.length <= 2 || isCreationPrompt)) {
+  const skipPlanner = lastContent.includes('[FOLLOW REVIEW]') || lastContent.includes('[FOLLOW ANALYSIS]');
+
+  if (!isReview && !skipPlanner && (messages.length <= 2 || isCreationPrompt)) {
     try {
       if (onStep) onStep({ type: 'status', text: 'Langchain: Generating Action Roadmap...' });
       const planner = new LangchainPlanner(resolvedModel);
@@ -717,6 +733,23 @@ async function runAgent(opts) {
     }
   }
 
+  // ── FOLLOW ANALYSIS Injection ───────────────────────────────────────────
+  if (lastContent.includes('[FOLLOW ANALYSIS]') && !isReview) {
+    try {
+      const analysisPath = path.resolve(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md');
+      if (fs.existsSync(analysisPath)) {
+        const report = fs.readFileSync(analysisPath, 'utf-8');
+        history.push({
+          role: 'system',
+          content: `[SYSTEM DIRECTIVE: ARCHITECTURAL ADHERENCE]\nYou MUST follow the architecture and module map defined in this System Analysis report:\n\n${report}`
+        });
+        console.log('[DevAgent] System Analysis Report injected into history.');
+      }
+    } catch (e) {
+      console.warn('[DevAgent] Failed to inject analysis report:', e.message);
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   while (step < MAX_STEPS) {
     step++;
@@ -731,6 +764,7 @@ async function runAgent(opts) {
         m.role === 'user' && m.content && (
           m.content.startsWith('Tool result') ||
           m.content.toLowerCase().includes('walkthrough_review_report') ||
+          m.content.toLowerCase().includes('walkthrough_system_analysis_report') ||
           m.content.toLowerCase().includes('request_review') ||
           m.content.startsWith('[SYSTEM DIRECTIVE]') ||   // keep nudge context
           m.content.startsWith('[FORMAT RECOVERY]')       // keep recovery context
@@ -1001,8 +1035,53 @@ async function runAgent(opts) {
         }
       }
 
-      // ── Walkthrough.md guard ──────────────────────────────────────────────
-      if (!isReview) {
+      // ── Analysis mode guards ──────────────────────────────────────────────
+      if (isAnalysis) {
+        if (!agentState.reportSaved) {
+          agentState.reportSaved = history.some(m => {
+            if (m.role !== 'user' || !m.content) return false;
+            const c = m.content.toLowerCase();
+            return c.includes('walkthrough_system_analysis_report.md') && (
+              c.includes('file written') || c.includes('file updated') || c.includes('tool result (write_file)')
+            );
+          });
+        }
+
+        if (!agentState.reportSaved) {
+          analysisNudgeCount++;
+          console.warn(`[DevAgent] Analysis report missing (${analysisNudgeCount}/3)`);
+          if (analysisNudgeCount >= 3) return { success: false, response: 'Analysis aborted: refused to write report after 3 nudges.', history };
+
+          pushNudge(history,
+            `You must write the system analysis report before finishing.\n\n` +
+            `1. ACTION: write_file\n` +
+            `2. PARAMETERS: { "path": "walkthrough_system_analysis_report.md", "content": "## 🏷️ TECHNOLOGY STACK\\n...\\n## 🏗️ ARCHITECTURAL OVERVIEW\\n..." }\n\n` +
+            `Do this NOW.`,
+            `THOUGHT: I need to save my analysis findings to walkthrough_system_analysis_report.md before I can finish.`
+          );
+          if (onStep) onStep({ type: 'status', text: 'Nudging: must write analysis report first.' });
+          continue;
+        }
+
+        const verdict = (parsed.response || '').toUpperCase();
+        if (!verdict.includes('[ANALYSIS: COMPLETE]')) {
+          analysisNudgeCount++;
+          if (analysisNudgeCount >= 3) return { success: false, response: 'Analysis aborted: refused to include verdict after 3 nudges.', history };
+
+          pushNudge(history,
+            `Your finish response is missing the required verdict.\n\n` +
+            `1. ACTION: finish\n` +
+            `2. PARAMETERS: { "response": "...your summary... [ANALYSIS: COMPLETE]" }\n\n` +
+            `You MUST include exactly [ANALYSIS: COMPLETE] at the end of your response.`,
+            `THOUGHT: My finish response was missing the [ANALYSIS: COMPLETE] verdict. I will include it now.`
+          );
+          if (onStep) onStep({ type: 'status', text: 'Nudging: verdict missing in finish response.' });
+          continue;
+        }
+      }
+
+      // ── Walkthrough.md guard (GENERATE mode only) ─────────────────────────
+      if (!isReview && !isAnalysis) {
         if (!agentState.planWritten) {
           // Double check history as agentState might have missed it if it was from a previous partial turn
           agentState.planWritten = history.some(m => {

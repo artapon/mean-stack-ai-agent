@@ -2,6 +2,7 @@
     "config": {
         "dev": "qwen2.5-coder-7b-instruct",
         "review": "qwen/qwen3.5-9b",
+        "analysis": "qwen2.5-coder-7b-instruct",
         "global": "qwen2.5-coder-7b-instruct"
     },
     "models": [

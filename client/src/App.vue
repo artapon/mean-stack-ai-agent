@@ -236,9 +236,9 @@
             </svg>
           </button>
           <h1 class="chat-title">DevAgent</h1>
-          <div class="chat-badge">
+          <div class="chat-badge" :class="agentMode">
             <span class="badge-dot"></span>
-            <span>{{ lmModel }}</span>
+            <span>{{ agentMode === 'generate' ? 'Developer' : agentMode === 'review' ? 'Reviewer' : 'Analysis' }} · {{ lmModel }}</span>
           </div>
         </div>
 
@@ -246,8 +246,9 @@
         <div class="chat-header-right">
           <!-- Mode + Workflow pill group -->
           <div class="header-pill-group">
-            <button class="pill-btn" :class="{ active: agentMode === 'generate' }" @click="agentMode = 'generate'" title="Develop Mode">🛠 Dev</button>
-            <button class="pill-btn" :class="{ active: agentMode === 'review' }" @click="agentMode = 'review'" title="Review Mode">🔍 Review</button>
+            <button class="pill-btn" :class="{ active: agentMode === 'analysis' }" @click="agentMode = 'analysis'" title="System Analysis Mode">📊 System Analysis</button>
+            <button class="pill-btn" :class="{ active: agentMode === 'generate' }" @click="agentMode = 'generate'" title="Develop Mode">🛠 Developer</button>
+            <button class="pill-btn" :class="{ active: agentMode === 'review' }" @click="agentMode = 'review'" title="Review Mode">🔍 Reviewer</button>
           </div>
 
           <!-- Follow Review toggle -->
@@ -259,8 +260,17 @@
             <span class="follow-label">Follow Review</span>
           </div>
 
-          <!-- Auto Request Review toggle -->
-          <div class="follow-review-toggle" title="Automatically request a review upon completion">
+          <!-- Follow System Analysis toggle -->
+          <div class="follow-review-toggle" v-if="agentMode === 'generate'" title="Apply analysis recommendations automatically">
+            <label class="switch">
+              <input type="checkbox" v-model="followAnalysis">
+              <span class="slider round slider-analysis"></span>
+            </label>
+            <span class="follow-label">Follow Analysis</span>
+          </div>
+
+          <!-- Auto Review toggle (Dev Mode only) -->
+          <div class="follow-review-toggle" v-if="agentMode === 'generate'" title="Automatically request a review upon completion">
             <label class="switch">
               <input type="checkbox" v-model="autoRequestReview">
               <span class="slider round slider-review"></span>
@@ -290,9 +300,25 @@
         <!-- Welcome screen -->
         <div v-if="!messages.length" class="welcome">
           <div class="welcome-glow"></div>
-          <div class="welcome-orb">⚡</div>
-          <h2 class="welcome-title">What do you want to build?</h2>
-          <p class="welcome-sub">Describe your application and I'll generate every file directly into your workspace.</p>
+          <div class="welcome-orb">
+            <span v-if="agentMode === 'analysis'">📊</span>
+            <span v-else-if="agentMode === 'review'">🔍</span>
+            <span v-else>⚡</span>
+          </div>
+          <h2 class="welcome-title">
+            {{ 
+              agentMode === 'analysis' ? 'System Architectural Analysis' : 
+              agentMode === 'review' ? 'Code Quality Audit' : 
+              'What do you want to build?' 
+            }}
+          </h2>
+          <p class="welcome-sub">
+            {{ 
+              agentMode === 'analysis' ? 'I will deep-scan your codebase, identify the tech stack, and map out the system architecture.' : 
+              agentMode === 'review' ? 'I will audit your implementation, check for bugs, and verify architectural adherence.' : 
+              'Describe your application and I\'ll generate every file directly into your workspace.' 
+            }}
+          </p>
           <div class="examples-panel">
             <button
               v-for="ex in currentExamples" :key="ex.label"
@@ -402,7 +428,7 @@
             @input="resize"
           ></textarea>
           <!-- Fast Mode Toggle -->
-          <div class="fast-mode-toggle input-fast-mode" v-if="agentMode === 'generate'" title="Skip THOUGHT step for faster generation">
+          <div class="fast-mode-toggle input-fast-mode" v-if="agentMode === 'generate' || agentMode === 'analysis'" title="Skip THOUGHT step for faster generation">
             <label class="switch">
               <input type="checkbox" v-model="fastMode">
               <span class="slider round slider-fast"></span>
@@ -575,6 +601,7 @@ const examples = [
   { icon: '🏥', label: 'Healthcare API',  sub: 'Patients, visits, reports',         prompt: 'Create a healthcare REST API with patient CRUD, JWT auth and Swagger docs' },
 ]
 const followReview    = ref(false)
+const followAnalysis  = ref(false)
 const fastMode        = ref(true)
 const autoRequestReview = ref(false)
 
@@ -621,7 +648,24 @@ const currentPresets = computed(() => {
   }))
 })
 
+const analysisExamples = [
+  { icon: '📊', label: 'Analyze Architecture', sub: 'Tech stack & structure audit', prompt: 'Perform a deep scan of the project and analyze its core architecture and technology stack.' },
+  { icon: '🗺️', label: 'Map Modules', sub: 'Identify features & responsibilities', prompt: 'Map out all major modules and components in this workspace and document their responsibilities.' },
+  { icon: '⚖️', label: 'Audit Quality', sub: 'Analyze best practices & modularity', prompt: 'Audit the code quality, modularity, and adherence to industry best practices for this stack.' },
+  { icon: '🚀', label: 'Future Roadmap', sub: 'Recommendations for improvement', prompt: 'Analyze the current system and provide high-level architectural recommendations for future development.' },
+]
+
 const currentExamples = computed(() => {
+  if (agentMode.value === 'analysis') {
+    const icons = { 'default': '🔬', 'mean_stack': '📊', 'html_css': '🎨' }
+    const icon = icons[selectedStack.value] || '📊'
+    return analysisExamples.map(ex => ({
+      ...ex,
+      icon,
+      sub: `System Analysis (${stacksMetadata.value[selectedStack.value]?.name || 'Standard'})`
+    }))
+  }
+
   const meta = stacksMetadata.value[selectedStack.value]
   const icons = { 'default': '🏗', 'mean_stack': '🍃', 'html_css': '🎨' }
   const stackIcon = icons[selectedStack.value] || '✨'
@@ -647,6 +691,7 @@ async function send(text, isAutoHandoff = false) {
   if (targetFolder.value) tags.push(`[TARGET FOLDER: ${targetFolder.value}]`)
   if (agentMode.value)    tags.push(`[MODE: ${agentMode.value.toUpperCase()}]`)
   if (followReview.value && agentMode.value === 'generate') tags.push(`[FOLLOW REVIEW]`)
+  if (followAnalysis.value && agentMode.value === 'generate') tags.push(`[FOLLOW ANALYSIS]`)
   if (tags.length > 0 && msg) msg = `${tags.join(' ')} ${msg}`
 
   if (!msg || running.value) return
@@ -735,7 +780,7 @@ async function send(text, isAutoHandoff = false) {
             if (ev.type === 'tool_call' && ev.tool === 'write_file') {
               const p = ev.parameters || {};
               const targetPath = String(p.path || p.file || '').toLowerCase();
-              if (targetPath.endsWith('walkthrough_review_report.md')) {
+              if (targetPath.endsWith('walkthrough_review_report.md') || targetPath.endsWith('walkthrough_system_analysis_report.md')) {
                 console.log('[DevAgent] 🛠 Report saving initiated:', targetPath);
                 wasReportSaved = true;
               }
@@ -778,7 +823,7 @@ async function send(text, isAutoHandoff = false) {
             if (act.tool === 'write_file' || act.tool === 'bulk_write') {
               const p = act.parameters || {};
               const targetPath = String(p.path || p.file || '').toLowerCase();
-              if (targetPath.endsWith('walkthrough_review_report.md')) sessionReportSaved = true;
+              if (targetPath.endsWith('walkthrough_review_report.md') || targetPath.endsWith('walkthrough_system_analysis_report.md')) sessionReportSaved = true;
             }
           }
         });
@@ -1073,7 +1118,10 @@ async function loadModels() {
 
 function updateActiveModelDisplay() {
   if (!modelConfig.value) return
-  const mode = agentMode.value === 'review' ? 'review' : 'dev'
+  let mode = 'dev'
+  if (agentMode.value === 'review') mode = 'review'
+  else if (agentMode.value === 'analysis') mode = 'analysis'
+
   const modelId = modelConfig.value[mode] || modelConfig.value['global']
   if (modelId) {
     lmModel.value = modelId
@@ -1273,6 +1321,8 @@ function md(text) {
   --red: #ef4444;
   --red-glow: rgba(239, 68, 68, 0.2);
   --yellow: #f59e0b;
+  --purple: #8b5cf6;
+  --purple-dim: rgba(139, 92, 246, 0.1);
   
   --border: #1e293b;
   --border2: #334155;
@@ -1763,7 +1813,13 @@ textarea {
   border-radius: 20px;
   font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.45);
   font-family: var(--mono);
+  transition: all .3s;
 }
+.chat-badge.review { color: var(--accent); border-color: rgba(59, 130, 246, 0.2); background: rgba(59, 130, 246, 0.05); }
+.chat-badge.analysis { color: var(--purple); border-color: rgba(139, 92, 246, 0.2); background: rgba(139, 92, 246, 0.05); }
+
+.chat-badge.review .badge-dot { background: var(--accent); }
+.chat-badge.analysis .badge-dot { background: var(--purple); }
 .chat-header-right {
   display: flex; align-items: center; gap: 14px;
 }
@@ -1846,6 +1902,24 @@ input:checked + .slider.slider-fast {
 }
 input:checked + .slider.slider-fast:before {
   background-color: var(--yellow);
+}
+
+/* Review Slider (Blue) */
+input:checked + .slider.slider-review {
+  background-color: var(--accent-glow2);
+  border-color: var(--accent);
+}
+input:checked + .slider.slider-review:before {
+  background-color: var(--accent);
+}
+
+/* Analysis Slider (Purple) */
+input:checked + .slider.slider-analysis {
+  background-color: var(--purple-dim);
+  border-color: var(--purple);
+}
+input:checked + .slider.slider-analysis:before {
+  background-color: var(--purple);
 }
 .slider.round {
   border-radius: 34px;
