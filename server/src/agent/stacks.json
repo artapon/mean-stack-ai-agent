@@ -1,0 +1,29 @@
+{
+    "default": {
+        "name": "Default Agent",
+        "description": "General purpose expert developer for any task.",
+        "prompts": [
+            "Create a new Node.js project",
+            "Explain the architecture of this workspace",
+            "Fix all bugs in the current folder"
+        ]
+    },
+    "mean_stack": {
+        "name": "MEAN Stack",
+        "description": "Expert in MongoDB, Express.js, Angular, and Node.js development.",
+        "prompts": [
+            "Create a Mongoose model for User with JWT auth",
+            "Implement a signup and login service",
+            "Build an Angular standalone component for a dashboard"
+        ]
+    },
+    "html_css": {
+        "name": "HTML/CSS/Bootstrap",
+        "description": "Senior UI/UX Developer specializing in responsive design and Bootstrap 5.",
+        "prompts": [
+            "Build a modern landing page with Bootstrap 5",
+            "Implement a responsive navigation bar and footer",
+            "Create a dark-mode CSS theme with glassmorphism"
+        ]
+    }
+}

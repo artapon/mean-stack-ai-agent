@@ -113,8 +113,7 @@ function pushFormatRecovery(history, lastBadOutput, errorReason, exampleAction) 
  * @param {boolean} isReview
  * @returns {string}
  */
-function loadSkills(isReview) {
-  const stack = process.env.SUB_AGENT || 'default';
+function loadSkills(isReview, stack = 'default') {
   const agentDir = __dirname;
   const stackDir = path.join(agentDir, 'agents', stack);
 
@@ -156,8 +155,8 @@ function loadSkills(isReview) {
  * @param {boolean} [autoRequestReview]
  * @returns {string}
  */
-function getSystemPrompt(isReview, targetFolder, fastMode = false, autoRequestReview = false) {
-  const EXPERT_SKILLS = loadSkills(isReview);
+function getSystemPrompt(isReview, targetFolder, fastMode = false, autoRequestReview = false, stack = 'default') {
+  const EXPERT_SKILLS = loadSkills(isReview, stack);
 
   const toolsList = [
     { name: 'read_file', params: '{path}', safe: true },
@@ -719,7 +718,7 @@ function redactForInfoLog(value, maxStrLen = 800) {
  * @returns {Promise<{success:boolean, response:string}>}
  */
 async function runAgent(opts) {
-  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false } = opts;
+  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default' } = opts;
   const selectedModel = opts.selectedModel || null;
 
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
@@ -763,7 +762,7 @@ async function runAgent(opts) {
     maxReviewLoops: MAX_REVIEW_LOOPS
   });
 
-  const systemPrompt = getSystemPrompt(isReview, targetFolderName, fastMode, autoRequestReview);
+  const systemPrompt = getSystemPrompt(isReview, targetFolderName, fastMode, autoRequestReview, stack);
 
   let lastScaffoldedName = '';
   let step = 1, listFilesCount = 0, lastActionSig = null, lastActionRepeat = 0;

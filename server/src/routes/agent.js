@@ -1,4 +1,6 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const router = express.Router();
 const { runAgent } = require('../agent/core');
 const { loadSession, saveSession, clearSession } = require('../utils/session');
@@ -6,15 +8,26 @@ const { loadSession, saveSession, clearSession } = require('../utils/session');
 // TRACKER: Allow manual stop of the running agent
 let activeAgentRun = null;
 
+// GET /api/agent/stacks — Get available agent stacks metadata
+router.get('/stacks', (req, res) => {
+  try {
+    const stacksPath = path.join(__dirname, '../agent/stacks.json');
+    const data = JSON.parse(fs.readFileSync(stacksPath, 'utf-8'));
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: 'Could not load stacks.json: ' + e.message });
+  }
+});
+
 // POST /api/agent/run — streams agent steps via Server-Sent Events
 router.post('/run', async (req, res) => {
-  const { messages, fastMode, autoRequestReview, sessionId } = req.body;
+  const { messages, fastMode, autoRequestReview, sessionId, stack } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: '"messages" must be a non-empty array.' });
   }
 
-  console.log(`\n[DevAgent] 🟢 NEW REQUEST /api/agent/run (${messages.length} messages, fast: ${fastMode}, session: ${sessionId || 'none'})`);
+  console.log(`\n[DevAgent] 🟢 NEW REQUEST /api/agent/run (${messages.length} messages, fast: ${fastMode}, stack: ${stack || 'default'}, session: ${sessionId || 'none'})`);
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -46,6 +59,7 @@ router.post('/run', async (req, res) => {
     //    the full history if desired, or just the new turn if they want a fresh start.)
     const result = await runAgent({
       messages,
+      stack,
       workspaceDir: req.app.locals.workspaceDir,
       signal: abort.signal,
       onStep: send,

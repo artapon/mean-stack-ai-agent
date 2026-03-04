@@ -1,5 +1,92 @@
 <template>
-  <div class="app">
+  <!-- ── PAGE 1: Agent Selection ──────────────────────────────────────────── -->
+  <div v-if="currentPage === 'selection'" class="selection-page">
+    <!-- animated radial glow orbs -->
+    <div class="sp-orb sp-orb-1"></div>
+    <div class="sp-orb sp-orb-2"></div>
+    <div class="sp-orb sp-orb-3"></div>
+    <div class="sp-dots-grid"></div>
+
+    <!-- top nav -->
+    <nav class="sp-nav">
+      <div class="sp-logo">
+        <div class="sp-logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="url(#sp-lg)" />
+            <defs>
+              <linearGradient id="sp-lg" x1="3" y1="2" x2="21" y2="22" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#a5c8ff" />
+                <stop offset="100%" stop-color="#4080ff" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span class="sp-logo-name">DevAgent</span>
+      </div>
+      <div class="sp-nav-badge">
+        <span class="sp-badge-dot"></span>
+        AI-Powered Code Generator
+      </div>
+    </nav>
+
+    <!-- hero -->
+    <div class="sp-hero">
+      <div class="sp-hero-label">Select your workspace</div>
+      <h1 class="sp-hero-title">Choose Your AI Agent</h1>
+      <p class="sp-hero-sub">Each agent is specialized for a different technology stack.<br>Pick the one that matches your project.</p>
+    </div>
+
+    <!-- agent cards -->
+    <div class="sp-cards">
+      <div
+        v-for="(meta, id) in stacksMetadata" :key="id"
+        class="sp-agent-card"
+        :class="{ 'sp-agent-card--active': selectedStack === id }"
+        @click="selectStack(id)"
+      >
+        <!-- card glow -->
+        <div class="sp-agent-glow" :class="'sp-glow-' + id"></div>
+
+        <div class="sp-agent-top">
+          <div class="sp-agent-emoji">
+            <span v-if="id === 'default'">🏗</span>
+            <span v-else-if="id === 'mean_stack'">🍃</span>
+            <span v-else-if="id === 'html_css'">🎨</span>
+            <span v-else">✨</span>
+          </div>
+          <div class="sp-agent-meta">
+            <div class="sp-agent-name">{{ meta.name }}</div>
+            <div class="sp-agent-tech" v-if="id === 'default'">Node • Any Stack</div>
+            <div class="sp-agent-tech" v-else-if="id === 'mean_stack'">MongoDB • Express • Node</div>
+            <div class="sp-agent-tech" v-else-if="id === 'html_css'">HTML5 • CSS3 • Bootstrap 5</div>
+          </div>
+        </div>
+
+        <p class="sp-agent-desc">{{ meta.description }}</p>
+
+        <div class="sp-agent-prompts" v-if="meta.prompts">
+          <div class="sp-prompts-label">Sample prompts</div>
+          <div v-for="p in meta.prompts.slice(0, 3)" :key="p" class="sp-prompt-chip">
+            <span class="sp-chip-arrow">›</span>
+            {{ p }}
+          </div>
+        </div>
+
+        <button class="sp-agent-btn">
+          <span>Start with {{ meta.name }}</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <p class="sp-footer">You can switch agents anytime from the sidebar</p>
+  </div>
+
+  <!-- ── PAGE 2: Chat App ──────────────────────────────────────────────────── -->
+  <div v-else class="app">
 
     <!-- ── Sidebar ──────────────────────────────────────────────────── -->
     <aside class="sidebar">
@@ -25,7 +112,7 @@
         <div class="sidebar-label">QUICK START</div>
         <nav class="nav">
           <button
-            v-for="p in presets" :key="p.label"
+            v-for="p in currentPresets" :key="p.label"
             class="preset" :disabled="running"
             @click="send(p.prompt)"
           >
@@ -38,6 +125,14 @@
       <div class="sidebar-spacer"/>
 
       <div class="sidebar-footer">
+        <div class="stack-badge" @click="currentPage = 'selection'" title="Click to change agent stack">
+          <span class="stack-badge-icon">
+            <span v-if="selectedStack === 'default'">🏗</span>
+            <span v-else-if="selectedStack === 'mean_stack'">🍃</span>
+            <span v-else-if="selectedStack === 'html_css'">🎨</span>
+          </span>
+          <span class="stack-badge-name">{{ stacksMetadata[selectedStack]?.name || 'Agent' }}</span>
+        </div>
         <div class="status-pill" :class="running ? 'running' : 'idle'">
           <span class="status-dot"></span>
           <span>{{ running ? 'Agent running' : 'Ready' }}</span>
@@ -504,6 +599,49 @@ const followReview    = ref(false)
 const fastMode        = ref(false)
 const autoRequestReview = ref(false)
 
+// ── Agent Stacks ─────────────────────────────────────────────────────────────
+const FALLBACK_STACKS = {
+  "default":    { "name": "Default Agent",       "description": "General-purpose AI developer for any project.",         "prompts": ["Create a new Node.js project", "Fix all bugs in the current folder", "Explain this codebase"] },
+  "mean_stack": { "name": "MEAN Stack",           "description": "Expert in MongoDB, Express.js, Angular, and Node.",    "prompts": ["Create a Mongoose model for User with JWT auth", "Build an Express REST API", "Implement signup and login service"] },
+  "html_css":   { "name": "HTML/CSS/Bootstrap",   "description": "Senior UI/UX Developer with Bootstrap 5 expertise.",  "prompts": ["Build a modern landing page with Bootstrap 5", "Create a responsive navbar and footer", "Create a dark-mode glassmorphism theme"] }
+}
+const selectedStack = ref(localStorage.getItem('devagent_selected_stack') || '')
+const stacksMetadata = ref({ ...FALLBACK_STACKS })
+const currentPage = ref('selection')
+
+async function fetchStacks() {
+  try {
+    const res = await fetch('/api/agent/stacks')
+    if (!res.ok) throw new Error('API error')
+    const data = await res.json()
+    // Merge server data with fallback (server data takes priority)
+    Object.keys(data).forEach(id => {
+      stacksMetadata.value[id] = { ...FALLBACK_STACKS[id], ...data[id] }
+    })
+  } catch (e) {
+    console.warn('[DevAgent] Using fallback stacks data:', e.message)
+  }
+}
+fetchStacks()
+
+function selectStack(id) {
+  selectedStack.value = id
+  localStorage.setItem('devagent_selected_stack', id)
+  currentPage.value = 'chat'
+}
+
+const currentPresets = computed(() => {
+  const meta = stacksMetadata.value[selectedStack.value]
+  if (!meta || !meta.prompts) return presets // Fallback to hardcoded presets
+  
+  const icons = { 'default': '🏗', 'mean_stack': '🍃', 'html_css': '🎨' }
+  return meta.prompts.map(p => ({
+    icon: icons[selectedStack.value] || '✨',
+    label: p.length > 20 ? p.slice(0, 20) + '...' : p,
+    prompt: p
+  }))
+})
+
 // ── Send message ──────────────────────────────────────────────────────────────
 async function send(text, isAutoHandoff = false) {
   let msg = (text || input.value).trim()
@@ -567,7 +705,8 @@ async function send(text, isAutoHandoff = false) {
         messages: history, 
         fastMode: fastMode.value, 
         autoRequestReview: autoRequestReview.value,
-        sessionId: sessionId.value
+        sessionId: sessionId.value,
+        stack: selectedStack.value
       }),
       signal  : abort.signal
     })
@@ -2243,4 +2382,261 @@ input:checked + .slider.slider-fast:before {
   transition: color 0.15s;
 }
 .wcb-clear:hover { color: var(--red); }
+
+/* ── Selection Screen ────────────────────────────────────────────────────── */
+.selection-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 11, 14, 0.85); backdrop-filter: blur(20px);
+  z-index: 1000; display: flex; align-items: center; justify-content: center;
+  animation: fadeIn .4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.selection-card {
+  width: 100%; max-width: 800px; padding: 48px; border-radius: 24px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+  border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 32px 64px rgba(0,0,0,0.5);
+}
+.selection-header { text-align: center; margin-bottom: 40px; }
+.selection-title { 
+  font-size: 32px; font-weight: 800; color: #fff; margin-bottom: 12px;
+  letter-spacing: -0.02em; 
+}
+.selection-subtitle { font-size: 16px; color: var(--t3); }
+
+.stack-grid { 
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
+  gap: 20px; 
+}
+.stack-item {
+  padding: 24px; border-radius: 16px; cursor: pointer;
+  transition: all .25s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+}
+/* ── Selection Screen Fixes (legacy overlay kept for compat) ─────────────── */
+.selection-card { position: relative; }
+
+/* ── Sidebar Badge ───────────────────────────────────────────────────────── */
+.stack-badge {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; margin-bottom: 12px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--r-sm); cursor: pointer;
+  transition: all .2s;
+}
+.stack-badge:hover { background: var(--bg4); border-color: var(--accent); }
+.stack-badge-icon { font-size: 16px; }
+.stack-badge-name { 
+  font-size: 12px; font-weight: 700; color: var(--t1); 
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PROFESSIONAL AGENT SELECTION PAGE
+   ════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes orb-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.08); }
+}
+@keyframes sp-card-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.selection-page {
+  min-height: 100vh;
+  background: #07090f;
+  display: flex; flex-direction: column;
+  position: relative; overflow: hidden;
+  font-family: var(--sans);
+}
+
+/* Background glow orbs */
+.sp-orb {
+  position: absolute; border-radius: 50%;
+  pointer-events: none; filter: blur(80px);
+}
+.sp-orb-1 {
+  width: 600px; height: 600px; top: -200px; left: -100px;
+  background: radial-gradient(circle, rgba(64,128,255,0.18) 0%, transparent 70%);
+  animation: orb-pulse 8s ease-in-out infinite;
+}
+.sp-orb-2 {
+  width: 400px; height: 400px; bottom: -100px; right: -60px;
+  background: radial-gradient(circle, rgba(100,60,200,0.15) 0%, transparent 70%);
+  animation: orb-pulse 10s ease-in-out infinite 2s;
+}
+.sp-orb-3 {
+  width: 300px; height: 300px; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(91,156,255,0.07) 0%, transparent 70%);
+  animation: orb-pulse 6s ease-in-out infinite 1s;
+}
+
+/* Dot grid */
+.sp-dots-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 40%, transparent 100%);
+}
+
+/* Nav */
+.sp-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 32px; position: relative; z-index: 10;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  background: rgba(7,9,15,0.6); backdrop-filter: blur(10px);
+}
+.sp-logo { display: flex; align-items: center; gap: 10px; }
+.sp-logo-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, rgba(91,156,255,0.2), rgba(64,128,255,0.1));
+  border: 1px solid rgba(91,156,255,0.25);
+  display: flex; align-items: center; justify-content: center;
+}
+.sp-logo-name {
+  font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -0.02em;
+}
+.sp-nav-badge {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  padding: 5px 12px; border-radius: 100px;
+}
+.sp-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #5b9cff;
+  box-shadow: 0 0 6px #5b9cff;
+  animation: pulse 2s infinite;
+}
+
+/* Hero */
+.sp-hero {
+  text-align: center; padding: 60px 24px 44px;
+  position: relative; z-index: 10;
+}
+.sp-hero-label {
+  display: inline-block;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.15em; color: #5b9cff;
+  background: rgba(91,156,255,0.1); border: 1px solid rgba(91,156,255,0.2);
+  padding: 4px 14px; border-radius: 100px; margin-bottom: 18px;
+}
+.sp-hero-title {
+  font-size: clamp(32px, 5vw, 52px); font-weight: 900;
+  letter-spacing: -0.04em; margin: 0 0 16px;
+  background: linear-gradient(160deg, #ffffff 40%, rgba(91,156,255,0.85) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.sp-hero-sub {
+  font-size: 16px; color: rgba(255,255,255,0.4);
+  line-height: 1.7; margin: 0;
+}
+
+/* Cards Grid */
+.sp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px; max-width: 1100px;
+  width: 100%; margin: 0 auto;
+  padding: 0 24px 48px;
+  position: relative; z-index: 10;
+}
+.sp-agent-card {
+  border-radius: 20px; cursor: pointer;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 28px; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: 0;
+  transition: border-color .3s, transform .3s, box-shadow .3s;
+  animation: sp-card-in .5s ease both;
+}
+.sp-agent-card:nth-child(2) { animation-delay: .1s; }
+.sp-agent-card:nth-child(3) { animation-delay: .2s; }
+.sp-agent-card:hover {
+  border-color: rgba(91,156,255,0.35);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+}
+.sp-agent-card--active {
+  border-color: rgba(91,156,255,0.5);
+  box-shadow: 0 0 0 1px rgba(91,156,255,0.3), 0 12px 30px rgba(0,0,0,0.3);
+}
+
+/* Per-card colored glow */
+.sp-agent-glow {
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  border-radius: 20px 20px 0 0;
+}
+.sp-glow-default         { background: linear-gradient(90deg, #4080ff, #80b0ff); }
+.sp-glow-mean_stack      { background: linear-gradient(90deg, #40c080, #80ffb0); }
+.sp-glow-html_css        { background: linear-gradient(90deg, #c040a0, #ff80d0); }
+
+/* Card Top */
+.sp-agent-top {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 16px;
+}
+.sp-agent-emoji {
+  width: 52px; height: 52px; flex-shrink: 0;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;
+}
+.sp-agent-name {
+  font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px;
+  letter-spacing: -0.01em;
+}
+.sp-agent-tech {
+  font-size: 11px; font-weight: 600;
+  color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.05em;
+}
+
+.sp-agent-desc {
+  font-size: 13.5px; color: rgba(255,255,255,0.45);
+  line-height: 1.6; margin: 0 0 20px;
+}
+
+/* Prompt chips */
+.sp-agent-prompts { margin-bottom: 24px; flex: 1; }
+.sp-prompts-label {
+  font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.25);
+  text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;
+}
+.sp-prompt-chip {
+  display: flex; align-items: baseline; gap: 6px;
+  font-size: 12px; color: rgba(255,255,255,0.45);
+  padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  line-height: 1.4;
+}
+.sp-prompt-chip:last-child { border-bottom: none; }
+.sp-chip-arrow {
+  color: #5b9cff; font-size: 16px; flex-shrink: 0; line-height: 1;
+}
+
+/* CTA button */
+.sp-agent-btn {
+  width: 100%; padding: 11px 16px;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer; transition: all .25s;
+  font-family: var(--sans);
+}
+.sp-agent-btn:hover, .sp-agent-card:hover .sp-agent-btn {
+  background: #5b9cff;
+  border-color: #5b9cff;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(91,156,255,0.35);
+}
+
+/* Footer */
+.sp-footer {
+  text-align: center; font-size: 12px;
+  color: rgba(255,255,255,0.2);
+  padding-bottom: 24px; position: relative; z-index: 10;
+}
 </style>
