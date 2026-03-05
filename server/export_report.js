@@ -41,7 +41,6 @@ const htmlTemplate = `<!DOCTYPE html>
 
         .header-actions {
             width: 100%;
-            max-width: 900px;
             display: flex;
             justify-content: flex-end;
             margin-bottom: 1rem;
