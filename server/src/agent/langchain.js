@@ -254,6 +254,30 @@ RESPONSE FORMAT:
         const response = await chain.invoke({ packageJson: packageJsonContent, report: reportContent });
         return cleanResponse(response.content);
     }
+
+    /**
+     * Verifies the "Project Structure" (Tree View) against the actual list of files discovered.
+     */
+    async verifyStructure(reportContent, discoveredFiles) {
+        const prompt = ChatPromptTemplate.fromMessages([
+            ["system", `You are a Forensic Directory Auditor. Compare the "PROJECT STRUCTURE (TREE VIEW)" section of an Analysis Report against a list of REAL files discovered in the project.
+
+TASKS:
+1. Identify any folder or file mentioned in the report's tree that is NOT in the discovered files list. (Common hallucinations: /services, /controllers, /middleware, /utils).
+2. If the report mentions a folder (e.g. "app/services"), but NO files inside that folder exist in the reality list, it is a GHOST FOLDER HALLUCINATION.
+
+RESPONSE FORMAT:
+- If perfect: "VERIFIED"
+- If errors: "GHOST FOLDER DETECTED: [folder/file names]". List them clearly.`],
+            ["human", "REAL FILES DISCOVERED:\n{realFiles}\n\nREPORT CONTENT:\n{report}"]
+        ]);
+
+        const chain = RunnableSequence.from([prompt, this.chat]);
+        // Limit realFiles string size for token efficiency
+        const filesStr = (discoveredFiles || []).slice(0, 500).join('\n');
+        const response = await chain.invoke({ realFiles: filesStr, report: reportContent });
+        return cleanResponse(response.content);
+    }
 }
 
 module.exports = {

@@ -193,7 +193,7 @@ function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview
 ${mode === 'review'
       ? 'You are currently in REVIEW MODE. AUDIT the codebase. ONLY use write_file for walkthrough_review_report.md.'
       : mode === 'analysis'
-        ? 'You are currently in ANALYSIS MODE. SCAN and ANALYZE the codebase. ONLY use write_file for walkthrough_system_analysis_report.md. DO NOT modify source code.'
+        ? 'You are currently in ANALYSIS MODE. SCAN and ANALYZE the codebase. ONLY use write_file for walkthrough_system_analysis_report.md. DO NOT modify source code. 🛑 **STRICT REGULATION**: Do NOT include any folders or files in your report (especially the Tree View) that were not physically found in your scan. NO GHOST FOLDERS allowed.'
         : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}"` : ''}
 
@@ -202,7 +202,7 @@ ${availableTools}
 
 TOOL CALL FORMAT (MANDATORY & RIGID):
 ${fastMode
-      ? `ACTION: (tool name)\n\nPARAMETERS: (JSON)\n\nCRITICAL: DO NOT OUTPUT ANY "THOUGHT" OR REASONING BLOCK. DO NOT REPEAT "ACTION" OR "PARAMETERS" MARKERS. JUST ONE ACTION BLOCK.`
+      ? `ACTION: (tool name)\n\nPARAMETERS: (JSON)\n\nCRITICAL: DO NOT OUTPUT ANY "THOUGHT" OR REASONING BLOCK. DO NOT REPEAT "ACTION" OR "PARAMETERS" MARKERS. JUST ONE ACTION BLOCK.\n\n🛑 **ZERO TOLERANCE**: Do NOT use architectural intuition to guess project structure. If you didn't see the folder in list_files, it DOES NOT exist.`
       : `THOUGHT: (reasoning)\n\nACTION: (tool name)\n\nPARAMETERS: (JSON)`}
 
 CRITICAL: Each marker must be on its own line with a BLANK LINE before it.
@@ -728,6 +728,7 @@ async function runAgent(opts) {
     planWritten: false,
     reviewLoopCount: 0,
     replaceFailCounts: {}, // per-path replace_in_file failure counters
+    discoveredFiles: [], // list of absolute/relative paths from list_files
   };
 
   let history = [
@@ -1154,22 +1155,32 @@ async function runAgent(opts) {
               }
 
               const verification = await guard.verifyDependencies(reportContent, pkgJson);
-              if (verification.includes('HALLUCINATION DETECTED') || verification.includes('OMISSION DETECTED')) {
-                console.warn(`[DevAgent] ${verification}`);
+              const structVerification = await guard.verifyStructure(reportContent, agentState.discoveredFiles);
+
+              const hasDependencyError = verification.includes('HALLUCINATION DETECTED') || verification.includes('OMISSION DETECTED');
+              const hasStructureError = structVerification.includes('GHOST FOLDER DETECTED');
+
+              if (hasDependencyError || hasStructureError) {
+                let directive = "";
+                if (hasDependencyError) directive += `TECH STACK ERROR: ${verification}\n`;
+                if (hasStructureError) directive += `STRUCTURE ERROR: ${structVerification}\n`;
+
+                console.warn(`[DevAgent] ${directive.trim()}`);
+
                 pushNudge(history,
-                  `ANTI-HALLUCINATION GUARD: ${verification}\n\n` +
-                  `Your Technology Stack is inaccurate or incomplete.\n` +
-                  `1. READ package.json again.\n` +
-                  `2. UPDATE walkthrough_system_analysis_report.md to remove hallucinated libraries AND add missing ones.\n` +
-                  `3. EVERY library in dependencies/devDependencies MUST have a row in your table.`,
-                  `THOUGHT: I have inaccuracies or omissions in my report. I must correct the Tech Stack section using the real package.json content to be 100% exhaustive.`
+                  `FORENSIC AUDIT FAILED:\n${directive}\n` +
+                  `1. REMOVE all "Ghost Folders" (folders like /services or /middleware that don't exist in your scan).\n` +
+                  `2. ENSURE the Technology Stack is a 1:1 match with package.json.\n` +
+                  `3. UPDATE walkthrough_system_analysis_report.md immediately with the corrected data.`,
+                  `THOUGHT: My report contains hallucinations (ghost folders or incorrect libraries). I must correct walkthrough_system_analysis_report.md to match the real filesystem and package.json exactly.`
                 );
+
                 agentState.reportSaved = false; // Force re-save
                 if (onStep) onStep({ type: 'status', text: 'Hallucination Detected! Nudging for correction...' });
                 continue;
               } else {
                 agentState.hallucinationVerified = true;
-                if (onStep) onStep({ type: 'status', text: 'Hallucination Guard: Tech Stack Verified.' });
+                if (onStep) onStep({ type: 'status', text: 'Forensic Guard: Report Verified.' });
               }
             }
           } catch (err) {
@@ -1387,7 +1398,11 @@ async function runAgent(opts) {
 
       if (action === 'list_files' && result.filesList) {
         console.log(`[DevAgent] listed ${result.filesList.length} files`);
-        console.log('  ' + result.filesList.slice(0, 30).join('\n  '));
+        // console.log('  ' + result.filesList.slice(0, 30).join('\n  '));
+
+        // Merge into discoveredFiles (deduplicated)
+        const newFiles = result.filesList.map(f => String(f).toLowerCase());
+        agentState.discoveredFiles = Array.from(new Set([...agentState.discoveredFiles, ...newFiles]));
       }
 
       // ── Update agentState immediately after confirmed success ─────────────

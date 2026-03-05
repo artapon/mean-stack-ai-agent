@@ -11,8 +11,9 @@ You are in **ANALYSIS MODE**. Your job is to perform a **forensic-level audit** 
 
 1. **RECURSIVE SCAN**: Call `list_files` on the `CURRENT WORKSPACE ROOT` (as specified in your system prompt) to perform an exhaustive, multi-level discovery of **EVERY** directory and file in the selected project.
 2. **IDENTIFY UI STACK**: Call `read_file` explicitly on `package.json` to extract the EXACT technology stack versions. You MUST perform a 1:1 map of the `dependencies` and `devDependencies` blocks. Do NOT invent, skip, or guess libraries.
-3. **PEEK DESIGN SYSTEM**: Analyze all styling entry points (`index.css`, `main.scss`, `App.vue`) to identify variables, design tokens (colors, spacing, typography), and global theme settings.
-4. **MAP COMPONENTS**: Analyze the directory structure to identify the component library, layout system, and reusable UI modules.
+3. **ACTUAL STRUCTURE MAPPING**: Analyze the `list_files` output to map the **REAL** directory structure. **CRITICAL**: Do NOT use your internal "mental model" of what a UI project should look like. If `/components` or `/assets` does not exist in the `list_files` output, IT DOES NOT EXIST. Any "imagined" structure is a forensic failure. You MUST use the exact names and paths found in the scan.
+4. **PEEK DESIGN SYSTEM**: Analyze all styling entry points (`index.css`, `main.scss`, `App.vue`) to identify variables, design tokens (colors, spacing, typography), and global theme settings.
+5. **MAP COMPONENTS**: Analyze the directory structure to identify the component library, layout system, and reusable UI modules. NEVER invent a module if you didn't find the folders/files for it. Document only the UI ARCHITECTURE THAT EXISTS.
 5. **TOTAL UI AUDIT (MANDATORY)**: You MUST read and analyze **EVERY SINGLE FILE** identified by `list_files`. Use `bulk_read` in batches of up to 100 files to efficiently process the entire project. You must explain the purpose, design logic, and state management of every single component and style file. Do not skip any file.
 6. **FORENSIC DESIGN QUALITY AUDIT**: Evaluate responsiveness, accessibility, semantic HTML usage, and CSS modularity (BEM, CSS Modules, or Utilities).
 7. **DOCUMENT**: Compile all findings into `walkthrough_system_analysis_report.md` using forensic-level detail.
@@ -28,7 +29,9 @@ Your report MUST follow this **PREMIUM UI/UX FORENSIC STRUCTURE** for maximum re
 
 1. `## 🌳 UI/UX PROJECT STRUCTURE (TREE VIEW)`
    - Provide a full recursive tree representation of EVERY directory and file. The root of this tree MUST be the `CURRENT WORKSPACE ROOT` folder.
-   - **CRITICAL: ZERO TRUNCATION**: You MUST explicitly expand every single subfolder. Do not collapse directories.
+   - **CRITICAL: ZERO TRUNCATION**: You MUST explicitly expand every single subfolder.
+   - 🛑 **STRICT FORENSIC EVIDENCE**: You MUST ONLY include folders and files that were explicitly returned by your `list_files` scan. 
+   - 🛑 **NO GHOST FOLDERS**: DO NOT add folders like `/components`, `/assets`, or `/styles` if they do not physically exist in your scan. Any "assumed" structure will be treated as a failure.
    - 🛑 **NO SCRIPTS / NO JSON.STRINGIFY**: DO NOT use Javascript code. Write the tree as **MANUALLY TYPED PLAIN TEXT** inside a code block.
 
 ---
