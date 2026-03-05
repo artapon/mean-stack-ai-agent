@@ -41,15 +41,14 @@ Your report MUST follow this **PREMIUM FORENSIC STRUCTURE** for maximum readabil
 
 | Package Name | Version | Role / Purpose | Tag |
 |--------------|---------|----------------|-----|
-| `express` | `^4.16.2` | Fast, unopinionated web framework | 🚀 |
-| `dotenv` | `^16.0.1` | Loads environment variables from a .env file | 🔒 |
+| (AUDIT REAL DATA) | (Exact Version) | (Project Code Logic) | (Emoji) |
 
 > [!IMPORTANT]
-> **ANTI-HALLUCINATION & EXHAUSTIVE COVERAGE GUARD**: 
-> 1. You MUST list **EVERY SINGLE LIBRARY** found in the `dependencies` and `devDependencies` blocks of the `package.json` file. 
-> 2. You MUST NOT summarize, skip, or group libraries. 
-> 3. You MUST NOT list any library that is not explicitly in the `package.json` read via `read_file`.
-> 4. For each library, provide a clear, project-specific explanation as shown in the table. 100% coverage is mandatory.
+> **STRICT 1:1 DEPENDENCY AUDIT**: 
+> 1. You MUST read the `package.json` and perform a systematic audit of **EVERY** library listed in `dependencies` and `devDependencies`.
+> 2. **NO PLACEHOLDERS**: Do NOT copy the example structure (`express`, `dotenv`). Use ONLY the data found in your current project's scan.
+> 3. **NO SUMMARIES**: If the project has 40 libraries, your table MUST have 40 rows. Grouping or skipping is a forensic failure.
+> 4. **Expert Purpose**: For every library, explain its specific role in the logic of THIS project.
 
 ---
 

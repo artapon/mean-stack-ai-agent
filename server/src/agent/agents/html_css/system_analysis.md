@@ -40,15 +40,14 @@ Your report MUST follow this **PREMIUM UI/UX FORENSIC STRUCTURE** for maximum re
 
 | Package Name | Version | Role / Purpose | Tag |
 |--------------|---------|----------------|-----|
-| `tailwindcss` | `^3.0.0` | Utility-first CSS framework | 🎨 |
-| `vite` | `^5.0.0` | Next generation frontend tooling | ⚡ |
+| (AUDIT REAL DATA) | (Exact Version) | (UI Code Logic) | (Emoji) |
 
 > [!IMPORTANT]
-> **ANTI-HALLUCINATION & EXHAUSTIVE COVERAGE GUARD**: 
-> 1. You MUST list **EVERY SINGLE LIBRARY** found in the `dependencies` and `devDependencies` blocks of the `package.json` file. 
-> 2. You MUST NOT summarize, skip, or group libraries. 
-> 3. You MUST NOT list any library that is not explicitly in the `package.json` read via `read_file`.
-> 4. For each library, provide a clear, project-specific explanation as shown in the table. 100% coverage is mandatory.
+> **STRICT 1:1 DEPENDENCY AUDIT**: 
+> 1. You MUST read the `package.json` and perform a systematic audit of **EVERY** library listed in `dependencies` and `devDependencies`.
+> 2. **NO PLACEHOLDERS**: Do NOT copy the example structure (`tailwindcss`, `vite`). Use ONLY the data found in your current project's scan.
+> 3. **NO SUMMARIES**: If the project has 20 libraries, your table MUST have 20 rows. Grouping or skipping is a forensic failure.
+> 4. **Expert Purpose**: For every library, explain its specific role in the styling or logic of THIS project.
 
 ---
 

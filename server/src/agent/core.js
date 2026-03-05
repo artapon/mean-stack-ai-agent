@@ -658,20 +658,38 @@ async function runAgent(opts) {
 
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
   const lastContent = lastUserMsg?.content || '';
-  const isReview = lastContent.includes('[MODE: REVIEW]');
-  const isAnalysis = lastContent.includes('[MODE: ANALYSIS]');
+
+  // Mode detection: sticky via history scan
+  let isReview = false, isAnalysis = false;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === 'user' && typeof m.content === 'string') {
+      if (m.content.includes('[MODE: REVIEW]')) { isReview = true; break; }
+      if (m.content.includes('[MODE: ANALYSIS]')) { isAnalysis = true; break; }
+      if (m.content.includes('[CONTINUE REVIEW]')) { isReview = true; break; }
+      if (m.content.includes('[CONTINUE ANALYSIS]')) { isAnalysis = true; break; }
+    }
+  }
 
   const mode = isReview ? 'review' : (isAnalysis ? 'analysis' : 'developer');
 
-  // Target folder resolution
+  // Target folder resolution: scan history (from latest to oldest) for [TARGET FOLDER: XXX]
   let effectiveWorkspaceDir = workspaceDir, targetFolderName = '';
-  const targetMatch = lastContent.match(/\[TARGET FOLDER:\s*([^\]]+)\]/);
+  let targetMatch = null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === 'user' && typeof m.content === 'string') {
+      targetMatch = m.content.match(/\[TARGET FOLDER:\s*([^\]]+)\]/);
+      if (targetMatch) break;
+    }
+  }
+
   if (targetMatch) {
     const tp = targetMatch[1].trim();
     const res = path.resolve(workspaceDir, tp.replace(/^[\/\\]+/, ''));
     if (tp && tp !== '.' && res.toLowerCase().startsWith(workspaceDir.toLowerCase())) {
       effectiveWorkspaceDir = res; targetFolderName = tp;
-      console.log(`[DevAgent] TARGET FOLDER: "${tp}"`);
+      console.log(`[DevAgent] TARGET FOLDER (from history): "${tp}"`);
     }
   }
 
@@ -1136,16 +1154,24 @@ async function runAgent(opts) {
             let pkgJson = "";
             if (fs.existsSync(pkgPath)) {
               pkgJson = fs.readFileSync(pkgPath, 'utf8');
-            } else {
-              // If no package.json, we skip dependency check but consider verified
-              agentState.hallucinationVerified = true;
             }
 
-            if (pkgJson) {
-              if (onStep) onStep({ type: 'status', text: 'Langchain: Verifying Tech Stack for hallucinations...' });
+            if (onStep) onStep({ type: 'status', text: 'Forensic Guard: Auditing report for hallucinations...' });
 
-              // Get report content from history
-              let reportContent = "";
+            // Get report content: Prioritize the actual file on disk, fallback to history
+            let reportContent = "";
+            const reportPath = path.resolve(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md');
+            if (fs.existsSync(reportPath)) {
+              reportContent = fs.readFileSync(reportPath, 'utf8');
+
+              // REPAIR: Many models escape newlines as \\n when writing to files in JSON
+              if (reportContent.includes('\\n') && !reportContent.includes('\n')) {
+                console.log('[DevAgent] 🛠️ REPAIRING: Escaped newlines detected in report.');
+                reportContent = reportContent.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+                fs.writeFileSync(reportPath, reportContent);
+                if (onStep) onStep({ type: 'status', text: 'Fixed: formatting (escaped newlines).' });
+              }
+            } else {
               for (let i = history.length - 1; i >= 0; i--) {
                 const m = history[i];
                 if (m.role === 'assistant' && (m.content || '').toUpperCase().includes('WALKTHROUGH_SYSTEM_ANALYSIS_REPORT.MD')) {
@@ -1153,9 +1179,18 @@ async function runAgent(opts) {
                   break;
                 }
               }
+            }
 
-              const verification = await guard.verifyDependencies(reportContent, pkgJson);
+            if (!reportContent) {
+              console.warn('[DevAgent] Forensic Guard: Could not find report content to verify.');
+              agentState.hallucinationVerified = true;
+            } else {
+              // Always verify structure, verify dependencies only if pkgJson exists
               const structVerification = await guard.verifyStructure(reportContent, agentState.discoveredFiles);
+              const verification = pkgJson ? await guard.verifyDependencies(reportContent, pkgJson) : "VERIFIED";
+
+              console.log(`[DevAgent] Structure Audit: ${structVerification}`);
+              console.log(`[DevAgent] Dependency Audit: ${verification}`);
 
               const hasDependencyError = verification.includes('HALLUCINATION DETECTED') || verification.includes('OMISSION DETECTED');
               const hasStructureError = structVerification.includes('GHOST FOLDER DETECTED');
@@ -1165,18 +1200,18 @@ async function runAgent(opts) {
                 if (hasDependencyError) directive += `TECH STACK ERROR: ${verification}\n`;
                 if (hasStructureError) directive += `STRUCTURE ERROR: ${structVerification}\n`;
 
-                console.warn(`[DevAgent] ${directive.trim()}`);
+                console.warn(`[DevAgent] Forensic Audit Failed: ${directive.trim()}`);
 
                 pushNudge(history,
                   `FORENSIC AUDIT FAILED:\n${directive}\n` +
-                  `1. REMOVE all "Ghost Folders" (folders like /services or /middleware that don't exist in your scan).\n` +
-                  `2. ENSURE the Technology Stack is a 1:1 match with package.json.\n` +
-                  `3. UPDATE walkthrough_system_analysis_report.md immediately with the corrected data.`,
-                  `THOUGHT: My report contains hallucinations (ghost folders or incorrect libraries). I must correct walkthrough_system_analysis_report.md to match the real filesystem and package.json exactly.`
+                  `1. REMOVE all "Ghost Folders" or "Ghost Files" from your report. Only include what physically exists.\n` +
+                  `2. ENSURE the Technology Stack is a 1:1 match with package.json (no extra, no missing).\n` +
+                  `3. UPDATE walkthrough_system_analysis_report.md with the corrected, real-world data immediately via write_file.`,
+                  `THOUGHT: My report failed the forensic guard. I must remove hallucinated folders/libraries and use the real data from my scan.`
                 );
 
                 agentState.reportSaved = false; // Force re-save
-                if (onStep) onStep({ type: 'status', text: 'Hallucination Detected! Nudging for correction...' });
+                if (onStep) onStep({ type: 'status', text: 'Audit failed: Hallucinations detected.' });
                 continue;
               } else {
                 agentState.hallucinationVerified = true;
@@ -1387,8 +1422,17 @@ async function runAgent(opts) {
       console.log(`[DevAgent] STEP ${step} | ${action} | ${tp}`);
 
       if (action === 'write_file' && typeof p.content === 'string') {
+        const filePath = p.path || p.file || p.filename || p.filepath || '';
+        const lp = String(filePath).toLowerCase();
+
         const sm = p.content.match(/^\s*(mkdir|cd|npm|node|git|rm|cp|mv|ls)\s+|^#!(\/usr\/bin\/env|\/bin\/bash)/i);
         if (sm) throw new Error(`write_file used as shell: "${sm[1] || 'shebang'}". Use scaffold_project.`);
+
+        // REPAIR: Forensic reports often get written with escaped newlines (\\n) by certain models
+        if (lp.includes('walkthrough_system_analysis_report.md') && p.content.includes('\\n') && !p.content.includes('\n')) {
+          console.log('[DevAgent] 🛠️ REPAIRING: Escaped newlines detected in report WRITE.');
+          p.content = p.content.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+        }
       }
 
       // Deciding base directory for tool execution
@@ -1418,7 +1462,7 @@ async function runAgent(opts) {
             console.log('[DevAgent] agentState.configRead = true');
           }
         } else if (writeTools.includes(action)) {
-          if (lp.includes('walkthrough_review_report.md')) {
+          if (lp.includes('walkthrough_review_report.md') || lp.includes('walkthrough_system_analysis_report.md')) {
             agentState.reportSaved = true;
             console.log('[DevAgent] agentState.reportSaved = true');
           } else if (lp.includes('walkthrough.md')) {

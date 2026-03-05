@@ -398,6 +398,14 @@
             <!-- Response text (Use throttled 'display' field during streaming to prevent hangs) -->
             <div v-if="msg.text" class="msg-bubble-container">
               <div v-if="msg.role === 'assistant' && !msg.streaming" class="msg-header-actions">
+                <button 
+                  v-if="agentMode === 'analysis' || (msg.text && msg.text.includes('walkthrough_system_analysis_report.md'))" 
+                  class="msg-action-btn export-btn" 
+                  @click="exportAnalysis" 
+                  title="Export to HTML"
+                >
+                  Export HTML
+                </button>
                 <button class="msg-action-btn copy-btn" title="Copy Message">Copy</button>
               </div>
               <div class="msg-bubble" :class="msg.role" v-html="md(msg.display || msg.text)"></div>
@@ -1003,6 +1011,21 @@ async function stop() {
   try {
     await fetch('/api/agent/stop', { method: 'POST' })
   } catch (e) { console.warn('[Stop Error]', e) }
+}
+
+const exportAnalysis = async () => {
+  try {
+    const url = '/api/agent/export-analysis';
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'walkthrough_system_analysis_report.html');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error('Export failed:', err);
+    alert('Failed to export analysis report.');
+  }
 }
 
 async function clearChat() {
@@ -2288,6 +2311,18 @@ input:checked + .slider.slider-unlimited:before {
 .msg-action-btn.active {
   background: var(--green-dim);
   color: var(--green);
+  opacity: 1;
+}
+.msg-action-btn.export-btn {
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.08);
+  font-weight: 800;
+  opacity: 1;
+}
+.msg-action-btn.export-btn:hover {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
   opacity: 1;
 }
 

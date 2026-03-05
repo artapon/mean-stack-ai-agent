@@ -242,11 +242,11 @@ class LangchainAnalysisGuard {
             
 TASKS:
 1. HALLUCINATION CHECK: Identify any library listed in the report that is ABSENT from the package.json.
-2. OMISSION CHECK: Identify any library in the package.json (dependencies or devDependencies) that is MISSING from the report.
+2. OMISSION CHECK: Identify EVERY SINGLE library in the package.json (dependencies or devDependencies) that is MISSING from the report. If even one is missing, it is an audit failure.
 
 RESPONSE FORMAT:
-- If perfect: "VERIFIED"
-- If errors: "HALLUCINATION DETECTED: [libs]" and/or "OMISSION DETECTED: [libs]". List the exact package names.`],
+- If 100% perfect match: "VERIFIED"
+- If errors: "HALLUCINATION DETECTED: [libs]" and/or "OMISSION DETECTED: [libs]". You MUST list ALL omitted library names.`],
             ["human", "PACKAGE.JSON:\n{packageJson}\n\nREPORT CONTENT:\n{report}"]
         ]);
 
