@@ -35,10 +35,10 @@ Your report MUST follow this **PREMIUM UI/UX FORENSIC STRUCTURE** for maximum re
 
 2. `## 🎨 UI/UX TECHNOLOGY STACK`
 
-| Package Name | Role / Purpose | Tag |
-|--------------|----------------|-----|
-| `tailwindcss` | Utility-first CSS framework | 🎨 |
-| `vite` | Next generation frontend tooling | ⚡ |
+| Package Name | Version | Role / Purpose | Tag |
+|--------------|---------|----------------|-----|
+| `tailwindcss` | `^3.0.0` | Utility-first CSS framework | 🎨 |
+| `vite` | `^5.0.0` | Next generation frontend tooling | ⚡ |
 
 > [!IMPORTANT]
 > **ANTI-HALLUCINATION & EXHAUSTIVE COVERAGE GUARD**: 
@@ -51,6 +51,7 @@ Your report MUST follow this **PREMIUM UI/UX FORENSIC STRUCTURE** for maximum re
 
 3. `## 📐 DESIGN TOKENS & CONVENTIONS`
    - **Naming Patterns**: Class naming rules, component state naming.
+   - 🛑 **NO GHOST FOLDERS**: You MUST NOT mention or describe folders (e.g., `/components`, `/assets`, `/styles`) if they were not found in your `list_files` scan.
    - **Color Palette**: (Identify every hex/rgba code for primary, secondary, and accent colors).
    - **Typography**: (List font families, weights, and hierarchy).
    - **Spacing & Grid**: Rules for margins, padding, and layout.
@@ -59,13 +60,14 @@ Your report MUST follow this **PREMIUM UI/UX FORENSIC STRUCTURE** for maximum re
 
 4. `## 🏗️ DESIGN SYSTEM OVERVIEW`
    - **Layout Method**: (Flexbox, CSS Grid, Framework layout).
-   - **Styling Pattern**: (Utility-first, Component-based, Global CSS).
+   - **Styling Pattern**: (Utility-first, Component-based, Global CSS). **CRITICAL**: Only describe patterns based on files actually found in the scan. Do not assume folders.
 
 ---
 
 5. `## 📦 COMPONENT MAP & TOTAL FILE AUDIT`
    - **Systematic breakdown of EVERY folder and file**:
    - **CRITICAL: ZERO TRUNCATION POLICY**: You MUST NOT use "...", "etc.", or placeholders.
+   - 🛑 **NO GHOST COMPONENTS**: Do NOT document components or layouts (like "Navbar" or "Sidebar") if they do not exist in the files you scanned. Only audit what is physically present.
    - For **EVERY** file, include:
      - **Purpose**: Architectural role in the UI.
      - **Business Logic**: Granular functional rules and state management.

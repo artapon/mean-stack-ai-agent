@@ -738,7 +738,7 @@ async function runAgent(opts) {
   // ── POWERFUL WORKFLOW: Langchain Action Roadmap ─────────────────────────
   const isCreationPrompt = /create|new|scaffold|setup|generate/i.test(lastContent);
   const isResumingAnalysis = isAnalysis && fs.existsSync(path.resolve(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md'));
-  const skipPlanner = lastContent.includes('[FOLLOW REVIEW]') || lastContent.includes('[FOLLOW ANALYSIS]') || isResumingAnalysis;
+  const skipPlanner = isAnalysis || lastContent.includes('[FOLLOW REVIEW]') || lastContent.includes('[FOLLOW ANALYSIS]') || isResumingAnalysis;
 
   if (!isReview && !skipPlanner && (messages.length <= 2 || isCreationPrompt)) {
     try {

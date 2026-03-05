@@ -37,10 +37,10 @@ Your report MUST follow this **PREMIUM FORENSIC STRUCTURE** for maximum readabil
 
 2. `## 🏷️ TECHNOLOGY STACK`
 
-| Package Name | Role / Purpose | Tag |
-|--------------|----------------|-----|
-| `express` | Fast, unopinionated web framework | 🚀 |
-| `dotenv` | Loads environment variables from a .env file | 🔒 |
+| Package Name | Version | Role / Purpose | Tag |
+|--------------|---------|----------------|-----|
+| `express` | `^4.16.2` | Fast, unopinionated web framework | 🚀 |
+| `dotenv` | `^16.0.1` | Loads environment variables from a .env file | 🔒 |
 
 > [!IMPORTANT]
 > **ANTI-HALLUCINATION & EXHAUSTIVE COVERAGE GUARD**: 
@@ -53,14 +53,15 @@ Your report MUST follow this **PREMIUM FORENSIC STRUCTURE** for maximum readabil
 
 3. `## 📐 CODING STANDARDS & CONVENTIONS`
    - **Naming Rules**: Document the naming patterns (e.g., camelCase for variables, PascalCase for Models).
-   - **File Structure**: Rules for where different types of logic (Controllers vs Services) reside.
+   - **File Structure**: Document the **ACTUAL** logic separation identified in your scan. 
+   - 🛑 **NO GHOST FOLDERS**: You MUST NOT mention or describe folders (like `/services`, `/controllers`, `/middleware`) if they were not found in your `list_files` scan. Do NOT assume a standard architecture; only document what exists.
    - **Error Handling**: How the system handles and returns errors (Middleware? Try/Catch?).
 
 ---
 
 4. `## 🏗️ ARCHITECTURAL OVERVIEW`
    - **Pattern**: Detailed breakdown of the architectural pattern (MVC, Layered, Hexagonal, etc.).
-   - **Data Flow**: A step-by-step trace of how data moves from a client request to the database and back.
+   - **Data Flow**: A step-by-step trace of how data moves from a client request to the database and back. **CRITICAL**: Only trace through files that actually exist in the project scan. Do not invent "Services" or "Layers" to fill gaps.
 
 ---
 
@@ -76,6 +77,9 @@ Your report MUST follow this **PREMIUM FORENSIC STRUCTURE** for maximum readabil
 ---
 
 6. `## 🗄️ EXHAUSTIVE DATA MODELS & SCHEMAS`
+   - **CRITICAL**: ONLY document models that were **actually discovered** in your scan. 
+   - 🛑 **NO GHOST MODELS**: If the project does not have a "User" model or "Product" model, DO NOT include them in your report just because they are common.
+   - For each found model, provide:
 
 | Field | Type | Constraints | Relationships |
 |-------|------|-------------|---------------|
