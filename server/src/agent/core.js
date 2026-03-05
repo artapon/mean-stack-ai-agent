@@ -213,7 +213,7 @@ RULES:
 3. ANALYSIS mode: SCAN -> IDENTIFY STACK -> MAP MODULES -> WRITE walkthrough_system_analysis_report.md -> FINISH with [ANALYSIS: COMPLETE].
 4. ALWAYS use tools to write files. Never output code blocks in plain text.
 5. JSDoc 3.0 on every method.
-6. Modular Express: src/modules/<feature> / Route -> Controller -> Service -> Model.
+6. Adapt to the project's ACTUAL structure discovered via list_files. DO NOT assume a specific directory layout.
 7. NO placeholders. Write full working code.
 8. NO shell commands in write_file.
 9. Single action per response — ONE THOUGHT + ONE ACTION + ONE PARAMETERS block.
@@ -458,8 +458,16 @@ function parseReply(rawText, isReview, fastMode) {
         .replace(/THOUGHT:\s*[\s\S]*?(?=ACTION:|$)/gi, '')
         .replace(/\n\s*\n\s*\n+/g, '\n\n').trim() || raw;
     }
-    return { action: 'finish', response: json ? (json.response || json.message || cleanResponse) : cleanResponse, thought };
+
+    let finRes = json ? (json.response || json.message || cleanResponse) : cleanResponse;
+    // Strip wrapping markdown codeblocks if the ENTIRE response is wrapped in them
+    if (typeof finRes === 'string') {
+      finRes = finRes.replace(/^```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+    }
+
+    return { action: 'finish', response: finRes, thought };
   }
+
 
   if (action) {
     if (!json && raw.toLowerCase().includes('parameters:')) {
@@ -535,7 +543,12 @@ function summariseResult(action, params, result, isReview) {
   if (action === 'replace_in_file') return `Edit applied: ${params.path}\n\n${isReview ? 'Continue.' : 'Continue or FINISH.'}`;
   if (action === 'read_file') return `File read: ${params.path}\n\n${isReview ? 'Analyze and advise.' : 'Analyze and implement.'}`;
   if (action === 'bulk_read') return `Bulk read: ${(result?.results || []).filter(r => r.success).length} files. ${isReview ? 'Analyze.' : 'Implement.'}`;
-  if (action === 'list_files') return `Listed: ${result?.filesList?.length || 0} files. ${isReview ? 'Read relevant files.' : 'Read and implement.'}`;
+  if (action === 'list_files') {
+    const list = result?.filesList || [];
+    const count = list.length;
+    const items = list.join('\n- ');
+    return `COMPLETE RECURSIVE FILE LIST (${count} files found):\n- ${items}\n\n${isReview ? 'Read relevant files.' : 'Read and implement.'}`;
+  }
   if (action === 'order_fix') return 'Fix order logged to agent-handoff.log.';
   if (action === 'request_review') return 'Review request logged. Now call finish.';
   return `Done. ${isReview ? 'Review complete.' : 'Verify files.'} FINISH if done.`;
@@ -634,7 +647,7 @@ function redactForInfoLog(value, maxStrLen = 800) {
  * @returns {Promise<{success:boolean, response:string}>}
  */
 async function runAgent(opts) {
-  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default', selectedModel = null } = opts;
+  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default', selectedModel = null, unlimitedSteps = false } = opts;
 
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
   const lastContent = lastUserMsg?.content || '';
@@ -665,7 +678,9 @@ async function runAgent(opts) {
   const resolvedModel = (isReview ? modelConfig.review : (isAnalysis ? (modelConfig.analysis || modelConfig.review) : modelConfig.dev))
     || selectedModel || process.env.LM_STUDIO_MODEL || modelConfig.global || 'openai/gpt-oss-20b';
 
-  const MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
+  const BASE_MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
+  let MAX_STEPS = isAnalysis ? Math.max(BASE_MAX_STEPS, 200) : BASE_MAX_STEPS;
+  if (unlimitedSteps) MAX_STEPS = 10000; // Virtually unlimited safety cap
   const MAX_REVIEW_LOOPS = Number(process.env.AGENT_MAX_LOOPS) || 3;
 
   console.log(`[DevAgent] Model: "${resolvedModel}" | ${mode.toUpperCase()} | fast:${fastMode}`);
@@ -713,7 +728,8 @@ async function runAgent(opts) {
 
   // ── POWERFUL WORKFLOW: Langchain Action Roadmap ─────────────────────────
   const isCreationPrompt = /create|new|scaffold|setup|generate/i.test(lastContent);
-  const skipPlanner = lastContent.includes('[FOLLOW REVIEW]') || lastContent.includes('[FOLLOW ANALYSIS]');
+  const isResumingAnalysis = isAnalysis && fs.existsSync(path.resolve(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md'));
+  const skipPlanner = lastContent.includes('[FOLLOW REVIEW]') || lastContent.includes('[FOLLOW ANALYSIS]') || isResumingAnalysis;
 
   if (!isReview && !skipPlanner && (messages.length <= 2 || isCreationPrompt)) {
     try {
@@ -756,7 +772,8 @@ async function runAgent(opts) {
     console.log(`\n[DevAgent] STEP ${step} | History: ${history.length}`);
 
     // ── History pruning — retain report/review evidence entries ─────────────
-    const MAX_HISTORY = fastMode ? 20 : 50;
+    const defaultMax = fastMode ? 20 : 50;
+    const MAX_HISTORY = isAnalysis ? 300 : defaultMax;
     if (history.length > MAX_HISTORY) {
       const essential = history.slice(0, 2);
       const recent = history.slice(fastMode ? -5 : -20);
@@ -1038,28 +1055,44 @@ async function runAgent(opts) {
       // ── Analysis mode guards ──────────────────────────────────────────────
       if (isAnalysis) {
         if (!agentState.reportSaved) {
-          agentState.reportSaved = history.some(m => {
-            if (m.role !== 'user' || !m.content) return false;
-            const c = m.content.toLowerCase();
-            return c.includes('walkthrough_system_analysis_report.md') && (
-              c.includes('file written') || c.includes('file updated') || c.includes('tool result (write_file)')
-            );
-          });
+          // Correct check: Find the latest assistant message writing the report and verify its content
+          for (let i = history.length - 1; i >= 0; i--) {
+            const m = history[i];
+            if (m.role === 'assistant' && m.content) {
+              const cUpper = m.content.toUpperCase();
+              if (cUpper.includes('WRITE_FILE') && cUpper.includes('WALKTHROUGH_SYSTEM_ANALYSIS_REPORT.MD')) {
+                const hasTree = cUpper.includes('TREE VIEW');
+                const hasConventions = cUpper.includes('CONVENTIONS');
+                const hasBlueprint = cUpper.includes('BLUEPRINT');
+                const hasTotalAudit = cUpper.includes('TOTAL FILE AUDIT');
+
+                // We do not enforce 'MODELS' here to ensure compatibility with HTML/CSS stacks
+                if (hasTree && hasConventions && hasBlueprint && hasTotalAudit) {
+                  agentState.reportSaved = true;
+                  break;
+                }
+              }
+            }
+            if (agentState.reportSaved) break;
+          }
         }
 
         if (!agentState.reportSaved) {
           analysisNudgeCount++;
-          console.warn(`[DevAgent] Analysis report missing (${analysisNudgeCount}/3)`);
-          if (analysisNudgeCount >= 3) return { success: false, response: 'Analysis aborted: refused to write report after 3 nudges.', history };
+          console.warn(`[DevAgent] Analysis report incomplete/missing (${analysisNudgeCount}/3)`);
+          if (analysisNudgeCount >= 3) return { success: false, response: 'Analysis aborted: refused to provide forensic-level report after 3 nudges.', history };
 
           pushNudge(history,
-            `You must write the system analysis report before finishing.\n\n` +
-            `1. ACTION: write_file\n` +
-            `2. PARAMETERS: { "path": "walkthrough_system_analysis_report.md", "content": "## 🏷️ TECHNOLOGY STACK\\n...\\n## 🏗️ ARCHITECTURAL OVERVIEW\\n..." }\n\n` +
-            `Do this NOW.`,
-            `THOUGHT: I need to save my analysis findings to walkthrough_system_analysis_report.md before I can finish.`
+            `Your analysis report is incomplete or missing mandatory forensic sections.\n\n` +
+            `You MUST include these EXACT headers with deep detail (adapted to your project type):\n` +
+            `1. ## 🌳 PROJECT STRUCTURE (TREE VIEW) (Full visual map)\n` +
+            `2. ## 📐 CODING STANDARDS & CONVENTIONS (Naming rules, patterns)\n` +
+            `3. ## 📦 MODULE MAP & TOTAL FILE AUDIT (Deep logic for every file)\n` +
+            `4. ## 📑 CLONING BLUEPRINT (Step-by-step logic for system recreation)\n\n` +
+            `Do not skip these. They are mandatory for cloning potential.`,
+            `THOUGHT: I must provide the exhaustive conventions, total file audit, and cloning blueprint in the report before I can finish.`
           );
-          if (onStep) onStep({ type: 'status', text: 'Nudging: must write analysis report first.' });
+          if (onStep) onStep({ type: 'status', text: 'Nudging: forensic report detail missing.' });
           continue;
         }
 
@@ -1163,32 +1196,45 @@ async function runAgent(opts) {
       parameters: redactForInfoLog(parsed.parameters || {})
     });
 
-    // ── Review mode write restrictions ────────────────────────────────────────
+    // ── Review / Analysis mode write restrictions ─────────────────────────────
     const writeTools = ['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'];
-    if (isReview && writeTools.includes(action)) {
+    if ((isReview || isAnalysis) && writeTools.includes(action)) {
       const p = parsed.parameters || {};
       const ap = String(p.path || p.file || p.filename || p.filepath || p.target || '').toLowerCase();
-      const ok = action === 'write_file' && /walkthrough_review_report\.md$/i.test(ap);
+
+      let ok = false;
+      let allowedPath = '';
+      let modeLabel = '';
+
+      if (isReview) {
+        ok = ['write_file', 'replace_in_file'].includes(action) && /walkthrough_review_report\.md$/i.test(ap);
+        allowedPath = 'walkthrough_review_report.md';
+        modeLabel = 'REVIEW';
+      } else if (isAnalysis) {
+        ok = ['write_file', 'replace_in_file'].includes(action) && /walkthrough_system_analysis_report\.md$/i.test(ap);
+        allowedPath = 'walkthrough_system_analysis_report.md';
+        modeLabel = 'ANALYSIS';
+      }
+
       if (!ok) {
         reviewWriteBlockCount++;
-        const blocked = `"${action}" to "${ap}" is blocked in REVIEW mode.`;
-        console.warn(`[DevAgent] BLOCKED (${reviewWriteBlockCount}/2)`);
-        if (reviewWriteBlockCount >= 2) {
-          pushNudge(history,
-            `You have attempted unauthorized writes in REVIEW mode ${reviewWriteBlockCount} times.\n\n` +
-            `1. STOP writing to source files.\n` +
-            `2. Call ACTION: finish now.`,
-            `THOUGHT: I have been trying to write files in review mode. I must stop and finish.`
-          );
-          continue;
+        const blocked = `"${action}" to "${ap}" is blocked in ${modeLabel} mode.`;
+        console.warn(`[DevAgent] BLOCKED (${reviewWriteBlockCount}/3)`);
+
+        if (reviewWriteBlockCount >= 3) {
+          const msg = `${modeLabel} aborted: repeated unauthorized writes.`;
+          if (onStep) onStep({ type: 'error', message: msg });
+          return { success: false, response: msg, history };
         }
+
         pushNudge(history,
-          `${blocked}\n\nIn REVIEW mode you may ONLY use write_file for walkthrough_review_report.md.\n\n` +
-          `1. If you have not written the report yet: ACTION: write_file -> walkthrough_review_report.md\n` +
-          `2. If you have written it: ACTION: finish`,
-          `THOUGHT: I tried to write a file I'm not allowed to in review mode. I must write the report instead.`
+          `You have attempted an unauthorized write in ${modeLabel} mode.\n\n` +
+          `1. You are ONLY allowed to write to "${allowedPath}".\n` +
+          `2. Use ACTION: write_file ONLY for your report.\n` +
+          `3. DO NOT attempt to modify source code.`,
+          `THOUGHT: I tried to write to an unauthorized file. In ${modeLabel} mode, I must only write to ${allowedPath}.`
         );
-        if (onStep) onStep({ type: 'tool_error', tool: action, error: blocked });
+        if (onStep) onStep({ type: 'status', text: `Blocked: unauthorized write in ${modeLabel} mode.` });
         continue;
       }
     }
@@ -1345,8 +1391,21 @@ async function runAgent(opts) {
 
     if (['read_file', 'list_files', 'bulk_read'].includes(action)) {
       let raw = JSON.stringify(result, null, 2);
-      if (raw.length > 10000) raw = raw.slice(0, 10000) + '\n...[TRUNCATED]...';
+      // Analysis mode needs massive context for project-wide recursive scans
+      const maxChars = (isAnalysis || unlimitedSteps) ? 150000 : 10000;
+      if (raw.length > maxChars) raw = raw.slice(0, maxChars) + `\n...[TRUNCATED at ${maxChars} chars]...`;
       content += `\n\nRaw Data:\n\`\`\`json\n${raw}\n\`\`\``;
+
+      // EMIT TO CHAT: Show results directly in the UI for user visibility
+      // Safety: Truncate the UI display version to 5000 chars to prevent browser hang
+      if (onStep) {
+        let displayRaw = raw;
+        if (displayRaw.length > 5000) displayRaw = displayRaw.slice(0, 5000) + '\n...[UI DISPLAY TRUNCATED - Full data sent to Agent Memory]...';
+        onStep({
+          type: 'text',
+          text: `📊 **System Discovery (${action}):**\n\`\`\`json\n${displayRaw}\n\`\`\``
+        });
+      }
     } else if (result?.error) {
       content = `Tool result (${action}):\nError: ${result.error}`;
       if (result.currentFileContent) content += `\n\n${result.currentFileContent}`;

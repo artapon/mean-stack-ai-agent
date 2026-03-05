@@ -106,7 +106,7 @@ async function listFiles({ path: dirPath = '.' } = {}, workspaceDir) {
     }
 
     async function walk(dir, depth = 0) {
-      if (depth > 10) return { items: [], flat: [] }; // Increased depth slightly
+      if (depth > 30) return { items: [], flat: [] }; // Increased depth for deep project structures
       let entries;
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
@@ -148,6 +148,16 @@ async function listFiles({ path: dirPath = '.' } = {}, workspaceDir) {
 
     const result = await walk(abs);
     console.log(`[DevAgent] list_files: found ${result.flat.length} files in "${dirPath}" (after filtering)`);
+
+    // Safety: If the tree is too massive, return a compact flat list instead of a Deep JSON tree
+    if (result.flat.length > 1000) {
+      return {
+        path: dirPath,
+        filesList: result.flat,
+        note: `Project is large (${result.flat.length} files). Tree-view omitted for efficiency. Use bulk_read on the paths list.`
+      };
+    }
+
     return { path: dirPath, items: result.items, filesList: result.flat };
   } catch (err) {
     return { error: err.message };
@@ -362,9 +372,9 @@ async function bulkRead(params, workspaceDir) {
   }
 
   if (paths.length === 0) return { error: '"paths" array is required.' };
-  if (paths.length > 20) {
-    console.warn(`[DevAgent] bulk_read: capping ${paths.length} paths to 20`);
-    paths = paths.slice(0, 20);
+  if (paths.length > 100) {
+    console.warn(`[DevAgent] bulk_read: capping ${paths.length} paths to 100`);
+    paths = paths.slice(0, 100);
   }
 
   const results = [];

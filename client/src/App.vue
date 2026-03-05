@@ -435,6 +435,14 @@
             </label>
             <span class="follow-label">Fast Mode</span>
           </div>
+          <!-- Unlimited Steps Toggle -->
+          <div class="fast-mode-toggle input-fast-mode" title="Disable the safety step limit (max 10,000 steps)">
+            <label class="switch">
+              <input type="checkbox" v-model="unlimitedSteps">
+              <span class="slider round slider-unlimited"></span>
+            </label>
+            <span class="follow-label">Unlimited Steps</span>
+          </div>
           <button class="continue-btn" :disabled="running" @click="handleContinue" title="Continue Generating">
             Continue
           </button>
@@ -462,6 +470,7 @@
 
 <script setup>
 import { ref, nextTick, computed, onMounted, watch } from 'vue'
+import { marked } from 'marked'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const lmEndpoint       = ref('Loading...')
@@ -603,6 +612,7 @@ const examples = [
 const followReview    = ref(false)
 const followAnalysis  = ref(false)
 const fastMode        = ref(true)
+const unlimitedSteps  = ref(false)
 const autoRequestReview = ref(false)
 
 // ── Agent Stacks ─────────────────────────────────────────────────────────────
@@ -741,6 +751,7 @@ async function send(text, isAutoHandoff = false) {
       body    : JSON.stringify({ 
         messages: history, 
         fastMode: fastMode.value, 
+        unlimitedSteps: unlimitedSteps.value,
         autoRequestReview: autoRequestReview.value,
         sessionId: sessionId.value,
         stack: selectedStack.value
@@ -927,23 +938,29 @@ function submit() { send(input.value) }
 
 const WRITE_TOOLS = new Set(['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'])
 
-// Intelligent continue: Extracts the last directory the agent was working in before stopping
+// Intelligent continue: Extracts the last directory or file the agent was working in before stopping
 function handleContinue() {
   let contextTarget = '';
+  const isAnalysis = agentMode.value === 'analysis';
+  const DISCOVERY_TOOLS = new Set(['read_file', 'list_files', 'bulk_read', ...WRITE_TOOLS]);
   
   // Backwards scan through messages to find the last assistant message with tool activity
   for (let i = messages.value.length - 1; i >= 0; i--) {
     const msg = messages.value[i];
     if (msg.role === 'assistant' && msg.activity && msg.activity.length > 0) {
-      // Backwards scan through the activities to find the last write action
+      // Backwards scan through the activities to find the last relevant action
       for (let j = msg.activity.length - 1; j >= 0; j--) {
         const act = msg.activity[j];
-        if (act.type === 'tool' && WRITE_TOOLS.has(act.tool) && act.detail) {
-          // act.detail is usually the file path (e.g., "src/modules/patient/patient.model.js")
-          const pathParts = act.detail.split(/[\/\\]/); // split by slash or backslash
-          if (pathParts.length > 1) {
-             pathParts.pop(); // Remove the filename
-             contextTarget = pathParts.join('/'); // Rejoin the directory path
+        if (act.type === 'tool' && DISCOVERY_TOOLS.has(act.tool) && act.detail) {
+          // act.detail is usually the file path or directory
+          if (act.tool === 'list_files') {
+            contextTarget = act.detail;
+          } else {
+            const pathParts = act.detail.split(/[\/\\]/);
+            if (pathParts.length > 1) {
+              pathParts.pop();
+              contextTarget = pathParts.join('/');
+            }
           }
           break;
         }
@@ -954,8 +971,15 @@ function handleContinue() {
 
   let prompt = 'Please continue exactly where you left off. Do not repeat what you already wrote, just continue the code/text immediately from the cutoff point.';
   
+  if (isAnalysis) {
+    prompt = `[CONTINUE ANALYSIS] Please continue your forensic audit exactly where you left off. 
+If you were scanning a directory, finish it. 
+If you were writing a section of the report, continue the next section. 
+REMINDER: You MUST provide the Exhaustive Schemas, Coding Conventions, and Cloning Blueprint before finishing.`;
+  }
+
   if (contextTarget) {
-    prompt = `[ACTIVE DIRECTORY Context: ${contextTarget}/] ${prompt} Note: You are currently working inside the ${contextTarget}/ directory. Ensure any new files you create are placed here unless specified otherwise.`;
+    prompt = `[LAST CONTEXT: ${contextTarget}/] ${prompt} Note: You were last active in or around the "${contextTarget}/" directory.`;
   }
   
   send(prompt);
@@ -1217,10 +1241,13 @@ onMounted(async () => {
 function md(text) {
   if (!text) return '';
   
-  // Handle Thought Callouts: wrap THOUGHT: ... blocks in a container
-  let t = text.replace(/(?:^|\n)THOUGHT[:\s]*([\s\S]*?)(?=(?:\n(?:THOUGHT|ACTION):)|$)/gi, (match, content) => {
+  // Extract and Handle Thought Callouts safely out of marked pipeline
+  let thoughts = [];
+  let processText = text.replace(/(?:^|\n)THOUGHT[:\s]*([\s\S]*?)(?=(?:\n(?:THOUGHT|ACTION):)|$)/gi, (match, content) => {
     if (!content.trim()) return '';
-    return `
+    const index = thoughts.length;
+    // We parse the thought content with marked too, so it looks nice
+    thoughts.push(`
       <div class="thought-container collapsed">
         <div class="thought-section-header">
           <div class="thought-header-left">
@@ -1237,65 +1264,21 @@ function md(text) {
           </div>
         </div>
       </div>
-    `.trim();
+    `.trim());
+    return `\n\n__THOUGHT_MARKER_${index}__\n\n`;
   });
 
-  // Escape HTML but preserve our newly added tags and valid markdown characters
-  // We only escape < if it's not followed by / or one of our allowed tags
-  t = t.replace(/&/g, '&amp;').replace(/<(?!(\/?(div|span|button|pre|code|h[1-6]|ul|li|p|br|strong|em|hr|table|tr|td|thead|tbody|blockquote)))/g, '&lt;');
+  // Render standard markdown
+  let htmlResult = marked.parse(processText);
 
-  // Pre-process: Ensure block elements have double newlines for isolation
-  t = t.replace(/([^\n])\n(#{1,6} |[-*] |\|)/g, '$1\n\n$2');
-
-  // Code blocks: ```lang ... ```
-  t = t.replace(/```(\w*)\n?([\s\S]*?)```/g,
-    (_, lang, code) => `<pre class="code-block" data-lang="${lang || 'code'}"><code>${code.trim()}</code></pre>`);
-  
-  // Inline code: `code`
-  t = t.replace(/`([^`]+)`/g, '<code class="ic">$1</code>');
-  
-  // Headers: # H1 to ###### H6
-  t = t.replace(/^###### (.+)$/gm, '<h6>$1</h6>');
-  t = t.replace(/^##### (.+)$/gm, '<h5>$1</h5>');
-  t = t.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
-  t = t.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-  t = t.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
-  t = t.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
-  
-  // Bold / Italic
-  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  t = t.replace(/\*(.+?)\*/g,    '<em>$1</em>');
-  
-  // Horizontal Rule
-  t = t.replace(/^---$/gm, '<hr>');
-
-  // List Items
-  t = t.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
-  t = t.replace(/(<li>[\s\S]+?<\/li>)/g, (match) => {
-    return `<ul class="md-list">${match}</ul>`.replace(/<\/ul>\s*<ul class="md-list">/g, '');
+  // Re-inject thought HTML 
+  thoughts.forEach((thoughtHtml, index) => {
+    // marked wraps it in <p> because of the inline placeholder
+    htmlResult = htmlResult.replace(`<p>__THOUGHT_MARKER_${index}__</p>`, thoughtHtml);
+    htmlResult = htmlResult.replace(`__THOUGHT_MARKER_${index}__`, thoughtHtml); 
   });
-
-  // Tables
-  t = t.replace(/^\|(.+)\|$/gm, (row) => {
-    if (row.includes('---')) return '';
-    const cells = row.split('|').slice(1, -1).map(c => c.trim());
-    return `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
-  });
-  t = t.replace(/(<tr>[\s\S]+?<\/tr>)/g, (match) => {
-    return `<div class="table-wrap"><table>${match}</table></div>`.replace(/<\/table><\/div>\s*<div class="table-wrap"><table>/g, '');
-  });
-
-  // Paragraph wrapping: split by double newlines and wrap non-block sections
-  const sections = t.split(/\n\n+/);
-  return sections.map(s => {
-    const trimmed = s.trim();
-    if (!trimmed) return '';
-    if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<pre') || 
-        trimmed.startsWith('<div') || trimmed.startsWith('<hr')) {
-      return trimmed;
-    }
-    return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
-  }).join('');
+  
+  return htmlResult;
 }
 </script>
 
@@ -1920,6 +1903,15 @@ input:checked + .slider.slider-analysis {
 }
 input:checked + .slider.slider-analysis:before {
   background-color: var(--purple);
+}
+
+/* Unlimited Slider (Cyan) */
+input:checked + .slider.slider-unlimited {
+  background-color: rgba(0, 212, 212, 0.2);
+  border-color: #00d4d4;
+}
+input:checked + .slider.slider-unlimited:before {
+  background-color: #00d4d4;
 }
 .slider.round {
   border-radius: 34px;
