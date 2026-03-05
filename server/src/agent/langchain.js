@@ -216,10 +216,51 @@ async function callLangchain(history, onChunk, signal, selectedModel, options = 
     return result;
 }
 
+/**
+ * Langchain Analysis Guard
+ * Specifically used to verify reports against hallucinations (ghost libraries, fake files).
+ */
+class LangchainAnalysisGuard {
+    constructor(modelName) {
+        const baseUrl = (process.env.LM_STUDIO_BASE_URL || 'http://localhost:1234').replace(/\/$/, '') + '/v1';
+        this.chat = new ChatOpenAI({
+            modelName,
+            temperature: 0, // Deterministic for verification
+            configuration: {
+                baseURL: baseUrl,
+                apiKey: "lm-studio",
+            },
+        });
+    }
+
+    /**
+     * Verifies that all libraries mentioned in the Tech Stack exist in package.json
+     */
+    async verifyDependencies(reportContent, packageJsonContent) {
+        const prompt = ChatPromptTemplate.fromMessages([
+            ["system", `You are a Strict Architectural Validator. Compare the "Technology Stack" section of an Analysis Report against a real package.json.
+            
+TASKS:
+1. HALLUCINATION CHECK: Identify any library listed in the report that is ABSENT from the package.json.
+2. OMISSION CHECK: Identify any library in the package.json (dependencies or devDependencies) that is MISSING from the report.
+
+RESPONSE FORMAT:
+- If perfect: "VERIFIED"
+- If errors: "HALLUCINATION DETECTED: [libs]" and/or "OMISSION DETECTED: [libs]". List the exact package names.`],
+            ["human", "PACKAGE.JSON:\n{packageJson}\n\nREPORT CONTENT:\n{report}"]
+        ]);
+
+        const chain = RunnableSequence.from([prompt, this.chat]);
+        const response = await chain.invoke({ packageJson: packageJsonContent, report: reportContent });
+        return cleanResponse(response.content);
+    }
+}
+
 module.exports = {
     callLangchain,
     LangchainWorkflow,
     DevAgentOutputParser,
     createLangchainTools,
-    LangchainPlanner
+    LangchainPlanner,
+    LangchainAnalysisGuard
 };

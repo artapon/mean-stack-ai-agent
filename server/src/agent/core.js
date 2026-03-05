@@ -149,8 +149,11 @@ function loadSkills(mode, stack = 'default') {
     'analysis': 'system_analysis.md'
   };
 
-  return [read(stackDir, 'skill.md'), read(stackDir, filenameMap[mode] || 'developer.md')]
-    .filter(Boolean).join('\n\n---\n\n');
+  const skillFiles = [];
+  if (mode !== 'analysis') skillFiles.push(read(stackDir, 'skill.md'));
+  skillFiles.push(read(stackDir, filenameMap[mode] || 'developer.md'));
+
+  return skillFiles.filter(Boolean).join('\n\n---\n\n');
 }
 
 /**
@@ -182,7 +185,11 @@ function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview
     .map(t => `  ${t.name.padEnd(16)} ${t.params}`)
     .join('\n');
 
-  return `${EXPERT_SKILLS && !fastMode ? EXPERT_SKILLS + '\n\n---\n\n' : ''}You are an expert ${stack === 'mean_stack' ? 'MEAN Stack' : ''} agentic AI developer.
+  // Analysis mode MANDATES the template (system_analysis.md) even in fast mode to prevent structural hallucinations.
+  // Developer/Review modes skip the skill.md/developer.md in fast mode for speed.
+  const skillHeader = (mode === 'analysis' || !fastMode) ? EXPERT_SKILLS : '';
+
+  return `${skillHeader ? skillHeader + '\n\n---\n\n' : ''}You are an expert ${stack === 'mean_stack' ? 'MEAN Stack' : ''} agentic AI developer.
 ${mode === 'review'
       ? 'You are currently in REVIEW MODE. AUDIT the codebase. ONLY use write_file for walkthrough_review_report.md.'
       : mode === 'analysis'
@@ -714,6 +721,8 @@ async function runAgent(opts) {
   // ── Persistent state — survives history pruning ────────────────────────────
   const agentState = {
     reportSaved: false,
+    configRead: false,
+    hallucinationVerified: false,
     reviewRequested: false,
     codeModified: false,
     planWritten: false,
@@ -1054,6 +1063,28 @@ async function runAgent(opts) {
 
       // ── Analysis mode guards ──────────────────────────────────────────────
       if (isAnalysis) {
+        if (!agentState.configRead) {
+          // Double check history
+          agentState.configRead = history.some(m => {
+            if (m.role !== 'user' || !m.content) return false;
+            const c = m.content.toLowerCase();
+            return (c.includes('package.json') || c.includes('requirements.txt') || c.includes('pom.xml')) &&
+              (c.includes('tool result (read_file)') || c.includes('tool result (bulk_read)'));
+          });
+        }
+
+        if (!agentState.configRead) {
+          pushNudge(history,
+            `You MUST explicitly read the project's configuration (e.g., package.json) before finishing the analysis.\n\n` +
+            `1. ACTION: read_file\n` +
+            `2. PARAMETERS: { "path": "package.json" }\n\n` +
+            `This is required to ensure 1:1 accurate Technology Stack documentation. Do not guess libraries.`,
+            `THOUGHT: I need to read the configuration file to ensure I don't hallucinate the technology stack.`
+          );
+          if (onStep) onStep({ type: 'status', text: 'Nudging: must read package.json first.' });
+          continue;
+        }
+
         if (!agentState.reportSaved) {
           // Correct check: Find the latest assistant message writing the report and verify its content
           for (let i = history.length - 1; i >= 0; i--) {
@@ -1062,12 +1093,13 @@ async function runAgent(opts) {
               const cUpper = m.content.toUpperCase();
               if (cUpper.includes('WRITE_FILE') && cUpper.includes('WALKTHROUGH_SYSTEM_ANALYSIS_REPORT.MD')) {
                 const hasTree = cUpper.includes('TREE VIEW');
+                const hasTech = cUpper.includes('TECHNOLOGY STACK');
                 const hasConventions = cUpper.includes('CONVENTIONS');
                 const hasBlueprint = cUpper.includes('BLUEPRINT');
                 const hasTotalAudit = cUpper.includes('TOTAL FILE AUDIT');
 
                 // We do not enforce 'MODELS' here to ensure compatibility with HTML/CSS stacks
-                if (hasTree && hasConventions && hasBlueprint && hasTotalAudit) {
+                if (hasTree && hasTech && hasConventions && hasBlueprint && hasTotalAudit) {
                   agentState.reportSaved = true;
                   break;
                 }
@@ -1086,14 +1118,64 @@ async function runAgent(opts) {
             `Your analysis report is incomplete or missing mandatory forensic sections.\n\n` +
             `You MUST include these EXACT headers with deep detail (adapted to your project type):\n` +
             `1. ## 🌳 PROJECT STRUCTURE (TREE VIEW) (Full visual map)\n` +
-            `2. ## 📐 CODING STANDARDS & CONVENTIONS (Naming rules, patterns)\n` +
-            `3. ## 📦 MODULE MAP & TOTAL FILE AUDIT (Deep logic for every file)\n` +
-            `4. ## 📑 CLONING BLUEPRINT (Step-by-step logic for system recreation)\n\n` +
+            `2. ## 🏷️ TECHNOLOGY STACK (Exhaustive numbered list of all package.json dependencies with emoji explanations)\n` +
+            `3. ## 📐 CODING STANDARDS & CONVENTIONS (Naming rules, patterns)\n` +
+            `4. ## 📦 MODULE MAP & TOTAL FILE AUDIT (Deep logic for every file)\n` +
+            `5. ## 📑 CLONING BLUEPRINT (Step-by-step logic for system recreation)\n\n` +
             `Do not skip these. They are mandatory for cloning potential.`,
-            `THOUGHT: I must provide the exhaustive conventions, total file audit, and cloning blueprint in the report before I can finish.`
+            `THOUGHT: I must provide the exhaustive dependencies, conventions, total file audit, and cloning blueprint in the report before I can finish.`
           );
           if (onStep) onStep({ type: 'status', text: 'Nudging: forensic report detail missing.' });
           continue;
+        }
+        if (!agentState.hallucinationVerified && agentState.reportSaved) {
+          try {
+            const guard = new LangchainAnalysisGuard(resolvedModel);
+            const pkgPath = path.resolve(effectiveWorkspaceDir, 'package.json');
+            let pkgJson = "";
+            if (fs.existsSync(pkgPath)) {
+              pkgJson = fs.readFileSync(pkgPath, 'utf8');
+            } else {
+              // If no package.json, we skip dependency check but consider verified
+              agentState.hallucinationVerified = true;
+            }
+
+            if (pkgJson) {
+              if (onStep) onStep({ type: 'status', text: 'Langchain: Verifying Tech Stack for hallucinations...' });
+
+              // Get report content from history
+              let reportContent = "";
+              for (let i = history.length - 1; i >= 0; i--) {
+                const m = history[i];
+                if (m.role === 'assistant' && (m.content || '').toUpperCase().includes('WALKTHROUGH_SYSTEM_ANALYSIS_REPORT.MD')) {
+                  reportContent = m.content;
+                  break;
+                }
+              }
+
+              const verification = await guard.verifyDependencies(reportContent, pkgJson);
+              if (verification.includes('HALLUCINATION DETECTED') || verification.includes('OMISSION DETECTED')) {
+                console.warn(`[DevAgent] ${verification}`);
+                pushNudge(history,
+                  `ANTI-HALLUCINATION GUARD: ${verification}\n\n` +
+                  `Your Technology Stack is inaccurate or incomplete.\n` +
+                  `1. READ package.json again.\n` +
+                  `2. UPDATE walkthrough_system_analysis_report.md to remove hallucinated libraries AND add missing ones.\n` +
+                  `3. EVERY library in dependencies/devDependencies MUST have a row in your table.`,
+                  `THOUGHT: I have inaccuracies or omissions in my report. I must correct the Tech Stack section using the real package.json content to be 100% exhaustive.`
+                );
+                agentState.reportSaved = false; // Force re-save
+                if (onStep) onStep({ type: 'status', text: 'Hallucination Detected! Nudging for correction...' });
+                continue;
+              } else {
+                agentState.hallucinationVerified = true;
+                if (onStep) onStep({ type: 'status', text: 'Hallucination Guard: Tech Stack Verified.' });
+              }
+            }
+          } catch (err) {
+            console.error('[DevAgent] Hallucination Guard failed:', err.message);
+            agentState.hallucinationVerified = true; // Don't block on tool failure
+          }
         }
 
         const verdict = (parsed.response || '').toUpperCase();
@@ -1314,6 +1396,12 @@ async function runAgent(opts) {
         if (action === 'request_review') {
           agentState.reviewRequested = true;
           console.log('[DevAgent] agentState.reviewRequested = true');
+        } else if (action === 'read_file' || action === 'bulk_read') {
+          const files = action === 'read_file' ? [lp] : (p.paths || []).map(ps => String(ps).toLowerCase());
+          if (files.some(f => f.includes('package.json') || f.includes('requirements.txt') || f.includes('pom.xml') || f.includes('go.mod'))) {
+            agentState.configRead = true;
+            console.log('[DevAgent] agentState.configRead = true');
+          }
         } else if (writeTools.includes(action)) {
           if (lp.includes('walkthrough_review_report.md')) {
             agentState.reportSaved = true;

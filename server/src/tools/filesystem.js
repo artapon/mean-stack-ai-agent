@@ -37,10 +37,18 @@ async function writeFile(params, workspaceDir) {
   const filePath = params.path || params.file || params.filepath || params.filename;
   const content = params.content !== undefined ? params.content : (params.text || params.data || '');
   const contentStr = String(content);
-
-  console.log(`[DevAgent] write_file called - path: "${filePath}", contentLength: ${contentStr.length}`);
+  const lp = String(filePath).toLowerCase();
 
   if (!filePath) return { error: '"path" parameter is required.' };
+  console.log(`[DevAgent] write_file called - path: "${filePath}", contentLength: ${contentStr.length}`);
+
+  // Safety: Prevent "Template Hallucinations" (agent trying to use JS code in markdown)
+  if (lp.includes('walkthrough_system_analysis_report.md') &&
+    (contentStr.includes('JSON.stringify') || contentStr.includes('list_files(') || contentStr.includes('"+'))) {
+    const msg = `Rejecting write to "${filePath}": You are trying to use Javascript code or template syntax (like JSON.stringify) in a static report. YOU MUST write the report content (like the directory tree) as MANUAL PLAIN TEXT. Refer to the EXAMPLE FORMAT in your instructions.`;
+    console.warn(`[DevAgent] ${msg}`);
+    return { error: msg };
+  }
 
   // Safety: Prevent writing suspicious placeholders or accidental empty files
   const isPlaceholder = contentStr.includes('// Implementation goes here') ||

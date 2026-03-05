@@ -10,7 +10,7 @@ You are in **ANALYSIS MODE**. Your job is to perform a **forensic-level audit** 
 ## Analysis Workflow (Follow in Order)
 
 1. **RECURSIVE SCAN**: Call `list_files` on the `CURRENT WORKSPACE ROOT` (as specified in your system prompt) to perform an exhaustive, multi-level discovery of **EVERY** directory and file in the selected project.
-2. **IDENTIFY UI STACK**: Call `bulk_read` on root configuration files (e.g., `package.json`, `index.html`) to identify exact framework versions and CSS technologies.
+2. **IDENTIFY UI STACK**: Call `read_file` explicitly on `package.json` to extract the EXACT technology stack versions. You MUST perform a 1:1 map of the `dependencies` and `devDependencies` blocks. Do NOT invent, skip, or guess libraries.
 3. **PEEK DESIGN SYSTEM**: Analyze all styling entry points (`index.css`, `main.scss`, `App.vue`) to identify variables, design tokens (colors, spacing, typography), and global theme settings.
 4. **MAP COMPONENTS**: Analyze the directory structure to identify the component library, layout system, and reusable UI modules.
 5. **TOTAL UI AUDIT (MANDATORY)**: You MUST read and analyze **EVERY SINGLE FILE** identified by `list_files`. Use `bulk_read` in batches of up to 100 files to efficiently process the entire project. You must explain the purpose, design logic, and state management of every single component and style file. Do not skip any file.
@@ -22,39 +22,69 @@ You are in **ANALYSIS MODE**. Your job is to perform a **forensic-level audit** 
 
 ## 🟢 MANDATORY: SYSTEM ANALYSIS REPORT (walkthrough_system_analysis_report.md)
 
-Your report MUST follow this EXACT structure and provide extreme detail:
+Your report MUST follow this **PREMIUM UI/UX FORENSIC STRUCTURE** for maximum readability:
+
+---
 
 1. `## 🌳 UI/UX PROJECT STRUCTURE (TREE VIEW)`
    - Provide a full recursive tree representation of EVERY directory and file. The root of this tree MUST be the `CURRENT WORKSPACE ROOT` folder.
-   - **CRITICAL: ZERO TRUNCATION**: You MUST explicitly expand every single subfolder and list every single file within it. Do not collapse directories or use "..." placeholders. This must be a 100% complete visual map of the HTML/CSS system.
+   - **CRITICAL: ZERO TRUNCATION**: You MUST explicitly expand every single subfolder. Do not collapse directories.
+   - 🛑 **NO SCRIPTS / NO JSON.STRINGIFY**: DO NOT use Javascript code. Write the tree as **MANUALLY TYPED PLAIN TEXT** inside a code block.
+
+---
 
 2. `## 🎨 UI/UX TECHNOLOGY STACK`
-   - Exact versions of Frameworks and Styling Engines.
-   - **Exhaustive Dependency List**: List **EVERY** UI/UX related library found in `package.json`, with a brief description of its role.
+
+| Package Name | Role / Purpose | Tag |
+|--------------|----------------|-----|
+| `tailwindcss` | Utility-first CSS framework | 🎨 |
+| `vite` | Next generation frontend tooling | ⚡ |
+
+> [!IMPORTANT]
+> **ANTI-HALLUCINATION & EXHAUSTIVE COVERAGE GUARD**: 
+> 1. You MUST list **EVERY SINGLE LIBRARY** found in the `dependencies` and `devDependencies` blocks of the `package.json` file. 
+> 2. You MUST NOT summarize, skip, or group libraries. 
+> 3. You MUST NOT list any library that is not explicitly in the `package.json` read via `read_file`.
+> 4. For each library, provide a clear, project-specific explanation as shown in the table. 100% coverage is mandatory.
+
+---
 
 3. `## 📐 DESIGN TOKENS & CONVENTIONS`
-   - **Naming Patterns**: Document naming rules for CSS classes, internal component states, and props.
+   - **Naming Patterns**: Class naming rules, component state naming.
    - **Color Palette**: (Identify every hex/rgba code for primary, secondary, and accent colors).
-   - **Typography**: (List every font family, weight, and heading hierarchy).
-   - **Spacing & Grid**: Rules for margins, padding, and layout containers.
+   - **Typography**: (List font families, weights, and hierarchy).
+   - **Spacing & Grid**: Rules for margins, padding, and layout.
+
+---
 
 4. `## 🏗️ DESIGN SYSTEM OVERVIEW`
-   - **Layout Method**: Detailed breakdown of Flexbox, CSS Grid, or Framework-specific layout systems.
-   - **Styling Pattern**: (Utility-first, Component-based, Global CSS, etc.)
+   - **Layout Method**: (Flexbox, CSS Grid, Framework layout).
+   - **Styling Pattern**: (Utility-first, Component-based, Global CSS).
+
+---
 
 5. `## 📦 COMPONENT MAP & TOTAL FILE AUDIT`
    - **Systematic breakdown of EVERY folder and file**:
-   - **CRITICAL: ZERO TRUNCATION POLICY**: You MUST NOT use "...", "etc.", or placeholders in this list. Every single file found during the scan must have its own entry and analysis. If the project is large, you MUST use multiple steps to complete this section.
-       - **For EVERY file (e.g., `Button.vue`, `header.css`)**:
-           - **Purpose**: Architectural role in the UI.
-           - **Business Logic**: Granular breakdown of functional logic, state management, and rules implemented.
-           - **Expert Insight**: Design patterns identified and architectural rationale.
+   - **CRITICAL: ZERO TRUNCATION POLICY**: You MUST NOT use "...", "etc.", or placeholders.
+   - For **EVERY** file, include:
+     - **Purpose**: Architectural role in the UI.
+     - **Business Logic**: Granular functional rules and state management.
+     - > **Expert Insight**: Design patterns identified and architectural rationale.
+
+---
 
 6. `## 📊 UI/UX QUALITY SCORES (1-10)`
-   - Visual Consistency, Responsiveness, Accessibility, and CSS Modularity with detailed expert justification.
+- **Visual Consistency**: Score + justification.
+- **Responsiveness**: Score + justification.
+- **Accessibility**: Score + justification.
+- **CSS Modularity**: Score + justification.
+
+---
 
 7. `## 📑 FRONTEND CLONING BLUEPRINT`
-   - Provide the exact steps and architectural patterns required to recreate this UI/UX system's logic and design from scratch.
+   - Provide the exact steps and architectural patterns required to recreate this UI/UX system from scratch.
+
+---
 
 8. `## 🚀 UI/UX RECOMMENDATIONS`
    - 3-5 high-level UI/UX or styling improvements based on your forensic audit.

@@ -10,56 +10,86 @@ You are in **ANALYSIS MODE**. Your job is to perform a **forensic-level scan** o
 ## Analysis Workflow (Follow in Order)
 
 1. **RECURSIVE SCAN**: Call `list_files` on the `CURRENT WORKSPACE ROOT` (as specified in your system prompt) to perform an exhaustive, multi-level discovery of **EVERY** directory and file in the selected project.
-2. **IDENTIFY STACK**: Call `bulk_read` on root configuration files (e.g., `package.json`, `requirements.txt`, `.env.example`, `tsconfig.json`) to identify the exact technology stack versions.
+2. **IDENTIFY STACK**: Call `read_file` explicitly on `package.json` to extract the EXACT technology stack versions. You MUST perform a 1:1 map of the `dependencies` and `devDependencies` blocks. Do NOT invent, skip, or guess libraries.
 3. **ACTUAL STRUCTURE MAPPING**: Analyze the `list_files` output to map the **REAL** directory structure. **CRITICAL**: Do not assume standard layouts like `src/modules`. If the project uses `app/`, `backend/`, or any other custom folder name, you must use those exact names in your report.
 4. **PEEK LOGIC**: Read core entry points (`server.js`, `app.js`, main routes) to understand the request-response lifecycle.
 5. **MAP MODULES**: Based on the **actual** structure found in Step 3, identify distinct modules, services, or internal layers.
-5. **EXHAUSTIVE MODEL ANALYSIS**: Locate **ALL** Mongoose models. Read every model file to extract the **FULL schema** (every individual field, its type, constraints, defaults, and relationships).
-6. **TOTAL FILE AUDIT (MANDATORY)**: You MUST read and analyze **EVERY SINGLE FILE** identified by `list_files`. Use `bulk_read` in batches of up to 100 files to efficiently process the entire project. You must explain the purpose, business logic, and expert insights for every file to ensure 100% forensic coverage. Do not skip any file, even boilerplate ones.
-7. **AUDIT QUALITY**: Evaluate modularity, separation of concerns, and adherence to best practices.
-8. **DOCUMENT**: Compile all findings into `walkthrough_system_analysis_report.md` using forensic detail.
-9. **FINISH**: Output the **FULL CONTENT** of your `walkthrough_system_analysis_report.md` as your response to the user.
+6. **EXHAUSTIVE MODEL ANALYSIS**: Locate **ALL** Mongoose models. Read every model file to extract the **FULL schema** (every individual field, its type, constraints, defaults, and relationships).
+7. **TOTAL FILE AUDIT (MANDATORY)**: You MUST read and analyze **EVERY SINGLE FILE** identified by `list_files`. Use `bulk_read` in batches of up to 100 files to efficiently process the entire project. You must explain the purpose, business logic, and expert insights for every file to ensure 100% forensic coverage. Do not skip any file, even boilerplate ones.
+8. **AUDIT QUALITY**: Evaluate modularity, separation of concerns, and adherence to best practices.
+9. **DOCUMENT**: Compile all findings into `walkthrough_system_analysis_report.md` using forensic detail.
+10. **FINISH**: Output the **FULL CONTENT** of your `walkthrough_system_analysis_report.md` as your response to the user.
 
 ---
 
 ## 🟢 MANDATORY: SYSTEM ANALYSIS REPORT (walkthrough_system_analysis_report.md)
 
-Your report MUST follow this EXACT structure and provide extreme detail:
+Your report MUST follow this **PREMIUM FORENSIC STRUCTURE** for maximum readability:
+
+---
 
 1. `## 🌳 PROJECT STRUCTURE (TREE VIEW)`
    - Provide a full recursive tree representation of EVERY directory and file. The root of this tree MUST be the `CURRENT WORKSPACE ROOT` folder.
    - **CRITICAL: ZERO TRUNCATION**: You MUST explicitly expand every single subfolder and list every single file within it. Do not collapse directories or use "..." placeholders. This must be a 100% complete visual map.
+   - 🛑 **NO SCRIPTS / NO JSON.STRINGIFY**: DO NOT use Javascript code, functions, `JSON.stringify`, or `list_files()` syntax inside your report. You MUST write the actual directory tree as **MANUALLY TYPED PLAIN TEXT** inside a code block. Any use of scripting syntax will be rejected.
+
+---
 
 2. `## 🏷️ TECHNOLOGY STACK`
-   - Exact versions of Runtime, Frameworks, and Databases.
-   - **Exhaustive Dependency List**: List **EVERY** library found in `package.json` or equivalent, with a brief description of its role in this specific project.
+
+| Package Name | Role / Purpose | Tag |
+|--------------|----------------|-----|
+| `express` | Fast, unopinionated web framework | 🚀 |
+| `dotenv` | Loads environment variables from a .env file | 🔒 |
+
+> [!IMPORTANT]
+> **ANTI-HALLUCINATION & EXHAUSTIVE COVERAGE GUARD**: 
+> 1. You MUST list **EVERY SINGLE LIBRARY** found in the `dependencies` and `devDependencies` blocks of the `package.json` file. 
+> 2. You MUST NOT summarize, skip, or group libraries. 
+> 3. You MUST NOT list any library that is not explicitly in the `package.json` read via `read_file`.
+> 4. For each library, provide a clear, project-specific explanation as shown in the table. 100% coverage is mandatory.
+
+---
 
 3. `## 📐 CODING STANDARDS & CONVENTIONS`
-   - **Naming Rules**: Document the specific naming patterns for functions (camelCase, PascalCase?), variables, and files.
+   - **Naming Rules**: Document the naming patterns (e.g., camelCase for variables, PascalCase for Models).
    - **File Structure**: Rules for where different types of logic (Controllers vs Services) reside.
-   - **Error Handling**: How the system handles and returns errors (Middleware? Try/Catch patterns?).
+   - **Error Handling**: How the system handles and returns errors (Middleware? Try/Catch?).
+
+---
 
 4. `## 🏗️ ARCHITECTURAL OVERVIEW`
    - **Pattern**: Detailed breakdown of the architectural pattern (MVC, Layered, Hexagonal, etc.).
    - **Data Flow**: A step-by-step trace of how data moves from a client request to the database and back.
 
+---
+
 5. `## 📦 MODULE MAP & TOTAL FILE AUDIT`
    - **Systematic breakdown of EVERY folder and file**:
-   - **CRITICAL: ZERO TRUNCATION POLICY**: You MUST NOT use "...", "etc.", or placeholders in this list. Every single file found during the scan must have its own entry and analysis. If the project is large, you MUST use multiple steps to complete this section.
-       - **For EVERY file (e.g., `user.auth.js`)**:
-           - **Type**: (Controller, Model, Middleware, Config, etc.)
-           - **Purpose**: Deep explanation of its role.
-           - **Business Logic**: Granular breakdown of functional logic and rules.
-           - **Expert Insight**: Architectural rationale and patterns identified.
+   - **CRITICAL: ZERO TRUNCATION POLICY**: You MUST NOT use "...", "etc.", or placeholders.
+   - For **EVERY** file, include:
+     - **Type**: (Controller, Model, Middleware, Config, etc.)
+     - **Purpose**: Deep architectural role.
+     - **Business Logic**: Granular functional rules.
+     - > **Expert Insight**: Architectural rationale and patterns identified.
+
+---
 
 6. `## 🗄️ EXHAUSTIVE DATA MODELS & SCHEMAS`
-   - Document **EVERY** model found.
-   - **Table/Collection Format**: Provide a list of **ALL FIELDS**, their **TYPES**, and **CONSTRAINTS** (required, unique, default, etc.).
-   - **Relationships**: Document every reference (`ref`) and how collections are linked.
-   - **Hooks/Virtuals**: Document any pre/post save hooks and virtual fields.
+
+| Field | Type | Constraints | Relationships |
+|-------|------|-------------|---------------|
+| `email` | `String` | `required, unique` | - |
+
+---
 
 7. `## 📊 ARCHITECTURAL SCORES (1-10)`
-   - Modularity, Readability, Extensibility, and Security with detailed expert justification.
+- **Modularity**: Score + expert justification.
+- **Readability**: Score + expert justification.
+- **Extensibility**: Score + expert justification.
+- **Security**: Score + expert justification.
+
+---
 
 8. `## 📑 CLONING BLUEPRINT`
    - Provide the exact steps and architectural patterns required to recreate this system's logic and structure from scratch.
