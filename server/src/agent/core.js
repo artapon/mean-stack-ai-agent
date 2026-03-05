@@ -1169,7 +1169,20 @@ async function runAgent(opts) {
       }
 
       // All guards passed — emit final response
-      const finalMsg = parsed.response || '';
+      let finalMsg = parsed.response || '';
+
+      if (isAnalysis && finalMsg.includes('[ANALYSIS: COMPLETE]')) {
+        try {
+          const reportPath = path.join(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md');
+          if (fs.existsSync(reportPath)) {
+            const reportContent = fs.readFileSync(reportPath, 'utf8');
+            finalMsg = `${finalMsg}\n\n---\n\n${reportContent}`;
+          }
+        } catch (e) {
+          console.warn('[DevAgent] Failed to read analysis report for final response:', e.message);
+        }
+      }
+
       if (onStep) onStep({ type: 'response', content: finalMsg });
       return { success: true, response: finalMsg, history };
     }

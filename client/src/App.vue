@@ -819,6 +819,7 @@ async function send(text, isAutoHandoff = false) {
     // 🔄 AUTOMATED WORKFLOW: Dev -> Review -> Dev cycle
     const isDevMode = agentMode.value === 'generate';
     const isReviewMode = agentMode.value === 'review';
+    const isAnalysisMode = agentMode.value === 'analysis';
     
     // HISTORY-AWARE DETECTION: Look back through the whole chat for the report and fix orders
     // This ensures handoff works even if the report was saved in a previous turn!
@@ -844,6 +845,17 @@ async function send(text, isAutoHandoff = false) {
     const currentMsgText = messages.value[idx].text || '';
     const isOk = /\[CODE:\s*OK\]/i.test(currentMsgText);
     const isNotOk = /\[CODE:\s*NOT\s*OK\]/i.test(currentMsgText);
+    const isAnalysisComplete = /\[ANALYSIS:\s*COMPLETE\]/i.test(currentMsgText);
+
+    // AUTO-CONTINUE ANALYSIS HANGS:
+    if (isAnalysisMode && !isAnalysisComplete && !currentMsgText.includes('❌') && !currentMsgText.includes('aborted:') && !currentMsgText.includes('MAX_STEPS')) {
+      console.log('[DevAgent] 🔄 Analysis incomplete/hanging, auto-continuing...');
+      messages.value[idx].status = `🔄 Analysis continuing...`;
+      setTimeout(() => {
+        handleContinue();
+      }, 1000);
+      return;
+    }
     
     // Accepted only if report is saved, marked OK, and NO fixes were ordered, and NOT marked NOT OK
     const isAccepted = sessionReportSaved && isOk && !sessionFixOrdered && !isNotOk;
