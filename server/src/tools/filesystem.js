@@ -2,26 +2,26 @@ const fs = require('fs-extra');
 const path = require('path');
 
 // Safety: prevent path traversal outside workspace
-function safePath(inputPath, workspaceDir) {
+function safePath(inputPath, workspaceDir, allowTraversal = false) {
   const resolvedWorkspace = path.resolve(workspaceDir);
-  // Remove leading slash/backslash before resolve, but handle absolute Windows paths correctly
-  const normalizedInput = inputPath.replace(/^[/\\]+/, '');
+  // Handle absolute Windows paths natively or strip leading slashes for relative paths
+  const normalizedInput = path.isAbsolute(inputPath) ? inputPath : inputPath.replace(/^[/\\]+/, '');
   const abs = path.resolve(resolvedWorkspace, normalizedInput);
 
   const isWin = process.platform === 'win32';
   const checkAbs = isWin ? abs.toLowerCase() : abs;
   const checkWork = isWin ? resolvedWorkspace.toLowerCase() : resolvedWorkspace;
 
-  if (!checkAbs.startsWith(checkWork)) {
+  if (!allowTraversal && !checkAbs.startsWith(checkWork)) {
     throw new Error(`Access denied: "${inputPath}" is outside workspace "${resolvedWorkspace}"`);
   }
   return abs;
 }
 
 // ── read_file ─────────────────────────────────────────────────────────────────
-async function readFile({ path: filePath }, workspaceDir) {
+async function readFile({ path: filePath }, workspaceDir, allowTraversal = false) {
   if (!filePath) return { error: '"path" parameter is required.' };
-  const abs = safePath(filePath, workspaceDir);
+  const abs = safePath(filePath, workspaceDir, allowTraversal);
 
   if (!await fs.pathExists(abs)) return { error: `File not found: ${filePath}` };
 
@@ -70,7 +70,7 @@ async function writeFile(params, workspaceDir) {
     return { error: msg };
   }
 
-  const abs = safePath(filePath, workspaceDir);
+  const abs = safePath(filePath, workspaceDir, arguments[2] || false);
   const dir = path.dirname(abs);
   const dirStat = await fs.pathExists(dir) ? await fs.stat(dir) : null;
   if (dirStat && !dirStat.isDirectory()) {
@@ -85,9 +85,9 @@ async function writeFile(params, workspaceDir) {
 // ── list_files ────────────────────────────────────────────────────────────────
 const ignore = require('ignore');
 
-async function listFiles({ path: dirPath = '.' } = {}, workspaceDir) {
+async function listFiles({ path: dirPath = '.' } = {}, workspaceDir, allowTraversal = false) {
   try {
-    const abs = safePath(dirPath, workspaceDir);
+    const abs = safePath(dirPath, workspaceDir, allowTraversal);
     if (!await fs.pathExists(abs)) return { error: `Directory not found: ${dirPath}` };
 
     // If the model accidentally passes a FILE path to list_files, degrade gracefully:
@@ -131,8 +131,8 @@ async function listFiles({ path: dirPath = '.' } = {}, workspaceDir) {
         // Check hardcoded skip list
         if (SKIP.has(e.name)) continue;
 
-        // Check .gitignore rules
-        if (ig.ignores(rel)) {
+        // Check .gitignore rules if the path is within the workspace
+        if (!rel.startsWith('..') && ig.ignores(rel)) {
           // console.log(`[DevAgent] list_files: Ignored by .gitignore: ${rel}`);
           continue;
         }
@@ -222,7 +222,7 @@ async function bulkWrite(params, workspaceDir) {
     }
 
     try {
-      const abs = safePath(filePath, workspaceDir);
+      const abs = safePath(filePath, workspaceDir, arguments[2] || false);
       const dir = path.dirname(abs);
       const dirStat = await fs.pathExists(dir) ? await fs.stat(dir) : null;
       if (dirStat && !dirStat.isDirectory()) {
@@ -366,7 +366,7 @@ async function applyBlueprint(params, workspaceDir) {
     };
   }
 
-  return await bulkWrite({ files }, workspaceDir);
+  return await bulkWrite({ files }, workspaceDir, arguments[2] || false);
 }
 
 // ── bulk_read ─────────────────────────────────────────────────────────────────
@@ -388,7 +388,7 @@ async function bulkRead(params, workspaceDir) {
   const results = [];
   for (const p of paths) {
     try {
-      const abs = safePath(p, workspaceDir);
+      const abs = safePath(p, workspaceDir, arguments[2] || false);
       if (!await fs.pathExists(abs)) {
         results.push({ path: p, error: 'File not found' });
         continue;
@@ -417,7 +417,7 @@ async function replaceInFile(params, workspaceDir) {
   }
 
   try {
-    const abs = safePath(filePath, workspaceDir);
+    const abs = safePath(filePath, workspaceDir, arguments[2] || false);
     if (!await fs.pathExists(abs)) return { error: `File not found: ${filePath}` };
 
     const content = await fs.readFile(abs, 'utf-8');

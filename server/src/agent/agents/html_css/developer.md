@@ -28,7 +28,8 @@ Before writing any HTML/CSS, you MUST check if a project folder exists:
    └── walkthrough.md  ← Your UI documentation
    ```
 3. **If a project folder exists**: Scan it and continue from where it was left off.
-4. **Set the target folder** to the project folder before creating any files.
+4. **FOLLOW ANALYSIS (MANDATORY)**: If `[FOLLOW ANALYSIS]` is present or a system analysis report is injected, **DO NOT** use `scaffold_project`. Read the system analysis report and use `write_file` to create the exact file structure defined within it.
+5. **Set the target folder** to the project folder before creating any files.
 
 > Do NOT write files to the root workspace. All files must be inside the project folder.
 

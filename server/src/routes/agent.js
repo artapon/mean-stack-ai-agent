@@ -214,15 +214,22 @@ router.post('/run', async (req, res) => {
       signal: abort.signal,
       onStep: send,
       fastMode: !!fastMode,
-      autoRequestReview: !!autoRequestReview
+      autoRequestReview: !!autoRequestReview,
+      sessionId: sessionId || null
     });
 
-    // 4. Update session
-    if (sessionId && result.history) {
-      // Store history without system prompt
-      const historyToSave = result.history.filter(m => m.role !== 'system');
-      await saveSession(sessionId, historyToSave);
-      console.log(`[DevAgent] Session ${sessionId} saved.`);
+    // 4. Update session — prefer LangChain memory (v2) over raw history (v1)
+    if (sessionId) {
+      if (result.memory && result.memory.version === 2) {
+        // Save LangChain serialized memory directly
+        await saveSession(sessionId, result.memory);
+        console.log(`[DevAgent] Session ${sessionId} saved (LangChain memory v2).`);
+      } else if (result.history) {
+        // Fallback: save raw history without system prompt
+        const historyToSave = result.history.filter(m => m.role !== 'system');
+        await saveSession(sessionId, historyToSave);
+        console.log(`[DevAgent] Session ${sessionId} saved (legacy v1).`);
+      }
     }
 
     console.log('[DevAgent] ✅ runAgent successfully finished.');

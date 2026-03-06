@@ -7,7 +7,7 @@ const { readFile, writeFile, listFiles } = require('../tools/filesystem');
 // ── List files ─────────────────────────────────────────────────────────────
 router.get('/list', async (req, res) => {
   try {
-    const result = await listFiles({ path: req.query.path || '.' }, req.app.locals.workspaceDir);
+    const result = await listFiles({ path: req.query.path || '.' }, req.app.locals.workspaceDir, true);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -18,7 +18,7 @@ router.get('/list', async (req, res) => {
 router.get('/read', async (req, res) => {
   try {
     if (!req.query.path) return res.status(400).json({ error: '"path" query param required.' });
-    const result = await readFile({ path: req.query.path }, req.app.locals.workspaceDir);
+    const result = await readFile({ path: req.query.path }, req.app.locals.workspaceDir, true);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -32,7 +32,7 @@ router.post('/write', async (req, res) => {
     if (!filePath || content === undefined) {
       return res.status(400).json({ error: '"path" and "content" are required.' });
     }
-    const result = await writeFile({ path: filePath, content }, req.app.locals.workspaceDir);
+    const result = await writeFile({ path: filePath, content }, req.app.locals.workspaceDir, true);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

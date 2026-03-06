@@ -4,6 +4,7 @@ const { readFile, writeFile, listFiles, bulkWrite, applyBlueprint, bulkRead, rep
 const { scaffoldProject } = require('../tools/scaffolder');
 const { callLangchain, LangchainWorkflow, DevAgentOutputParser, createLangchainTools } = require('./langchain');
 const { logError, logInfo } = require('../utils/logger');
+const { createAgentMemory } = require('./memory');
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -32,78 +33,20 @@ const { logError, logInfo } = require('../utils/logger');
 //
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Injects a properly structured assistant+user exchange to redirect the model.
- *
- * WHY: Bare user messages break the assistant→user rhythm the model expects.
- *      A naked "Error: Report not saved." causes the model to produce garbled
- *      output like "1. ACTIONARAMETERS:" on the next turn.
- *
- * @param {Array}  history     - The conversation history array (mutated in place).
- * @param {string} directive   - The instruction to give the model (imperative, numbered).
- * @param {string} [ackMsg]    - Optional custom acknowledgement for the assistant turn.
- *                               Defaults to a generic "understood" message.
- */
-function pushNudge(history, directive, ackMsg) {
-  // Step 1: Fake assistant acknowledgement — keeps the turn rhythm valid.
-  // Must look like a real model response so the next user turn makes sense.
-  history.push({
-    role: 'assistant',
-    content: ackMsg || 'THOUGHT: I need to follow the mandatory instruction before proceeding.\n\nACTION: (pending next instruction)\n\nPARAMETERS: {}'
-  });
-
-  // Step 2: User directive — clean numbered format, no raw "Error:" prefix.
-  // Numbered format is less likely to trigger format confusion than prose.
-  history.push({
-    role: 'user',
-    content: `[SYSTEM DIRECTIVE]\n\n${directive}\n\nRespond with the correct ACTION and PARAMETERS block immediately.`
-  });
-}
-
-/**
- * Injects a format recovery block when the model produces garbled output.
- *
- * WHY: Injecting bare "Error: bad output" after garbled output makes the model
- *      panic further. Showing a concrete correct example re-anchors format understanding.
- *
- * @param {Array}  history      - The conversation history array (mutated in place).
- * @param {string} lastBadOutput - The garbled model output (for context).
- * @param {string} errorReason  - Human-readable reason the output was rejected.
- * @param {string} [exampleAction] - The action the model should take next (for the example).
- */
-function pushFormatRecovery(history, lastBadOutput, errorReason, exampleAction) {
-  const example = exampleAction || 'write_file';
-
-  // Replace the garbled assistant entry if it's the last one
-  if (history.length > 0 && history[history.length - 1].role === 'assistant') {
-    history[history.length - 1].content = '[GARBLED OUTPUT — REJECTED BY SYSTEM]';
-  }
-
-  history.push({
-    role: 'user',
-    content: [
-      `[FORMAT RECOVERY]`,
-      ``,
-      `Your last response was rejected: ${errorReason}`,
-      ``,
-      `CORRECT FORMAT (copy this structure exactly):`,
-      ``,
-      `THOUGHT: I will now perform the required action.`,
-      ``,
-      `ACTION: ${example}`,
-      ``,
-      `PARAMETERS: { "path": "example/path.js", "content": "example content" }`,
-      ``,
-      `---`,
-      `CRITICAL RULES:`,
-      `1. Each marker (THOUGHT, ACTION, PARAMETERS) must be on its OWN LINE with a BLANK LINE before it.`,
-      `2. NEVER merge markers. "ACTIONARAMETERS" or "1. ACTIONARAMETERS:" are INVALID.`,
-      `3. Output ONE action only. Do not number or bold the markers.`,
-      ``,
-      `Now output a valid response for your current task.`
-    ].join('\n')
-  });
-}
+// ── LangChain Memory System ──────────────────────────────────────────────────
+//
+// DevAgent has migrated from raw array-based history to LangChain-based memory.
+// AgentMemory (memory.js) provides:
+//   1. Structured message storage (AIMessage/HumanMessage/SystemMessage)
+//   2. Intelligent sliding windowing (preserving essential context like reports)
+//   3. Persistence via session serialization
+//
+// GUARDRAILS:
+//   All nudges and format recovery now MUST use agentMemory.pushNudge() and
+//   agentMemory.pushFormatRecovery(). These methods inject PAIRS of messages
+//   (Assistant Ack + User Directive) to preserve the conversation rhythm
+//   expected by the model.
+// ──────────────────────────────────────────────────────────────────────────────
 
 
 // ── System prompt & Skills ─────────────────────────────────────────────────────
@@ -189,9 +132,11 @@ function getToolsForMode(mode) {
  * @param {string}  [targetFolder]
  * @param {boolean} [fastMode]
  * @param {boolean} [autoRequestReview]
+ * @param {string}  [stack]
+ * @param {boolean} [isFollowAnalysis]
  * @returns {string}
  */
-function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview = false, stack = 'default') {
+function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview = false, stack = 'default', isFollowAnalysis = false) {
   const EXPERT_SKILLS = loadSkills(mode, stack);
   const toolsList = getToolsForMode(mode);
 
@@ -210,6 +155,7 @@ ${mode === 'review'
         ? 'You are currently in ANALYSIS MODE. SCAN and ANALYZE the codebase. ONLY use write_file for walkthrough_system_analysis_report.md. DO NOT modify source code. 🛑 **STRICT REGULATION**: Do NOT include any folders or files in your report (especially the Tree View) that were not physically found in your scan. NO GHOST FOLDERS allowed.'
         : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}"` : ''}
+${isFollowAnalysis ? '\n[FOLLOW ANALYSIS] ACTIVE: A System Analysis report is injected into your context. You MUST follow its architecture, module map, and file list strictly. DO NOT use scaffold_project to generate boilerplate; use write_file to fulfill the specific report requirements.' : ''}
 
 TOOLS:
 ${availableTools}
@@ -668,22 +614,23 @@ function redactForInfoLog(value, maxStrLen = 800) {
  * @returns {Promise<{success:boolean, response:string}>}
  */
 async function runAgent(opts) {
-  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default', selectedModel = null, unlimitedSteps = false } = opts;
+  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default', selectedModel = null, unlimitedSteps = false, sessionId = null } = opts;
 
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
   const lastContent = lastUserMsg?.content || '';
 
   // Mode detection: sticky via history scan
-  let isReview = false, isAnalysis = false;
+  let isReview = false, isAnalysis = false, isFollowAnalysis = false;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (m.role === 'user' && typeof m.content === 'string') {
-      if (m.content.includes('[MODE: REVIEW]')) { isReview = true; break; }
-      if (m.content.includes('[MODE: ANALYSIS]')) { isAnalysis = true; break; }
-      if (m.content.includes('[CONTINUE REVIEW]')) { isReview = true; break; }
-      if (m.content.includes('[CONTINUE ANALYSIS]')) { isAnalysis = true; break; }
+      if (m.content.includes('[MODE: REVIEW]') || m.content.includes('[CONTINUE REVIEW]')) isReview = true;
+      if (m.content.includes('[MODE: ANALYSIS]') || m.content.includes('[CONTINUE ANALYSIS]')) isAnalysis = true;
+      if (m.content.includes('[FOLLOW ANALYSIS]')) isFollowAnalysis = true;
     }
   }
+
+  if (isFollowAnalysis) console.log(`[DevAgent] FOLLOW ANALYSIS mode active (detected in history)`);
 
   const mode = isReview ? 'review' : (isAnalysis ? 'analysis' : 'developer');
 
@@ -700,8 +647,8 @@ async function runAgent(opts) {
 
   if (targetMatch) {
     const tp = targetMatch[1].trim();
-    const res = path.resolve(workspaceDir, tp.replace(/^[\/\\]+/, ''));
-    if (tp && tp !== '.' && res.toLowerCase().startsWith(workspaceDir.toLowerCase())) {
+    const res = path.isAbsolute(tp) ? tp : path.resolve(workspaceDir, tp.replace(/^[\/\\]+/, ''));
+    if (tp && tp !== '.') {
       effectiveWorkspaceDir = res; targetFolderName = tp;
       console.log(`[DevAgent] TARGET FOLDER (from history): "${tp}"`);
     }
@@ -763,7 +710,7 @@ async function runAgent(opts) {
     maxReviewLoops: MAX_REVIEW_LOOPS
   });
 
-  const systemPrompt = getSystemPrompt(mode, targetFolderName, fastMode, autoRequestReview, stack);
+  const systemPrompt = getSystemPrompt(mode, targetFolderName, fastMode, autoRequestReview, stack, isFollowAnalysis);
 
   let lastScaffoldedName = '';
   let step = 0, listFilesCount = 0, lastActionSig = null, lastActionRepeat = 0;
@@ -792,10 +739,34 @@ async function runAgent(opts) {
     discoveredFiles: [], // list of absolute/relative paths from list_files
   };
 
-  let history = [
-    { role: 'system', content: systemPrompt },
-    ...messages.map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : String(m.content) }))
-  ];
+  // ── LangChain Memory Initialization ─────────────────────────────────────────
+  const agentMemory = createAgentMemory({
+    mode,
+    fastMode,
+    sessionId: sessionId || null,
+  });
+
+  // Set system prompt (lives outside the sliding window)
+  agentMemory.setSystemPrompt(systemPrompt);
+
+  // Load incoming messages into LangChain memory
+  for (const m of messages) {
+    const content = typeof m.content === 'string' ? m.content : String(m.content);
+    if (m.role === 'assistant') {
+      await agentMemory.addAIMessage(content);
+    } else if (m.role === 'user') {
+      await agentMemory.addUserMessage(content);
+    }
+    // System messages from client are added as directives
+    if (m.role === 'system') {
+      await agentMemory.addSystemDirective(content);
+    }
+  }
+
+  console.log(`[DevAgent] LangChain AgentMemory initialized (mode: ${mode}, window: ${agentMemory.metadata.windowSize})`);
+
+  // Build history from memory for backward compatibility
+  let history = await agentMemory.toHistory();
 
   // ── POWERFUL WORKFLOW: Langchain Action Roadmap ─────────────────────────
   const isCreationPrompt = /create|new|scaffold|setup|generate/i.test(lastContent);
@@ -808,10 +779,9 @@ async function runAgent(opts) {
       const planner = new LangchainPlanner(resolvedModel);
       const roadmap = await planner.plan(lastContent, "Workspace: " + (targetFolderName || 'root'));
 
-      history.push({
-        role: 'system',
-        content: `[ACTION ROADMAP]\nThis roadmap was generated by the Langchain Planner. Follow it to ensure architectural integrity:\n\n${roadmap}`
-      });
+      const roadmapContent = `[ACTION ROADMAP]\nThis roadmap was generated by the Langchain Planner. Follow it to ensure architectural integrity:\n\n${roadmap}`;
+      await agentMemory.addSystemDirective(roadmapContent);
+      history = await agentMemory.toHistory();
 
       console.log(`[DevAgent] Roadmap generated and injected.`);
       if (onStep) onStep({ type: 'status', text: 'Roadmap ready. Starting implementation...' });
@@ -821,50 +791,70 @@ async function runAgent(opts) {
   }
 
   // ── FOLLOW ANALYSIS Injection ───────────────────────────────────────────
-  if (lastContent.includes('[FOLLOW ANALYSIS]') && !isReview) {
+  // We only inject if isFollowAnalysis is active AND it hasn't been injected in the history yet.
+  const alreadyInjected = messages.some(m => typeof m.content === 'string' && m.content.includes('[SYSTEM DIRECTIVE: ARCHITECTURAL ADHERENCE]'));
+
+  if (isFollowAnalysis && !isReview && !alreadyInjected) {
     try {
-      const analysisPath = path.resolve(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md');
+      let analysisPath = path.resolve(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md');
+
+      // Traverse UP the directory tree if not found in the exact target folder
+      let searchDir = effectiveWorkspaceDir;
+      for (let i = 0; i < 5; i++) {
+        const candidate = path.resolve(searchDir, 'walkthrough_system_analysis_report.md');
+        if (fs.existsSync(candidate)) {
+          analysisPath = candidate;
+          break;
+        }
+        const parentDir = path.dirname(searchDir);
+        if (parentDir === searchDir) break; // reached root
+        searchDir = parentDir;
+      }
+
+      // Final fallback to server workspace root just in case
+      if (!fs.existsSync(analysisPath)) {
+        analysisPath = path.resolve(workspaceDir, 'walkthrough_system_analysis_report.md');
+      }
+
       if (fs.existsSync(analysisPath)) {
         const report = fs.readFileSync(analysisPath, 'utf-8');
-        history.push({
-          role: 'system',
-          content: `[SYSTEM DIRECTIVE: ARCHITECTURAL ADHERENCE]\nYou MUST follow the architecture and module map defined in this System Analysis report:\n\n${report}`
-        });
-        console.log('[DevAgent] System Analysis Report injected into history.');
+        const workflowTag = isCreationPrompt ? '[WORKFLOW: CREATE]' : '[WORKFLOW: UPDATE]';
+        const analysisDirective = `[SYSTEM DIRECTIVE: ARCHITECTURAL ADHERENCE]
+${workflowTag} [FOLLOW ANALYSIS]
+You MUST follow the architecture and module map defined in this System Analysis report.
+DO NOT use scaffold_project; implement the directories and files sequentially using write_file.
+
+REPORT CONTENT:
+${report}`;
+
+        await agentMemory.addSystemDirective(analysisDirective);
+        history = await agentMemory.toHistory();
+        console.log(`[DevAgent] System Analysis Report injected from: ${analysisPath}`);
+        logInfo('injection', 'System Analysis Report injected', { path: analysisPath, workflow: workflowTag });
+      } else {
+        console.warn(`[DevAgent] Analysis report requested but NOT FOUND in tree starting from: ${effectiveWorkspaceDir}`);
+        logInfo('injection_warning', 'Analysis report NOT FOUND', { startDir: effectiveWorkspaceDir });
       }
     } catch (e) {
       console.warn('[DevAgent] Failed to inject analysis report:', e.message);
+      logError('injection_error', e.message, { startDir: effectiveWorkspaceDir });
     }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   while (step < MAX_STEPS) {
     step++;
-    console.log(`\n[DevAgent] STEP ${step} | History: ${history.length}`);
+    const memCount = await agentMemory.getMessageCount();
+    console.log(`\n[DevAgent] STEP ${step} | Memory: ${memCount} messages (LangChain BufferWindowMemory)`);
 
-    // ── History pruning — retain report/review evidence entries ─────────────
-    const defaultMax = fastMode ? 20 : 50;
-    const MAX_HISTORY = isAnalysis ? 300 : defaultMax;
-    if (history.length > MAX_HISTORY) {
-      const essential = history.slice(0, 2);
-      const recent = history.slice(fastMode ? -5 : -20);
-      const toolResults = history.slice(2, fastMode ? -5 : -20).filter(m =>
-        m.role === 'user' && m.content && (
-          m.content.startsWith('Tool result') ||
-          m.content.toLowerCase().includes('walkthrough_review_report') ||
-          m.content.toLowerCase().includes('walkthrough_system_analysis_report') ||
-          m.content.toLowerCase().includes('request_review') ||
-          m.content.startsWith('[SYSTEM DIRECTIVE]') ||   // keep nudge context
-          m.content.startsWith('[FORMAT RECOVERY]')       // keep recovery context
-        )
-      );
-      history = [...essential, ...toolResults, ...recent];
-      console.log(`[DevAgent] Pruned to ${history.length} items.`);
-    }
+    // ── LangChain Memory Windowing ──────────────────────────────────────────
+    // BufferWindowMemory automatically handles context pruning via its k parameter.
+    // We rebuild the history from the windowed view on each step.
+    history = await agentMemory.getWindowedHistory();
 
     if (signal?.aborted) throw new Error('Agent stopped by user.');
 
-    // ── LM Studio API call ───────────────────────────────────────────────────
+    // ── LM Studio API call (LangChain memory-aware) ───────────────────────────
     let rawText;
     try {
       let stepFull = '', sentLen = 0;
@@ -885,7 +875,7 @@ async function runAgent(opts) {
           stepFull.toLowerCase().includes('parameters:') || stepFull.toLowerCase().includes('thought:');
         if (isInternal && delta.length === 0)
           onStep({ type: 'status', text: `Agent is ${stepFull.toLowerCase().includes('action:') ? 'acting' : 'thinking'}...` });
-      }, signal, resolvedModel);
+      }, signal, resolvedModel, { agentMemory, fastMode });
     } catch (apiErr) {
       const msg = `API Error: ${apiErr.message}${apiErr.response?.data ? ' - ' + JSON.stringify(apiErr.response.data) : ''}`;
       console.error('[DevAgent]', msg);
@@ -893,6 +883,8 @@ async function runAgent(opts) {
       throw new Error(msg);
     }
 
+    // AI message is auto-saved by LangchainWorkflow when agentMemory is attached
+    // Still push to local history for backward compatibility within this loop iteration
     history.push({ role: 'assistant', content: rawText });
     const parsed = parseReply(rawText, isReview, fastMode);
     let action = (parsed.action || '').toLowerCase();
@@ -928,7 +920,7 @@ async function runAgent(opts) {
         logInfo('loop_guard', msg, { step, action });
         if (onStep) onStep({ type: 'error', message: msg });
         // Use pushNudge for loop correction — smoother than bare error push
-        pushNudge(history,
+        await agentMemory.pushNudge(
           `You have called "${action}" 3 times with identical parameters.\n\n` +
           `1. STOP repeating this action.\n` +
           `2. Either provide DIFFERENT parameters, or call ACTION: finish if the task is done.`,
@@ -944,7 +936,7 @@ async function runAgent(opts) {
       listFilesCount++;
       if (listFilesCount >= 3 && step > 5) {
         console.warn('[DevAgent] No-progress loop.');
-        pushNudge(history,
+        await agentMemory.pushNudge(
           `You have read/listed files ${listFilesCount} times with no writes.\n\n` +
           `1. STOP scanning.\n` +
           `2. Use ACTION: write_file NOW to implement the required code.`,
@@ -974,15 +966,12 @@ async function runAgent(opts) {
         // ── BLOCK RESPONSE: Format Recovery ─────────────────────────────────
         // Garbled output (ACTIONARAMETERS etc.) — show the model a correct example
         // instead of just injecting a bare error message which makes it worse.
-        formatRecoveryCount++;
-        console.warn(`[DevAgent] FORMAT RECOVERY injected (${formatRecoveryCount})`);
-        const nextAction = isReview ? 'write_file' : 'write_file';
-        pushFormatRecovery(history, rawText, parsed.error, nextAction);
+        await agentMemory.pushFormatRecovery(rawText, parsed.error, isReview ? 'write_file' : 'write_file');
         logInfo('format_recovery', 'Injected format recovery block', { step, error: parsed.error });
         if (onStep) onStep({ type: 'status', text: 'Format recovery: re-anchoring model output format...' });
       } else {
         // Non-garbled chain error (orphaned code block, bad JSON) — use nudge
-        pushNudge(history,
+        await agentMemory.pushNudge(
           `Your response had a format error: ${parsed.error}\n\n` +
           `1. Do NOT output raw code blocks.\n` +
           `2. Use ACTION: write_file with PARAMETERS: { "path": "...", "content": "..." }`,
@@ -1027,7 +1016,7 @@ async function runAgent(opts) {
         console.warn(`[DevAgent] Premature finish (${prematureFinishCount}/3)`);
         if (prematureFinishCount < 3) {
           const what = !agentState.codeModified ? 'write source code files' : 'write walkthrough.md';
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `You called finish too early.\n\n` +
             `1. You still need to: ${what}.\n` +
             `2. Do that NOW, then call finish.`,
@@ -1045,7 +1034,7 @@ async function runAgent(opts) {
         followReviewNudgeCount++;
         console.warn(`[DevAgent] Follow-review nudge (${followReviewNudgeCount}/3)`);
         if (followReviewNudgeCount >= 3) return { success: false, response: 'Aborted: refused to address [CODE: NOT OK] after 3 nudges.', history };
-        pushNudge(history,
+        await agentMemory.pushNudge(
           `The reviewer issued [CODE: NOT OK].\n\n` +
           `1. Call ACTION: read_file with walkthrough_review_report.md\n` +
           `2. Fix every issue listed.\n` +
@@ -1093,7 +1082,7 @@ async function runAgent(opts) {
           console.warn(`[DevAgent] Report missing (${reviewNudgeCount}/3)`);
           if (reviewNudgeCount >= 3) return { success: false, response: 'Review aborted: refused to write report after 3 nudges.', history };
           // ── BLOCK RESPONSE: smooth nudge pair ───────────────────────────
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `You must write the review report before finishing.\n\n` +
             `1. ACTION: write_file\n` +
             `2. PARAMETERS: { "path": "walkthrough_review_report.md", "content": "## AGENT Reasoning\\n...\\n## Summary\\n..." }\n\n` +
@@ -1111,7 +1100,7 @@ async function runAgent(opts) {
           console.warn(`[DevAgent] Verdict missing (${reviewNudgeCount}/3)`);
           if (reviewNudgeCount >= 3) return { success: false, response: 'Review aborted: refused to include verdict after 3 nudges.', history };
           // ── BLOCK RESPONSE: smooth nudge pair ───────────────────────────
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `Your finish response is missing the required verdict.\n\n` +
             `1. ACTION: finish\n` +
             `2. PARAMETERS: { "response": "...your summary... [CODE: OK]" }\n\n` +
@@ -1136,7 +1125,7 @@ async function runAgent(opts) {
         }
 
         if (!agentState.configRead) {
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `You MUST explicitly read the project's configuration (e.g., package.json) before finishing the analysis.\n\n` +
             `1. ACTION: read_file\n` +
             `2. PARAMETERS: { "path": "package.json" }\n\n` +
@@ -1176,7 +1165,7 @@ async function runAgent(opts) {
           console.warn(`[DevAgent] Analysis report incomplete/missing (${analysisNudgeCount}/3)`);
           if (analysisNudgeCount >= 3) return { success: false, response: 'Analysis aborted: refused to provide forensic-level report after 3 nudges.', history };
 
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `Your analysis report is incomplete or missing mandatory forensic sections.\n\n` +
             `You MUST include these EXACT headers with deep detail (adapted to your project type):\n` +
             `1. ## 🌳 PROJECT STRUCTURE (TREE VIEW) (Full visual map)\n` +
@@ -1249,7 +1238,7 @@ async function runAgent(opts) {
 
                 console.warn(`[DevAgent] Forensic Audit Failed: ${directive.trim()}`);
 
-                pushNudge(history,
+                await agentMemory.pushNudge(
                   `FORENSIC AUDIT FAILED:\n${directive}\n` +
                   `1. REMOVE all "Ghost Folders" or "Ghost Files" from your report. Only include what physically exists.\n` +
                   `2. ENSURE the Technology Stack is a 1:1 match with package.json (no extra, no missing).\n` +
@@ -1276,7 +1265,7 @@ async function runAgent(opts) {
           analysisNudgeCount++;
           if (analysisNudgeCount >= 3) return { success: false, response: 'Analysis aborted: refused to include verdict after 3 nudges.', history };
 
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `Your finish response is missing the required verdict.\n\n` +
             `1. ACTION: finish\n` +
             `2. PARAMETERS: { "response": "...your summary... [ANALYSIS: COMPLETE]" }\n\n` +
@@ -1306,7 +1295,7 @@ async function runAgent(opts) {
           console.warn(`[DevAgent] Walkthrough missing (${planNudgeCount}/3)`);
           if (planNudgeCount >= 3) return { success: false, response: 'Generation aborted: refused to write walkthrough.md after 3 nudges.', history };
 
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `You must write a summary of your implementations to walkthrough.md before finishing.\n\n` +
             `1. ACTION: write_file\n` +
             `2. PARAMETERS: { "path": "walkthrough.md", "content": "# Project Walkthrough\\n\\n## Changes\\n- Feature X\\n- Fix Y\\n..." }\n\n` +
@@ -1331,7 +1320,7 @@ async function runAgent(opts) {
           console.warn(`[DevAgent] request_review nudge (${reviewRequestNudgeCount}/3)`);
           if (reviewRequestNudgeCount >= 3) return { success: false, response: 'Aborted: refused to call request_review after 3 nudges.', history };
           // ── BLOCK RESPONSE: smooth nudge pair ───────────────────────────
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `You must call request_review before finishing.\n\n` +
             `1. ACTION: request_review\n` +
             `2. PARAMETERS: {}\n\n` +
@@ -1358,8 +1347,11 @@ async function runAgent(opts) {
         }
       }
 
+      // Save LangChain memory for session persistence
+      const serializedMemory = await agentMemory.serialize();
+
       if (onStep) onStep({ type: 'response', content: finalMsg });
-      return { success: true, response: finalMsg, history };
+      return { success: true, response: finalMsg, history, memory: serializedMemory };
     }
 
     // ── Execute tool ──────────────────────────────────────────────────────────
@@ -1372,7 +1364,7 @@ async function runAgent(opts) {
       console.error('[DevAgent]', errMsg);
       logInfo('tool_error', errMsg, { step, action });
       if (onStep) onStep({ type: 'tool_error', tool: action, error: errMsg });
-      pushNudge(history,
+      await agentMemory.pushNudge(
         `You attempted to use "${action}", but it is restricted in ${mode.toUpperCase()} mode.\n\n` +
         `Please ONLY use: ${allowedNames.join(', ')}`,
         `THOUGHT: I used a tool that I'm not allowed to use in this mode. I will switch to using an authorized tool.`
@@ -1419,7 +1411,7 @@ async function runAgent(opts) {
           return { success: false, response: msg, history };
         }
 
-        pushNudge(history,
+        await agentMemory.pushNudge(
           `You have attempted an unauthorized write in ${modeLabel} mode.\n\n` +
           `1. You are ONLY allowed to write to "${allowedPath}".\n` +
           `2. Use ACTION: write_file ONLY for your report.\n` +
@@ -1452,7 +1444,7 @@ async function runAgent(opts) {
         const ap = String(p.path || p.file || '').replace(/\\/g, '/');
         if (ap.startsWith('src/') || ap.startsWith('middlewares/') || ap.startsWith('utils/')) {
           const expected = `${lastScaffoldedName}/${ap}`;
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `You wrote to "${ap}" at workspace root but should write to "${expected}".\n\n` +
             `1. Rewrite to: ACTION: write_file -> PARAMETERS: { "path": "${expected}", ... }`,
             `THOUGHT: I used the wrong path. I must prefix with the project name.`
@@ -1463,6 +1455,7 @@ async function runAgent(opts) {
       }
 
       if (action.includes('delete') || action.includes('remove')) {
+        await agentMemory.addAIMessage(`Skipping ${action} — user handles deletions.`);
         history.push({ role: 'assistant', content: `Skipping ${action} — user handles deletions.` });
         continue;
       }
@@ -1590,7 +1583,7 @@ async function runAgent(opts) {
         if (failCount >= 2) {
           console.warn(`[DevAgent] replace_in_file search-miss loop on "${tp}" (${failCount})`);
           // Nudge the model away from further replace_in_file attempts for this file.
-          pushNudge(history,
+          await agentMemory.pushNudge(
             `Your last replace_in_file call on "${tp}" failed because the search block was not found.\n\n` +
             `1. STOP calling replace_in_file on this file.\n` +
             `2. Instead, call ACTION: write_file with PARAMETERS: { "path": "${tp}", "content": "FULL UPDATED FILE CONTENT HERE" }.\n` +
@@ -1627,6 +1620,8 @@ async function runAgent(opts) {
       if (result.currentFileContent) content += `\n\n${result.currentFileContent}`;
     }
 
+    // Add tool result to LangChain memory
+    await agentMemory.addUserMessage(content);
     history.push({ role: 'user', content });
     console.log(`[DevAgent] STEP ${step} DONE.`);
   }
@@ -1634,7 +1629,8 @@ async function runAgent(opts) {
   const timeout = `Agent reached MAX_STEPS (${MAX_STEPS}). Increase AGENT_MAX_STEPS or simplify the task.`;
   console.error('[DevAgent]', timeout);
   if (onStep) onStep({ type: 'error', message: timeout });
-  return { success: false, response: timeout, history };
+  const serializedMemory = await agentMemory.serialize();
+  return { success: false, response: timeout, history, memory: serializedMemory };
 }
 
 module.exports = { runAgent };

@@ -82,8 +82,20 @@ class DevAgentOutputParser extends BaseOutputParser {
 /**
  * Langchain Workflow System
  * Encapsulates the reasoning chain with persistent memory and structured outputs.
+ *
+ * MEMORY INTEGRATION:
+ *   When an AgentMemory instance is provided, the workflow uses it to:
+ *   1. Load conversation history from the memory store
+ *   2. Auto-save the assistant's response after each call
+ *   3. Provide memory context variables to the prompt template
  */
 class LangchainWorkflow {
+    /**
+     * @param {string} modelName
+     * @param {Object} [options]
+     * @param {boolean} [options.fastMode]
+     * @param {import('./memory').AgentMemory} [options.agentMemory] — LangChain memory instance
+     */
     constructor(modelName, options = {}) {
         const baseUrl = (process.env.LM_STUDIO_BASE_URL || 'http://localhost:1234').replace(/\/$/, '') + '/v1';
         this.chat = new ChatOpenAI({
@@ -97,12 +109,21 @@ class LangchainWorkflow {
             maxTokens: 8192,
         });
 
-        this.memory = null; // Memory is managed by the core agent history for now
+        // LangChain memory integration
+        this.agentMemory = options.agentMemory || null;
         this.parser = new DevAgentOutputParser(options.fastMode || false);
     }
 
     /**
      * Executes a single reasoning turn in the workflow.
+     *
+     * If agentMemory is provided, uses its windowed history instead of the raw
+     * array. The assistant's response is automatically saved to memory.
+     *
+     * @param {Array<{role:string, content:string}>} history — fallback history if no memory
+     * @param {Function} onChunk — streaming callback
+     * @param {AbortSignal} signal — abort signal
+     * @returns {Promise<string>} — cleaned response text
      */
     async call(history, onChunk, signal) {
         // Convert input history to Langchain messages
@@ -144,7 +165,15 @@ class LangchainWorkflow {
                     }
                 }
             }
-            return cleanResponse(fullText);
+
+            const cleaned = cleanResponse(fullText);
+
+            // AUTO-SAVE: If memory is attached, save the assistant response
+            if (this.agentMemory && cleaned) {
+                await this.agentMemory.addAIMessage(cleaned);
+            }
+
+            return cleaned;
         } catch (err) {
             throw err;
         }
@@ -202,10 +231,24 @@ class LangchainPlanner {
 
 /**
  * Bridge for existing core call logic.
+ *
+ * MEMORY-AWARE: When options.agentMemory is provided, the workflow uses
+ * LangChain memory for context management instead of the raw history array.
+ *
+ * @param {Array} history — message history [{role, content}]
+ * @param {Function} onChunk — streaming callback
+ * @param {AbortSignal} signal
+ * @param {string} selectedModel
+ * @param {Object} [options]
+ * @param {import('./memory').AgentMemory} [options.agentMemory]
+ * @returns {Promise<string>}
  */
 async function callLangchain(history, onChunk, signal, selectedModel, options = {}) {
     const model = selectedModel || process.env.LM_STUDIO_MODEL || 'openai/gpt-oss-20b';
-    const workflow = new LangchainWorkflow(model, options);
+    const workflow = new LangchainWorkflow(model, {
+        fastMode: options.fastMode || false,
+        agentMemory: options.agentMemory || null,
+    });
     let result = await workflow.call(history, onChunk, signal);
 
     // FORMATTING: If in Review mode and the message looks like a summary, wrap with code block for readability
