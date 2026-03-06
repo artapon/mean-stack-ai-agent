@@ -157,17 +157,12 @@ function loadSkills(mode, stack = 'default') {
 }
 
 /**
- * Builds the full system prompt.
+ * Returns the authoritative list of tools allowed for a given mode.
  * @param {string} mode - 'developer', 'review', or 'analysis'
- * @param {string}  [targetFolder]
- * @param {boolean} [fastMode]
- * @param {boolean} [autoRequestReview]
- * @returns {string}
+ * @returns {Array} toolsList
  */
-function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview = false, stack = 'default') {
-  const EXPERT_SKILLS = loadSkills(mode, stack);
-
-  const toolsList = [
+function getToolsForMode(mode) {
+  const allTools = [
     { name: 'read_file', params: '{path}', safe: true },
     { name: 'write_file', params: '{path, content}', safe: false },
     { name: 'replace_in_file', params: '{path, search, replace}', safe: false },
@@ -180,8 +175,27 @@ function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview
     { name: 'request_review', params: '{}', safe: true }
   ];
 
+  if (mode === 'review') {
+    return allTools.filter(t => ['read_file', 'write_file', 'list_files', 'bulk_read', 'order_fix'].includes(t.name));
+  } else if (mode === 'analysis') {
+    return allTools.filter(t => ['read_file', 'write_file', 'list_files', 'bulk_read'].includes(t.name));
+  }
+  return allTools; // Developer gets everything
+}
+
+/**
+ * Builds the full system prompt.
+ * @param {string} mode - 'developer', 'review', or 'analysis'
+ * @param {string}  [targetFolder]
+ * @param {boolean} [fastMode]
+ * @param {boolean} [autoRequestReview]
+ * @returns {string}
+ */
+function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview = false, stack = 'default') {
+  const EXPERT_SKILLS = loadSkills(mode, stack);
+  const toolsList = getToolsForMode(mode);
+
   const availableTools = toolsList
-    .filter(t => (mode === 'developer') || t.safe || t.name === 'write_file')
     .map(t => `  ${t.name.padEnd(16)} ${t.params}`)
     .join('\n');
 
@@ -225,7 +239,7 @@ RULES:
 8. NO shell commands in write_file.
 9. Single action per response — ONE THOUGHT + ONE ACTION + ONE PARAMETERS block.
 ${fastMode ? '10. FAST MODE: No THOUGHT block at all.' : ''}
-${autoRequestReview ? '11. Call "request_review" after EVERYTHING else (code, documentation) is done, and BEFORE "finish". This is MANDATORY.' : ''}
+${autoRequestReview && mode === 'developer' ? '11. Call "request_review" after EVERYTHING else (code, documentation) is done, and BEFORE "finish". This is MANDATORY.' : ''}
 `;
 }
 
@@ -690,6 +704,35 @@ async function runAgent(opts) {
     if (tp && tp !== '.' && res.toLowerCase().startsWith(workspaceDir.toLowerCase())) {
       effectiveWorkspaceDir = res; targetFolderName = tp;
       console.log(`[DevAgent] TARGET FOLDER (from history): "${tp}"`);
+    }
+  }
+
+  // ── Analysis mode: auto-detect project subfolder if no target pinned ──────
+  // When the user launches Analysis without pinning a folder, list_files(".")
+  // would scan workspace/ root and save the report there instead of the project.
+  // We scan one level deep in workspaceDir for the first directory that looks
+  // like a real project (has package.json, server.js, app.js, or index.html).
+  if (isAnalysis && !targetFolderName) {
+    try {
+      const PROJECT_SIGNALS = ['package.json', 'server.js', 'app.js', 'index.html', 'index.js'];
+      const entries = fs.readdirSync(workspaceDir, { withFileTypes: true });
+      const SKIP_DIRS = new Set(['.git', 'node_modules', '.cache', 'dist', 'build', 'coverage']);
+      for (const entry of entries) {
+        if (!entry.isDirectory() || SKIP_DIRS.has(entry.name)) continue;
+        const candidateDir = path.join(workspaceDir, entry.name);
+        const hasSignal = PROJECT_SIGNALS.some(sig => fs.existsSync(path.join(candidateDir, sig)));
+        if (hasSignal) {
+          effectiveWorkspaceDir = candidateDir;
+          targetFolderName = entry.name;
+          console.log(`[DevAgent] ANALYSIS: Auto-detected project folder: "${entry.name}"`);
+          break;
+        }
+      }
+      if (!targetFolderName) {
+        console.warn('[DevAgent] ANALYSIS: No project subfolder auto-detected — scanning workspace root.');
+      }
+    } catch (e) {
+      console.warn('[DevAgent] ANALYSIS: Auto-detect failed:', e.message);
     }
   }
 
@@ -1164,12 +1207,16 @@ async function runAgent(opts) {
             if (fs.existsSync(reportPath)) {
               reportContent = fs.readFileSync(reportPath, 'utf8');
 
-              // REPAIR: Many models escape newlines as \\n when writing to files in JSON
-              if (reportContent.includes('\\n') && !reportContent.includes('\n')) {
-                console.log('[DevAgent] 🛠️ REPAIRING: Escaped newlines detected in report.');
-                reportContent = reportContent.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+              // REPAIR: Many models escape newlines as \\n when writing to files in JSON.
+              // Use a ratio check: if escaped \n count exceeds real \n count, the file is
+              // majority-escaped and needs repair — even if some real newlines exist.
+              const escapedNCount = (reportContent.match(/\\n/g) || []).length;
+              const realNCount = (reportContent.match(/\n/g) || []).length;
+              if (escapedNCount > 0 && escapedNCount > realNCount) {
+                console.log(`[DevAgent] 🛠️ REPAIRING: Escaped newlines detected (${escapedNCount} escaped vs ${realNCount} real).`);
+                reportContent = reportContent.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '');
                 fs.writeFileSync(reportPath, reportContent);
-                if (onStep) onStep({ type: 'status', text: 'Fixed: formatting (escaped newlines).' });
+                if (onStep) onStep({ type: 'status', text: 'Fixed: formatting (escaped newlines repaired).' });
               }
             } else {
               for (let i = history.length - 1; i >= 0; i--) {
@@ -1317,19 +1364,23 @@ async function runAgent(opts) {
 
     // ── Execute tool ──────────────────────────────────────────────────────────
     action = (parsed.action || '').toLowerCase();
-    const toolFn = TOOLS[action];
-    if (!toolFn) {
-      const errMsg = `Unknown tool "${action}". Available: ${Object.keys(TOOLS).join(', ')}`;
+    const authorizedTools = getToolsForMode(mode);
+    const allowedNames = authorizedTools.map(t => t.name.toLowerCase());
+
+    if (!allowedNames.includes(action)) {
+      const errMsg = `Tool "${action}" is NOT authorized in ${mode.toUpperCase()} mode. Available: ${allowedNames.join(', ')}`;
       console.error('[DevAgent]', errMsg);
       logInfo('tool_error', errMsg, { step, action });
       if (onStep) onStep({ type: 'tool_error', tool: action, error: errMsg });
       pushNudge(history,
-        `Tool "${action}" does not exist.\n\nAvailable tools: ${Object.keys(TOOLS).join(', ')}\n\nChoose a valid tool and try again.`,
-        `THOUGHT: I used an invalid tool name. I must use one of the available tools.`
+        `You attempted to use "${action}", but it is restricted in ${mode.toUpperCase()} mode.\n\n` +
+        `Please ONLY use: ${allowedNames.join(', ')}`,
+        `THOUGHT: I used a tool that I'm not allowed to use in this mode. I will switch to using an authorized tool.`
       );
       continue;
     }
 
+    const toolFn = TOOLS[action];
     if (onStep) onStep({ type: 'tool_call', tool: action, parameters: parsed.parameters });
     logInfo('tool_call', `Calling tool "${action}"`, {
       step,
@@ -1428,10 +1479,15 @@ async function runAgent(opts) {
         const sm = p.content.match(/^\s*(mkdir|cd|npm|node|git|rm|cp|mv|ls)\s+|^#!(\/usr\/bin\/env|\/bin\/bash)/i);
         if (sm) throw new Error(`write_file used as shell: "${sm[1] || 'shebang'}". Use scaffold_project.`);
 
-        // REPAIR: Forensic reports often get written with escaped newlines (\\n) by certain models
-        if (lp.includes('walkthrough_system_analysis_report.md') && p.content.includes('\\n') && !p.content.includes('\n')) {
-          console.log('[DevAgent] 🛠️ REPAIRING: Escaped newlines detected in report WRITE.');
-          p.content = p.content.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+        // REPAIR: Forensic reports often get written with escaped newlines (\\n) by certain models.
+        // Ratio check: if escaped \n count exceeds real \n count, repair before writing.
+        if (lp.includes('walkthrough_system_analysis_report.md') && p.content.includes('\\n')) {
+          const wEscaped = (p.content.match(/\\n/g) || []).length;
+          const wReal = (p.content.match(/\n/g) || []).length;
+          if (wEscaped > wReal) {
+            console.log(`[DevAgent] 🛠️ REPAIRING write: ${wEscaped} escaped vs ${wReal} real newlines.`);
+            p.content = p.content.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '');
+          }
         }
       }
 
