@@ -17,7 +17,7 @@ app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json({ limit: '10mb' }));
 
 // ── Workspace ────────────────────────────────────────────────────────────────
-const workspaceDir = path.resolve(process.env.WORKSPACE_DIR || './projects');
+const workspaceDir = path.resolve(process.env.WORKSPACE_DIR || 'd:\\Projects\\devagent\\workspace');
 fs.ensureDirSync(workspaceDir);
 app.locals.workspaceDir = workspaceDir;
 

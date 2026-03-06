@@ -12,7 +12,17 @@ function safePath(inputPath, workspaceDir, allowTraversal = false) {
   // Matches: "/root/", "\root\", "root/", "root\" at the start
   p = p.replace(/^([/\\]+root[/\\]+|root[/\\]+|[/\\]+)/i, '');
 
-  // 3. Resolve path. On Windows, a leading slash resolves to the drive root.
+  // 3. Special case: allow ../agent_reports for centralized reports
+  const isAgentReports = p.toLowerCase().startsWith('../agent_reports/') || p.toLowerCase() === '../agent_reports';
+  if (isAgentReports) {
+    // Resolve to workspace/../agent_reports which is outside project folder
+    const agentReportsDir = path.resolve(resolvedWorkspace, '../agent_reports');
+    const remainingPath = p.substring('../agent_reports/'.length);
+    const abs = remainingPath ? path.join(agentReportsDir, remainingPath) : agentReportsDir;
+    return abs;
+  }
+
+  // 4. Resolve path. On Windows, a leading slash resolves to the drive root.
   // We want it to be relative to the workspace, so we ensure it's treated as such.
   const abs = path.resolve(resolvedWorkspace, p);
 
@@ -61,7 +71,7 @@ async function writeFile(params, workspaceDir) {
   console.log(`[DevAgent] write_file called - path: "${filePath}", contentLength: ${contentStr.length}`);
 
   // Safety: Prevent "Template Hallucinations" (agent trying to use JS code in markdown)
-  if (lp.includes('walkthrough_system_analysis_report.md') &&
+  if (lp.includes('../agent_reports/walkthrough_system_analysis_report.md') &&
     (contentStr.includes('JSON.stringify') || contentStr.includes('list_files(') || contentStr.includes('"+'))) {
     const msg = `Rejecting write to "${filePath}": You are trying to use Javascript code or template syntax (like JSON.stringify) in a static report. YOU MUST write the report content (like the directory tree) as MANUAL PLAIN TEXT. Refer to the EXAMPLE FORMAT in your instructions.`;
     console.warn(`[DevAgent] ${msg}`);

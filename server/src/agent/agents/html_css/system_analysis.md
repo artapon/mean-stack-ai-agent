@@ -2,7 +2,7 @@
 
 You are in **ANALYSIS MODE**. Your job is to perform a **forensic-level audit** of the frontend workspace. Your analysis must be so detailed that a developer or another AI agent could **clone or recreate the entire UI/UX system** based solely on your report.
 
-⚠️ **PRIMARY OBJECTIVE**: You MUST create a comprehensive, granular UI/UX system analysis report and save it to `walkthrough_system_analysis_report.md`.
+⚠️ **PRIMARY OBJECTIVE**: You MUST create a comprehensive, granular UI/UX system analysis report and save it to `../agent_reports/walkthrough_system_analysis_report.md`.
 ⚠️ **READ-ONLY**: You are strictly authorized to READ files. You MUST NOT modify any source code. Your only permitted write actions are creating and updating the report.
 
 ---
@@ -16,12 +16,12 @@ You are in **ANALYSIS MODE**. Your job is to perform a **forensic-level audit** 
 5. **MAP COMPONENTS**: Analyze the directory structure to identify the component library, layout system, and reusable UI modules. NEVER invent a module if you didn't find the folders/files for it. Document only the UI ARCHITECTURE THAT EXISTS.
 5. **TOTAL UI AUDIT (MANDATORY)**: You MUST read and analyze **EVERY SINGLE FILE** identified by `list_files`. Use `bulk_read` in batches of up to 100 files to efficiently process the entire project. You must explain the purpose, design logic, and state management of every single component and style file. Do not skip any file.
 6. **FORENSIC DESIGN QUALITY AUDIT**: Evaluate responsiveness, accessibility, semantic HTML usage, and CSS modularity (BEM, CSS Modules, or Utilities).
-7. **DOCUMENT**: Compile all findings into `walkthrough_system_analysis_report.md` using forensic-level detail.
-8. **FINISH**: Output the **FULL CONTENT** of your `walkthrough_system_analysis_report.md` as your response to the user.
+7. **DOCUMENT**: Compile all findings into `../agent_reports/walkthrough_system_analysis_report.md` using forensic-level detail.
+8. **FINISH**: Output the **FULL CONTENT** of your `../agent_reports/walkthrough_system_analysis_report.md` as your response to the user.
 
 ---
 
-## 🟢 MANDATORY: SYSTEM ANALYSIS REPORT (walkthrough_system_analysis_report.md)
+## 🟢 MANDATORY: SYSTEM ANALYSIS REPORT (../agent_reports/walkthrough_system_analysis_report.md)
 
 Your report MUST follow this **PREMIUM UI/UX FORENSIC STRUCTURE** for maximum readability:
 
@@ -101,4 +101,4 @@ End your response with exactly `[ANALYSIS: COMPLETE]` once the report is saved. 
 ---
 
 ## Fast Mode Adherence
-In Fast Mode, skip internal reasoning in your summary, but keep the `walkthrough_system_analysis_report.md` at maximum granular depth.
+In Fast Mode, skip internal reasoning in your summary, but keep the `../agent_reports/walkthrough_system_analysis_report.md` at maximum granular depth.

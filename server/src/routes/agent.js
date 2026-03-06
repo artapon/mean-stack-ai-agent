@@ -143,8 +143,8 @@ function exportToHtml(mdPath, htmlPath) {
 router.get('/export-analysis', (req, res) => {
   try {
     const workspaceDir = req.app.locals.workspaceDir;
-    const mdPath = path.resolve(workspaceDir, 'walkthrough_system_analysis_report.md');
-    const htmlPath = path.resolve(workspaceDir, 'walkthrough_system_analysis_report.html');
+    const mdPath = path.resolve(workspaceDir, '../agent_reports/walkthrough_system_analysis_report.md');
+    const htmlPath = path.resolve(workspaceDir, '../agent_reports/walkthrough_system_analysis_report.html');
 
     exportToHtml(mdPath, htmlPath);
 

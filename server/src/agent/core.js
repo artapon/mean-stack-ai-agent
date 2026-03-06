@@ -150,9 +150,9 @@ function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview
 
   return `${skillHeader ? skillHeader + '\n\n---\n\n' : ''}You are an expert ${stack === 'mean_stack' ? 'MEAN Stack' : ''} agentic AI developer.
 ${mode === 'review'
-      ? 'You are currently in REVIEW MODE. AUDIT the codebase. ONLY use write_file for walkthrough_review_report.md.'
+      ? 'You are currently in REVIEW MODE. AUDIT the codebase. ONLY use write_file for ../agent_reports/walkthrough_review_report.md.'
       : mode === 'analysis'
-        ? 'You are currently in ANALYSIS MODE. SCAN and ANALYZE the codebase. ONLY use write_file for walkthrough_system_analysis_report.md. DO NOT modify source code. 🛑 **STRICT REGULATION**: Do NOT include any folders or files in your report (especially the Tree View) that were not physically found in your scan. NO GHOST FOLDERS allowed.'
+        ? 'You are currently in ANALYSIS MODE. SCAN and ANALYZE the codebase. ONLY use write_file for ../agent_reports/walkthrough_system_analysis_report.md. DO NOT modify source code. 🛑 **STRICT REGULATION**: Do NOT include any folders or files in your report (especially the Tree View) that were not physically found in your scan. NO GHOST FOLDERS allowed.'
         : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}"` : ''}
 ${isFollowAnalysis ? '\n[FOLLOW ANALYSIS] ACTIVE: A System Analysis report is injected into your context. You MUST follow its architecture, module map, and file list strictly. DO NOT use scaffold_project to generate boilerplate; use write_file to fulfill the specific report requirements. IMPORTANT: When translating the Tree View to write_file calls, STRIP any leading "/root" or "/" characters to ensure paths are relative to the CURRENT WORKSPACE ROOT.' : ''}
@@ -178,9 +178,9 @@ ${fastMode
       : `THOUGHT: (done reasoning)\n\nACTION: finish\n\nPARAMETERS: { "response": "Markdown summary." }`}
 
 RULES:
-1. GENERATE mode: SCAN -> READ -> IMPLEMENT -> DOCUMENT (walkthrough.md) -> FINISH.
-2. REVIEW mode: READ all files -> ANALYZE -> WRITE walkthrough_review_report.md -> FINISH with [CODE: OK] or [CODE: NOT OK].
-3. ANALYSIS mode: SCAN -> IDENTIFY STACK -> MAP MODULES -> WRITE walkthrough_system_analysis_report.md -> FINISH with [ANALYSIS: COMPLETE].
+1. GENERATE mode: SCAN -> READ -> IMPLEMENT -> DOCUMENT (../agent_reports/walkthrough.md) -> FINISH.
+2. REVIEW mode: READ all files -> ANALYZE -> WRITE ../agent_reports/walkthrough_review_report.md -> FINISH with [CODE: OK] or [CODE: NOT OK].
+3. ANALYSIS mode: SCAN -> IDENTIFY STACK -> MAP MODULES -> WRITE ../agent_reports/walkthrough_system_analysis_report.md -> FINISH with [ANALYSIS: COMPLETE].
 4. ALWAYS use tools to write files. Never output code blocks in plain text.
 5. JSDoc 3.0 on every method.
 6. Adapt to the project's ACTUAL structure discovered via list_files. DO NOT assume a specific directory layout.
@@ -504,11 +504,11 @@ function summariseResult(action, params, result, isReview) {
     return `Bulk write: ${ok}/${(result?.results || []).length} files written.`;
   }
   if (action === 'write_file') {
-    const isPlan = (params.path || '').endsWith('walkthrough.md');
+    const isPlan = (params.path || '').endsWith('../agent_reports/walkthrough.md');
     return `File written: ${params.path}\n\n` + (
       isReview ? 'Continue your review.' :
         isPlan ? 'DOCUMENTATION SAVED — YOU MAY NOW FINISH.' :
-          'Continue to next file or FINISH with walkthrough.md.'
+          'Continue to next file or FINISH with ../agent_reports/walkthrough.md.'
     );
   }
   if (action === 'replace_in_file') return `Edit applied: ${params.path}\n\n${isReview ? 'Continue.' : 'Continue or FINISH.'}`;
@@ -684,7 +684,7 @@ async function runAgent(opts) {
         const candidateDir = path.join(workspaceDir, entry.name);
 
         // Priority 1: Has a System Analysis report
-        if (fs.existsSync(path.join(candidateDir, 'walkthrough_system_analysis_report.md'))) {
+        if (fs.existsSync(path.join(candidateDir, '../agent_reports/walkthrough_system_analysis_report.md'))) {
           candidate = entry.name;
           console.log(`[DevAgent] AUTO-DETECT: Found Analysis Report in "${entry.name}". Selecting as target.`);
           break;
@@ -794,7 +794,7 @@ async function runAgent(opts) {
 
   // ── POWERFUL WORKFLOW: Langchain Action Roadmap ─────────────────────────
   const isCreationPrompt = /create|new|scaffold|setup|generate/i.test(lastContent);
-  const isResumingAnalysis = isAnalysis && fs.existsSync(path.resolve(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md'));
+  const isResumingAnalysis = isAnalysis && fs.existsSync(path.resolve(effectiveWorkspaceDir, '../agent_reports/walkthrough_system_analysis_report.md'));
   const skipPlanner = isAnalysis || lastContent.includes('[FOLLOW REVIEW]') || lastContent.includes('[FOLLOW ANALYSIS]') || isResumingAnalysis;
 
   if (!isReview && !skipPlanner && (messages.length <= 2 || isCreationPrompt)) {
@@ -820,12 +820,12 @@ async function runAgent(opts) {
 
   if (isFollowAnalysis && !isReview && !alreadyInjected) {
     try {
-      let analysisPath = path.resolve(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md');
+      let analysisPath = path.resolve(effectiveWorkspaceDir, '../agent_reports/walkthrough_system_analysis_report.md');
 
       // Traverse UP the directory tree if not found in the exact target folder
       let searchDir = effectiveWorkspaceDir;
       for (let i = 0; i < 5; i++) {
-        const candidate = path.resolve(searchDir, 'walkthrough_system_analysis_report.md');
+        const candidate = path.resolve(searchDir, '../agent_reports/walkthrough_system_analysis_report.md');
         if (fs.existsSync(candidate)) {
           analysisPath = candidate;
           break;
@@ -837,7 +837,7 @@ async function runAgent(opts) {
 
       // Final fallback to server workspace root just in case
       if (!fs.existsSync(analysisPath)) {
-        analysisPath = path.resolve(workspaceDir, 'walkthrough_system_analysis_report.md');
+        analysisPath = path.resolve(workspaceDir, '../agent_reports/walkthrough_system_analysis_report.md');
       }
 
       if (fs.existsSync(analysisPath)) {
@@ -846,7 +846,7 @@ async function runAgent(opts) {
         const analysisDirective = `[SYSTEM DIRECTIVE: ARCHITECTURAL ADHERENCE]
 ${workflowTag} [FOLLOW ANALYSIS]
 You MUST follow the architecture and module map defined in this System Analysis report.
-DO NOT use scaffold_project; implement the directories and files sequentially using write_file.
+DO NOT use scaffold_project to generate boilerplate; implement the directories and files sequentially using write_file.
 
 REPORT CONTENT:
 ${report}`;
@@ -1016,7 +1016,7 @@ ${report}`;
           const c = (m.content || '').toLowerCase();
           return m.role === 'user' && c.includes('tool result') &&
             ['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'].some(t => c.includes(t)) &&
-            !c.includes('walkthrough.md');
+            !c.includes('../agent_reports/walkthrough.md');
         });
       }
       if (!agentState.planWritten) {
@@ -1024,7 +1024,7 @@ ${report}`;
           const c = (m.content || '').toLowerCase();
           return m.role === 'user' && c.includes('tool result') &&
             ['write_file', 'bulk_write', 'scaffold_project'].some(t => c.includes(t)) &&
-            c.includes('walkthrough.md') && !c.includes('walkthrough_review_report');
+            c.includes('../agent_reports/walkthrough.md') && !c.includes('../agent_reports/walkthrough_review_report');
         });
       }
 
@@ -1039,7 +1039,7 @@ ${report}`;
         prematureFinishCount++;
         console.warn(`[DevAgent] Premature finish (${prematureFinishCount}/3)`);
         if (prematureFinishCount < 3) {
-          const what = !agentState.codeModified ? 'write source code files' : 'write walkthrough.md';
+          const what = !agentState.codeModified ? 'write source code files' : 'write ../agent_reports/walkthrough.md';
           await agentMemory.pushNudge(
             `You called finish too early.\n\n` +
             `1. You still need to: ${what}.\n` +
@@ -1054,7 +1054,7 @@ ${report}`;
 
       // ── Follow-review guard ───────────────────────────────────────────────
       const isFollowReview = history.some(m => (m.content || '').includes('[CODE: NOT OK]'));
-      if (!isReview && isFollowReview && (!history.some(m => (m.content || '').toLowerCase().includes('read_file') && m.content.toLowerCase().includes('walkthrough_review_report.md')) || !agentState.codeModified)) {
+      if (!isReview && isFollowReview && (!history.some(m => (m.content || '').toLowerCase().includes('read_file') && m.content.toLowerCase().includes('../agent_reports/walkthrough_review_report.md')) || !agentState.codeModified)) {
         followReviewNudgeCount++;
         console.warn(`[DevAgent] Follow-review nudge (${followReviewNudgeCount}/3)`);
         if (followReviewNudgeCount >= 3) return { success: false, response: 'Aborted: refused to address [CODE: NOT OK] after 3 nudges.', history };
@@ -1094,9 +1094,8 @@ ${report}`;
           agentState.reportSaved = history.some(m => {
             if (m.role !== 'user') return false;
             const c = (m.content || '').toLowerCase();
-            return c.includes('walkthrough_review_report.md') && (
-              c.includes('file written') || c.includes('file updated') || c.includes('written successfully') ||
-              (c.includes('tool result') && !c.includes('error') && !c.includes('blocked'))
+            return c.includes('../agent_reports/walkthrough_review_report.md') && (
+              c.includes('file written') || c.includes('file updated') || c.includes('tool result (write_file)')
             );
           });
         }
@@ -1109,9 +1108,9 @@ ${report}`;
           await agentMemory.pushNudge(
             `You must write the review report before finishing.\n\n` +
             `1. ACTION: write_file\n` +
-            `2. PARAMETERS: { "path": "walkthrough_review_report.md", "content": "## AGENT Reasoning\\n...\\n## Summary\\n..." }\n\n` +
+            `2. PARAMETERS: { "path": "../agent_reports/walkthrough_review_report.md", "content": "## AGENT Reasoning\n...\n## Summary\n..." }\n\n` +
             `Do this NOW. Include your full audit findings.`,
-            `THOUGHT: I need to save my review findings to walkthrough_review_report.md before I can finish.`
+            `THOUGHT: I need to save my review findings to ../agent_reports/walkthrough_review_report.md before I can finish.`
           );
           if (onStep) onStep({ type: 'status', text: 'Nudging: must write review report first.' });
           continue;
@@ -1216,7 +1215,7 @@ ${report}`;
 
             // Get report content: Prioritize the actual file on disk, fallback to history
             let reportContent = "";
-            const reportPath = path.resolve(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md');
+            const reportPath = path.resolve(effectiveWorkspaceDir, '../agent_reports/walkthrough_system_analysis_report.md');
             if (fs.existsSync(reportPath)) {
               reportContent = fs.readFileSync(reportPath, 'utf8');
 
@@ -1266,7 +1265,7 @@ ${report}`;
                   `FORENSIC AUDIT FAILED:\n${directive}\n` +
                   `1. REMOVE all "Ghost Folders" or "Ghost Files" from your report. Only include what physically exists.\n` +
                   `2. ENSURE the Technology Stack is a 1:1 match with package.json (no extra, no missing).\n` +
-                  `3. UPDATE walkthrough_system_analysis_report.md with the corrected, real-world data immediately via write_file.`,
+                  `3. UPDATE ../agent_reports/walkthrough_system_analysis_report.md with the corrected, real-world data immediately via write_file.`,
                   `THOUGHT: My report failed the forensic guard. I must remove hallucinated folders/libraries and use the real data from my scan.`
                 );
 
@@ -1308,7 +1307,7 @@ ${report}`;
           agentState.planWritten = history.some(m => {
             if (m.role !== 'user' || !m.content) return false;
             const c = m.content.toLowerCase();
-            return (c.includes('walkthrough.md') || c.includes('plan.md')) && (
+            return (c.includes('../agent_reports/walkthrough.md') || c.includes('walkthrough.md') || c.includes('plan.md')) && (
               c.includes('file written') || c.includes('file updated') || c.includes('tool result (write_file)')
             );
           });
@@ -1320,11 +1319,11 @@ ${report}`;
           if (planNudgeCount >= 3) return { success: false, response: 'Generation aborted: refused to write walkthrough.md after 3 nudges.', history };
 
           await agentMemory.pushNudge(
-            `You must write a summary of your implementations to walkthrough.md before finishing.\n\n` +
+            `You must write a summary of your implementations to ../agent_reports/walkthrough.md before finishing.\n\n` +
             `1. ACTION: write_file\n` +
-            `2. PARAMETERS: { "path": "walkthrough.md", "content": "# Project Walkthrough\\n\\n## Changes\\n- Feature X\\n- Fix Y\\n..." }\n\n` +
+            `2. PARAMETERS: { "path": "../agent_reports/walkthrough.md", "content": "# Project Walkthrough\\n\\n## Changes\\n- Feature X\\n- Fix Y\\n..." }\n\n` +
             `This is mandatory for every task. Do it NOW.`,
-            `THOUGHT: I must document my implemented changes in walkthrough.md before I can finish.`
+            `THOUGHT: I must document my implemented changes in ../agent_reports/walkthrough.md before I can finish.`
           );
           if (onStep) onStep({ type: 'status', text: 'Nudging: must write walkthrough.md first.' });
           continue;
@@ -1361,7 +1360,7 @@ ${report}`;
 
       if (isAnalysis && finalMsg.includes('[ANALYSIS: COMPLETE]')) {
         try {
-          const reportPath = path.join(effectiveWorkspaceDir, 'walkthrough_system_analysis_report.md');
+          const reportPath = path.join(effectiveWorkspaceDir, '../agent_reports/walkthrough_system_analysis_report.md');
           if (fs.existsSync(reportPath)) {
             const reportContent = fs.readFileSync(reportPath, 'utf8');
             finalMsg = `${finalMsg}\n\n---\n\n${reportContent}`;
