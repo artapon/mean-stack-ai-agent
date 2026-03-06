@@ -22,6 +22,7 @@ const { InMemoryChatMessageHistory } = require("@langchain/core/chat_history");
 const { HumanMessage, SystemMessage, AIMessage } = require("@langchain/core/messages");
 const fs = require('fs-extra');
 const path = require('path');
+const compressor = require('../utils/compressor');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DEFAULT_WINDOW_K = 50;          // Normal mode: keep last 50 messages
@@ -74,6 +75,9 @@ class AgentMemory {
 
         // Essential messages that survive windowing (nudges, directives, tool results with reports)
         this._essentialMessages = [];
+
+        // Archive for compressed history
+        this._historyArchive = null;
     }
 
     /**
@@ -90,7 +94,13 @@ class AgentMemory {
      * @param {string} content
      */
     async addUserMessage(content) {
-        await this.chatHistory.addMessage(new HumanMessage(content));
+        // AI Compression: Summarize huge inputs (like multi-file uploads/reads) locally
+        let processedContent = content;
+        if (process.env.ENABLE_TRANSFORMERS === 'true' && content.length > 5000) {
+            processedContent = await compressor.smartTruncate(content, 5000);
+        }
+
+        await this.chatHistory.addMessage(new HumanMessage(processedContent));
         this.metadata.totalMessages++;
 
         // Track essential messages
@@ -104,7 +114,13 @@ class AgentMemory {
      * @param {string} content
      */
     async addAIMessage(content) {
-        await this.chatHistory.addMessage(new AIMessage(content));
+        // AI Compression: Summarize huge outputs locally
+        let processedContent = content;
+        if (process.env.ENABLE_TRANSFORMERS === 'true' && content.length > 5000) {
+            processedContent = await compressor.smartTruncate(content, 5000);
+        }
+
+        await this.chatHistory.addMessage(new AIMessage(processedContent));
         this.metadata.totalMessages++;
 
         if (this._isEssential(content, 'assistant')) {
@@ -239,16 +255,39 @@ class AgentMemory {
             const pruned = allMessages.slice(0, allMessages.length - windowSize);
             const recent = allMessages.slice(-windowSize);
 
+            // AUTOMATED COMPRESSION: If transformers are enabled, summarize the pruned portion
+            if (process.env.ENABLE_TRANSFORMERS === 'true' && pruned.length > 5) {
+                try {
+                    const toCompress = pruned.map(m => ({
+                        role: m instanceof AIMessage ? 'assistant' : 'user',
+                        content: m.content
+                    }));
+
+                    // Fire-and-forget: Start compression in background if not already archived
+                    // In a stateless loop, we normally do this synchronously to ensure prompt inclusion
+                    const archiveSummary = await compressor.compressHistory(toCompress);
+                    if (archiveSummary) this._historyArchive = archiveSummary;
+                } catch (e) {
+                    console.warn('[AgentMemory] Compression failed:', e.message);
+                }
+            }
+
             // Collect essential messages from the pruned portion
             const essentialFromPruned = pruned.filter(msg => {
                 const content = msg.content || '';
                 return this._isEssential(content, msg instanceof AIMessage ? 'assistant' : 'user');
             });
 
-            // Combine: essential (pruned) + recent (windowed)
-            windowedMessages = [...essentialFromPruned, ...recent];
+            // Combine: [Archive Summary] + essential (pruned) + recent (windowed)
+            windowedMessages = [];
 
-            console.log(`[AgentMemory] Window applied: ${allMessages.length} → ${windowedMessages.length} messages (window: ${windowSize}, essential: ${essentialFromPruned.length})`);
+            if (this._historyArchive) {
+                windowedMessages.push(new HumanMessage(this._historyArchive));
+            }
+
+            windowedMessages = [...windowedMessages, ...essentialFromPruned, ...recent];
+
+            console.log(`[AgentMemory] Window applied: ${allMessages.length} → ${windowedMessages.length} messages (window: ${windowSize}, essential: ${essentialFromPruned.length}${this._historyArchive ? ', archived' : ''})`);
         }
 
         // Convert LangChain messages

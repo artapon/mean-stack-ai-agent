@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { readFile, writeFile, listFiles, bulkWrite, applyBlueprint, bulkRead, replaceInFile } = require('../tools/filesystem');
 const { scaffoldProject } = require('../tools/scaffolder');
-const { callLangchain, LangchainWorkflow, DevAgentOutputParser, createLangchainTools } = require('./langchain');
+const { callLangchain, LangchainWorkflow, DevAgentOutputParser, createLangchainTools, LangchainPlanner, LangchainAnalysisGuard } = require('./langchain');
 const { logError, logInfo } = require('../utils/logger');
 const { createAgentMemory } = require('./memory');
 
@@ -155,7 +155,10 @@ ${mode === 'review'
         ? 'You are currently in ANALYSIS MODE. SCAN and ANALYZE the codebase. ONLY use write_file for walkthrough_system_analysis_report.md. DO NOT modify source code. 🛑 **STRICT REGULATION**: Do NOT include any folders or files in your report (especially the Tree View) that were not physically found in your scan. NO GHOST FOLDERS allowed.'
         : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}"` : ''}
-${isFollowAnalysis ? '\n[FOLLOW ANALYSIS] ACTIVE: A System Analysis report is injected into your context. You MUST follow its architecture, module map, and file list strictly. DO NOT use scaffold_project to generate boilerplate; use write_file to fulfill the specific report requirements.' : ''}
+${isFollowAnalysis ? '\n[FOLLOW ANALYSIS] ACTIVE: A System Analysis report is injected into your context. You MUST follow its architecture, module map, and file list strictly. DO NOT use scaffold_project to generate boilerplate; use write_file to fulfill the specific report requirements. IMPORTANT: When translating the Tree View to write_file calls, STRIP any leading "/root" or "/" characters to ensure paths are relative to the CURRENT WORKSPACE ROOT.' : ''}
+${process.env.ENABLE_TRANSFORMERS === 'true' ? '\n[LOCAL AI CAPABILITY] ENABLED: The `@xenova/transformers` library is available in the server environment.' : ''}
+
+🛑 **PATH SAFETY WARNING**: NEVER prefix your file paths with "root/". Your current working directory IS the project root. Use "src/app.js" NOT "root/src/app.js". If you use "root/", your action will be REJECTED.
 
 TOOLS:
 ${availableTools}
@@ -186,6 +189,7 @@ RULES:
 9. Single action per response — ONE THOUGHT + ONE ACTION + ONE PARAMETERS block.
 ${fastMode ? '10. FAST MODE: No THOUGHT block at all.' : ''}
 ${autoRequestReview && mode === 'developer' ? '11. Call "request_review" after EVERYTHING else (code, documentation) is done, and BEFORE "finish". This is MANDATORY.' : ''}
+12. RELATIVE PATHS: Always use paths RELATIVE to the workspace root. NEVER start paths with a slash (e.g., use "src/file.js" NOT "/src/file.js" or "/root/src/file.js"). Access to absolute system paths is FORBIDDEN.
 `;
 }
 
@@ -619,13 +623,21 @@ async function runAgent(opts) {
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
   const lastContent = lastUserMsg?.content || '';
 
-  // Mode detection: sticky via history scan
+  // Mode detection: last-one-wins via history scan
   let isReview = false, isAnalysis = false, isFollowAnalysis = false;
+  let modeFound = false;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (m.role === 'user' && typeof m.content === 'string') {
-      if (m.content.includes('[MODE: REVIEW]') || m.content.includes('[CONTINUE REVIEW]')) isReview = true;
-      if (m.content.includes('[MODE: ANALYSIS]') || m.content.includes('[CONTINUE ANALYSIS]')) isAnalysis = true;
+      if (!modeFound) {
+        if (m.content.includes('[MODE: REVIEW]') || m.content.includes('[CONTINUE REVIEW]')) {
+          isReview = true; modeFound = true;
+        } else if (m.content.includes('[MODE: ANALYSIS]') || m.content.includes('[CONTINUE ANALYSIS]')) {
+          isAnalysis = true; modeFound = true;
+        } else if (m.content.includes('[MODE: GENERATE]') || m.content.includes('[MODE: DEVELOPER]')) {
+          modeFound = true; // explicitly switching to developer mode
+        }
+      }
       if (m.content.includes('[FOLLOW ANALYSIS]')) isFollowAnalysis = true;
     }
   }
@@ -657,29 +669,41 @@ async function runAgent(opts) {
   // ── Analysis mode: auto-detect project subfolder if no target pinned ──────
   // When the user launches Analysis without pinning a folder, list_files(".")
   // would scan workspace/ root and save the report there instead of the project.
-  // We scan one level deep in workspaceDir for the first directory that looks
-  // like a real project (has package.json, server.js, app.js, or index.html).
-  if (isAnalysis && !targetFolderName) {
+  // ── Auto-detect project subfolder if no target pinned ───────────────────
+  // If the user hasn't explicitly clicked a folder, we try to find the "active"
+  // project. We look for folders containing package.json or an analysis report.
+  if (!targetFolderName) {
     try {
       const PROJECT_SIGNALS = ['package.json', 'server.js', 'app.js', 'index.html', 'index.js'];
       const entries = fs.readdirSync(workspaceDir, { withFileTypes: true });
       const SKIP_DIRS = new Set(['.git', 'node_modules', '.cache', 'dist', 'build', 'coverage']);
+
+      let candidate = null;
       for (const entry of entries) {
         if (!entry.isDirectory() || SKIP_DIRS.has(entry.name)) continue;
         const candidateDir = path.join(workspaceDir, entry.name);
-        const hasSignal = PROJECT_SIGNALS.some(sig => fs.existsSync(path.join(candidateDir, sig)));
-        if (hasSignal) {
-          effectiveWorkspaceDir = candidateDir;
-          targetFolderName = entry.name;
-          console.log(`[DevAgent] ANALYSIS: Auto-detected project folder: "${entry.name}"`);
+
+        // Priority 1: Has a System Analysis report
+        if (fs.existsSync(path.join(candidateDir, 'walkthrough_system_analysis_report.md'))) {
+          candidate = entry.name;
+          console.log(`[DevAgent] AUTO-DETECT: Found Analysis Report in "${entry.name}". Selecting as target.`);
           break;
         }
+
+        // Priority 2: Has standard project signals (if no P1 found yet)
+        if (!candidate) {
+          const hasSignal = PROJECT_SIGNALS.some(sig => fs.existsSync(path.join(candidateDir, sig)));
+          if (hasSignal) candidate = entry.name;
+        }
       }
-      if (!targetFolderName) {
-        console.warn('[DevAgent] ANALYSIS: No project subfolder auto-detected — scanning workspace root.');
+
+      if (candidate) {
+        effectiveWorkspaceDir = path.join(workspaceDir, candidate);
+        targetFolderName = candidate;
+        console.log(`[DevAgent] AUTO-DETECT: Selected project folder: "${candidate}"`);
       }
     } catch (e) {
-      console.warn('[DevAgent] ANALYSIS: Auto-detect failed:', e.message);
+      console.warn('[DevAgent] Auto-detect failed:', e.message);
     }
   }
 

@@ -4,15 +4,32 @@ const path = require('path');
 // Safety: prevent path traversal outside workspace
 function safePath(inputPath, workspaceDir, allowTraversal = false) {
   const resolvedWorkspace = path.resolve(workspaceDir);
-  // Handle absolute Windows paths natively or strip leading slashes for relative paths
-  const normalizedInput = path.isAbsolute(inputPath) ? inputPath : inputPath.replace(/^[/\\]+/, '');
-  const abs = path.resolve(resolvedWorkspace, normalizedInput);
+
+  // 1. Force string and trim
+  let p = String(inputPath || '').trim();
+
+  // 2. Aggressively strip hallucinated "/root/" or leading slashes
+  // Matches: "/root/", "\root\", "root/", "root\" at the start
+  p = p.replace(/^([/\\]+root[/\\]+|root[/\\]+|[/\\]+)/i, '');
+
+  // 3. Resolve path. On Windows, a leading slash resolves to the drive root.
+  // We want it to be relative to the workspace, so we ensure it's treated as such.
+  const abs = path.resolve(resolvedWorkspace, p);
 
   const isWin = process.platform === 'win32';
   const checkAbs = isWin ? abs.toLowerCase() : abs;
   const checkWork = isWin ? resolvedWorkspace.toLowerCase() : resolvedWorkspace;
 
-  if (!allowTraversal && !checkAbs.startsWith(checkWork)) {
+  // Security: ensure the resolved path is actually UNDER the workspace
+  // We add a trailing separator to prevent "workspace-backup" bypass
+  const workWithSep = checkWork.endsWith(path.sep) ? checkWork : checkWork + path.sep;
+
+  if (!allowTraversal && checkAbs !== checkWork && !checkAbs.startsWith(workWithSep)) {
+    console.error(`[DevAgent] Path validation failed:`);
+    console.error(`  Input: "${inputPath}"`);
+    console.error(`  Cleaned: "${p}"`);
+    console.error(`  Resolved: ${abs}`);
+    console.error(`  Workspace: ${resolvedWorkspace}`);
     throw new Error(`Access denied: "${inputPath}" is outside workspace "${resolvedWorkspace}"`);
   }
   return abs;
@@ -40,6 +57,7 @@ async function writeFile(params, workspaceDir) {
   const lp = String(filePath).toLowerCase();
 
   if (!filePath) return { error: '"path" parameter is required.' };
+
   console.log(`[DevAgent] write_file called - path: "${filePath}", contentLength: ${contentStr.length}`);
 
   // Safety: Prevent "Template Hallucinations" (agent trying to use JS code in markdown)
