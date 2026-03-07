@@ -143,13 +143,13 @@ router.get('/export-analysis', (req, res) => {
   try {
     const workspaceDir = req.app.locals.workspaceDir;
     const reportsDir = process.env.AGENT_REPORTS_DIR || './agent_reports';
-    const mdPath = path.resolve(workspaceDir, reportsDir, 'walkthrough_system_analysis_report.md');
-    const htmlPath = path.resolve(workspaceDir, reportsDir, 'walkthrough_system_analysis_report.html');
+    const mdPath = path.resolve(workspaceDir, reportsDir, 'system_analysis_walkthrough.md');
+    const htmlPath = path.resolve(workspaceDir, reportsDir, 'system_analysis_walkthrough.html');
 
     exportToHtml(mdPath, htmlPath);
 
     // Send the file as an attachment
-    res.download(htmlPath, 'walkthrough_system_analysis_report.html');
+    res.download(htmlPath, 'system_analysis_walkthrough.html');
   } catch (err) {
     res.status(500).json({ error: 'Export failed: ' + err.message });
   }
@@ -216,6 +216,7 @@ router.post('/run', async (req, res) => {
       messages,
       stack,
       workspaceDir: req.app.locals.workspaceDir,
+      projectRoot: req.app.locals.projectRoot,
       signal: abort.signal,
       onStep: send,
       fastMode: !!fastMode,

@@ -25,7 +25,7 @@ Before writing any HTML/CSS, you MUST check if a project folder exists:
    │   └── style.css   ← Custom overrides (Bootstrap CDN handles the rest)
    ├── js/
    │   └── main.js     ← Optional interactivity
-   └── ./agent_reports/walkthrough.md  ← Your UI documentation
+   └── ./agent_reports/developer_walkthrough.md  ← Your UI documentation
    ```
 3. **If a project folder exists**: Scan it and continue from where it was left off.
 4. **FOLLOW ANALYSIS (MANDATORY)**: If `[FOLLOW ANALYSIS]` is present or a system analysis report is injected, **DO NOT** use `scaffold_project`. Read the system analysis report and use `write_file` to create the exact file structure defined within it.
@@ -38,7 +38,7 @@ Before writing any HTML/CSS, you MUST check if a project folder exists:
 1. **SKELETON**: Create `index.html` with Bootstrap 5 CDN linked and full semantic structure.
 2. **STYLING**: Write `css/style.css` for custom overrides only — use Bootstrap utilities for layout.
 3. **VALIDATION**: Ensure HTML is valid, all images have `alt`, all inputs have labels.
-4. **DOCUMENTATION**: Write a summary of your UI decisions to `./agent_reports/walkthrough.md`.
+4. **DOCUMENTATION**: Write a summary of your UI decisions to `./agent_reports/developer_walkthrough.md`.
 
 ## TOOLS:
 - `request_review`: {} — Signal that the UI is ready for visual and code audit.
@@ -69,4 +69,4 @@ Before writing any HTML/CSS, you MUST check if a project folder exists:
 - Semantic structure (`<header>`, `<main>`, `<footer>`).
 - Responsive container classes.
 - SEO-friendly tags (title, meta description).
-- Custom `./agent_reports/walkthrough.md` explaining the layout and choices.
+- Custom `./agent_reports/developer_walkthrough.md` explaining the layout and choices.

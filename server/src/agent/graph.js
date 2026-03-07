@@ -143,6 +143,19 @@ async function executeTool(state, TOOLS) {
     console.log(`[LangGraph] Executing tool: ${action}`);
 
     if (action === "finish") {
+        // Auto-log review feedback for handoff
+        if (config.mode === 'review' && lastAction.response) {
+            const r = lastAction.response;
+            if (r.includes('[CODE: NOT OK]') || r.toLowerCase().includes('issue')) {
+                try {
+                    const lp = path.resolve(config.effectiveWorkspaceDir || process.cwd(), 'agent-handoff.log');
+                    fs.appendFileSync(lp, `\n[${new Date().toLocaleString()}] REVIEWER:\n${r}\n${'-'.repeat(40)}\n`, 'utf-8');
+                    console.log(`[LangGraph] Review handoff logged to: ${lp}`);
+                } catch (e) {
+                    console.warn('[LangGraph] Failed to log review handoff:', e.message);
+                }
+            }
+        }
         return { lastResult: { success: true, message: "Finished" } };
     }
 
@@ -169,23 +182,75 @@ async function executeTool(state, TOOLS) {
     }
 
     try {
-        const result = await toolFunc(parameters, config.effectiveWorkspaceDir);
+        const p = { ...parameters };
+        if (config.targetFolderName) {
+            // Only force flat mode if we are scaffolding INTO the current focused directory
+            if (targetAction === 'scaffold_project' && p.name === config.targetFolderName) p.flat = true;
+
+            const strip = (fp) => {
+                if (!fp || typeof fp !== 'string') return fp;
+                const np = fp.replace(/\\/g, '/'), nt = config.targetFolderName.replace(/\\/g, '/');
+                if (np === nt) return '.';
+                return np.startsWith(nt + '/') ? np.slice(nt.length + 1) : fp;
+            };
+            ['path', 'file', 'filepath', 'filename', 'target'].forEach(k => { if (p[k]) p[k] = strip(p[k]); });
+            if ((targetAction === 'bulk_write' || targetAction === 'apply_blueprint') && Array.isArray(p.files))
+                p.files.forEach(f => ['path', 'file'].forEach(k => { if (f[k]) f[k] = strip(f[k]); }));
+        }
+
+        // Deciding base directory for tool execution
+        // scaffold_project is a special case: if not 'flat', it should create a new folder in the root workspaceDir
+        const toolBaseDir = (targetAction === 'scaffold_project' && !p.flat)
+            ? (config.workspaceDir || config.effectiveWorkspaceDir)
+            : config.effectiveWorkspaceDir;
+
+        const result = await toolFunc(p, toolBaseDir, false, config.projectRoot || config.workspaceDir);
         const resolvedAction = targetAction; // Use the mapped action for state tracking
 
-        // Track state flags
         const newState = {};
-        if (['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'].includes(resolvedAction)) {
-            const p = parameters.path || parameters.file || '';
-            if (p.includes('walkthrough.md') || p.includes('plan.md')) {
+        if (['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project', 'delete_file'].includes(resolvedAction)) {
+            const p = (parameters.path || parameters.file || '').toLowerCase();
+            if (p.includes('developer_walkthrough.md') || p.includes('plan.md')) {
                 newState.planWritten = true;
-            } else if (p.includes('walkthrough_review_report.md') || p.includes('walkthrough_system_analysis_report.md')) {
+            } else if (p.includes('reviewer_walkthrough.md') || p.includes('system_analysis_walkthrough.md')) {
                 newState.reportSaved = true;
             } else {
                 newState.codeModified = true;
             }
         }
-        if (action === 'read_file' && (parameters.path === 'package.json' || parameters.path === 'requirements.txt')) {
+
+        if (resolvedAction === 'list_files' && result.filesList) {
+            const newFiles = result.filesList.map(f => String(f).toLowerCase());
+            newState.discoveredFiles = Array.from(new Set([...(state.agentState.discoveredFiles || []), ...newFiles]));
+        }
+
+        if (resolvedAction === 'replace_in_file' && result.error) {
+            const key = (parameters.path || parameters.file || '').toLowerCase();
+            if (key) {
+                const failCounts = { ...(state.agentState.replaceFailCounts || {}) };
+                failCounts[key] = (failCounts[key] || 0) + 1;
+                newState.replaceFailCounts = failCounts;
+
+                // Provide a helpful snippet of what the file actually contains to help the agent fix its search block
+                if (result.error.toLowerCase().includes('search block was not found')) {
+                    try {
+                        const absPath = path.resolve(config.effectiveWorkspaceDir, key.replace(/^[/\\]+/, ''));
+                        if (fs.existsSync(absPath)) {
+                            const actual = fs.readFileSync(absPath, 'utf-8');
+                            const MAX_CH = 6000;
+                            const snippet = actual.length > MAX_CH ? actual.slice(0, MAX_CH) + '\n...[TRUNCATED]' : actual;
+                            result.currentFileContent = `CURRENT "${key}":\n\`\`\`\n${snippet}\n\`\`\`\n\nSearch block NOT found. Fix whitespace/match or rewrite with write_file.`;
+                        }
+                    } catch (e) { }
+                }
+            }
+        }
+
+        if (resolvedAction === 'read_file' && (parameters.path === 'package.json' || parameters.path === 'requirements.txt')) {
             newState.configRead = true;
+        }
+        if (resolvedAction === 'request_review') {
+            newState.reviewRequested = true;
         }
 
         // Summary formatting
@@ -269,6 +334,11 @@ function router(state) {
             return "nudge_walkthrough_missing";
         }
 
+        // Auto review-request guard (Developer mode)
+        if (config.autoRequestReview && config.mode === 'developer' && !agentState.reviewRequested) {
+            return "nudge_review_missing";
+        }
+
         return "finish";
     }
 
@@ -321,13 +391,13 @@ async function handleNudge(state, type) {
             directive = `You called finish too early. You still need to write source code files and the walkthrough report. Do that NOW, then call finish.`;
             break;
         case "nudge_report_missing":
-            directive = `You must write the review report to ./agent_reports/walkthrough_review_report.md before finishing.`;
+            directive = `You must write the review report to ./agent_reports/reviewer_walkthrough.md before finishing.`;
             break;
         case "nudge_verdict_missing":
             directive = `Your finish response is missing the required verdict ([CODE: OK], [CODE: NOT OK], or [ANALYSIS: COMPLETE]). Include it now.`;
             break;
         case "nudge_walkthrough_missing":
-            directive = `You must write the walkthrough summary to ./agent_reports/walkthrough.md before finishing.`;
+            directive = `You must write the walkthrough summary to ./agent_reports/developer_walkthrough.md before finishing.`;
             break;
         case "nudge_config_missing":
             directive = `You MUST read the project's configuration (e.g., package.json) before finishing.`;
@@ -336,7 +406,14 @@ async function handleNudge(state, type) {
             directive = `The tool you used is not authorized in this mode. Please use only: ${config.allowedTools.join(", ")}`;
             break;
         case "nudge_analysis_missing":
-            directive = `You must write the system analysis report to ./agent_reports/walkthrough_system_analysis_report.md before finishing.`;
+            directive = `You must write the system analysis report to ./agent_reports/system_analysis_walkthrough.md before finishing.`;
+            break;
+        case "nudge_review_missing":
+            directive = `You must call request_review before finishing.\n\n` +
+                `1. ACTION: request_review\n` +
+                `2. PARAMETERS: {}\n\n` +
+                `Call this NOW. Then you may call finish on your NEXT response.`;
+            ack = "THOUGHT: I need to call request_review before I can finish. I will do that now.";
             break;
         case "nudge_format_recovery":
             directive = `Your last response was garbled or merged the THOUGHT/ACTION/PARAMETERS blocks incorrectly. 
@@ -380,6 +457,7 @@ function createAgentGraph(TOOLS) {
         .addNode("nudge_duplicate_loop", (state) => handleNudge(state, "nudge_duplicate_loop"))
         .addNode("nudge_format_recovery", (state) => handleNudge(state, "nudge_format_recovery"))
         .addNode("nudge_general_error", (state) => handleNudge(state, "nudge_general_error"))
+        .addNode("nudge_review_missing", (state) => handleNudge(state, "nudge_review_missing"))
         .addEdge(START, "call_model")
         .addConditionalEdges("call_model", router, {
             "execute_tool": "execute_tool",
@@ -393,6 +471,7 @@ function createAgentGraph(TOOLS) {
             "nudge_duplicate_loop": "nudge_duplicate_loop",
             "nudge_format_recovery": "nudge_format_recovery",
             "nudge_general_error": "nudge_general_error",
+            "nudge_review_missing": "nudge_review_missing",
             "call_model": "call_model",
             "finish": END
         })
@@ -406,7 +485,8 @@ function createAgentGraph(TOOLS) {
         .addEdge("nudge_unauthorized_tool", "call_model")
         .addEdge("nudge_duplicate_loop", "call_model")
         .addEdge("nudge_format_recovery", "call_model")
-        .addEdge("nudge_general_error", "call_model");
+        .addEdge("nudge_general_error", "call_model")
+        .addEdge("nudge_review_missing", "call_model");
 
     return workflow.compile();
 }

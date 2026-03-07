@@ -152,9 +152,9 @@ function getSystemPrompt(mode, targetFolder, fastMode = false, autoRequestReview
 
   return `${skillHeader ? skillHeader + '\n\n---\n\n' : ''}You are an expert ${stack === 'mean_stack' ? 'MEAN Stack' : ''} agentic AI developer.
 ${mode === 'review'
-      ? 'You are currently in REVIEW MODE. AUDIT the codebase. ONLY use write_file for ./agent_reports/walkthrough_review_report.md.'
+      ? 'You are currently in REVIEW MODE. AUDIT the codebase. ONLY use write_file for ./agent_reports/reviewer_walkthrough.md.'
       : mode === 'analysis'
-        ? 'You are currently in ANALYSIS MODE. SCAN and ANALYZE the codebase. ONLY use write_file for ./agent_reports/walkthrough_system_analysis_report.md. DO NOT modify source code. 🛑 **STRICT REGULATION**: Do NOT include any folders or files in your report (especially the Tree View) that were not physically found in your scan. NO GHOST FOLDERS allowed.'
+        ? 'You are currently in ANALYSIS MODE. SCAN and ANALYZE the codebase. ONLY use write_file for ./agent_reports/system_analysis_walkthrough.md. DO NOT modify source code. 🛑 **STRICT REGULATION**: Do NOT include any folders or files in your report (especially the Tree View) that were not physically found in your scan. NO GHOST FOLDERS allowed.'
         : 'Your primary goal is to MODIFY THE FILESYSTEM using tools — never describe code.'}
 ${targetFolder ? `\nCURRENT WORKSPACE ROOT: "${targetFolder}"` : ''}
 ${isFollowAnalysis ? '\n[FOLLOW ANALYSIS] ACTIVE: A System Analysis report is injected into your context. You MUST follow its architecture, module map, and file list strictly. DO NOT use scaffold_project to generate boilerplate; use write_file to fulfill the specific report requirements. IMPORTANT: When translating the Tree View to write_file calls, STRIP any leading "/root" or "/" characters to ensure paths are relative to the CURRENT WORKSPACE ROOT.' : ''}
@@ -180,9 +180,9 @@ ${fastMode
       : `THOUGHT: (done reasoning)\n\nACTION: finish\n\nPARAMETERS: { "response": "Markdown summary." }`}
 
 RULES:
-1. GENERATE mode: SCAN -> READ -> IMPLEMENT -> DOCUMENT (./agent_reports/walkthrough.md) -> FINISH.
-2. REVIEW mode: READ all files -> ANALYZE -> WRITE ./agent_reports/walkthrough_review_report.md -> FINISH with [CODE: OK] or [CODE: NOT OK].
-3. ANALYSIS mode: SCAN -> IDENTIFY STACK -> MAP MODULES -> WRITE ./agent_reports/walkthrough_system_analysis_report.md -> FINISH with [ANALYSIS: COMPLETE].
+1. GENERATE mode: SCAN -> READ -> IMPLEMENT -> DOCUMENT (./agent_reports/developer_walkthrough.md) -> FINISH.
+2. REVIEW mode: READ all files -> ANALYZE -> WRITE ./agent_reports/reviewer_walkthrough.md -> FINISH with [CODE: OK] or [CODE: NOT OK].
+3. ANALYSIS mode: SCAN -> IDENTIFY STACK -> MAP MODULES -> WRITE ./agent_reports/system_analysis_walkthrough.md -> FINISH with [ANALYSIS: COMPLETE].
 4. ALWAYS use tools to write files. Never output code blocks in plain text.
 5. JSDoc 3.0 on every method.
 6. Adapt to the project's ACTUAL structure discovered via list_files. DO NOT assume a specific directory layout.
@@ -506,17 +506,17 @@ function summariseResult(action, params, result, isReview) {
     return `Bulk write: ${ok}/${(result?.results || []).length} files written.`;
   }
   if (action === 'write_file') {
-    const isPlan = (params.path || '').endsWith('./agent_reports/walkthrough.md');
+    const isPlan = (params.path || '').endsWith('./agent_reports/developer_walkthrough.md');
     if (isPlan) {
       if (onStep) onStep({
         type: 'status',
-        text: 'Continue to next file or FINISH with ./agent_reports/walkthrough.md.'
+        text: 'Continue to next file or FINISH with ./agent_reports/developer_walkthrough.md.'
       });
     }
     return `File written: ${params.path}\n\n` + (
       isReview ? 'Continue your review.' :
         isPlan ? 'DOCUMENTATION SAVED — YOU MAY NOW FINISH.' :
-          'Continue to next file or FINISH with ./agent_reports/walkthrough.md.'
+          'Continue to next file or FINISH with ./agent_reports/developer_walkthrough.md.'
     );
   }
   if (action === 'replace_in_file') return `Edit applied: ${params.path}\n\n${isReview ? 'Continue.' : 'Continue or FINISH.'}`;
@@ -626,7 +626,7 @@ function redactForInfoLog(value, maxStrLen = 800) {
  * @returns {Promise<{success:boolean, response:string}>}
  */
 async function runAgent(opts) {
-  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default', selectedModel = null, unlimitedSteps = false, sessionId = null } = opts;
+  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default', selectedModel = null, unlimitedSteps = false, sessionId = null, projectRoot = null } = opts;
 
   const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
   const lastContent = lastUserMsg?.content || '';
@@ -692,11 +692,11 @@ async function runAgent(opts) {
         const candidateDir = path.join(workspaceDir, entry.name);
 
         // Priority 1: Has a System Analysis report
-        if (fs.existsSync(path.join(candidateDir, './agent_reports/walkthrough_system_analysis_report.md'))) {
+        if (fs.existsSync(path.join(candidateDir, './agent_reports/system_analysis_walkthrough.md'))) {
           candidate = entry.name;
           console.log(`[DevAgent] AUTO-DETECT: Found Analysis Report in "${entry.name}". Selecting as target.`);
           effectiveWorkspaceDir = candidateDir;
-          analysisPath = path.join(candidateDir, './agent_reports/walkthrough_system_analysis_report.md');
+          analysisPath = path.join(candidateDir, './agent_reports/system_analysis_walkthrough.md');
           break;
         }
 
@@ -804,7 +804,7 @@ async function runAgent(opts) {
 
   // ── POWERFUL WORKFLOW: Langchain Action Roadmap ─────────────────────────
   const isCreationPrompt = /create|new|scaffold|setup|generate/i.test(lastContent);
-  const isResumingAnalysis = isAnalysis && fs.existsSync(path.resolve(effectiveWorkspaceDir, './agent_reports/walkthrough_system_analysis_report.md'));
+  const isResumingAnalysis = isAnalysis && fs.existsSync(path.resolve(effectiveWorkspaceDir, './agent_reports/system_analysis_walkthrough.md'));
   const skipPlanner = isAnalysis || lastContent.includes('[FOLLOW REVIEW]') || lastContent.includes('[FOLLOW ANALYSIS]') || isResumingAnalysis;
 
   if (!isReview && !skipPlanner && (messages.length <= 2 || isCreationPrompt)) {
@@ -830,12 +830,12 @@ async function runAgent(opts) {
 
   if (isFollowAnalysis && !isReview && !alreadyInjected) {
     try {
-      let analysisPath = path.resolve(effectiveWorkspaceDir, './agent_reports/walkthrough_system_analysis_report.md');
+      let analysisPath = path.resolve(effectiveWorkspaceDir, './agent_reports/system_analysis_walkthrough.md');
 
       // Traverse UP the directory tree if not found in the exact target folder
       let searchDir = effectiveWorkspaceDir;
       for (let i = 0; i < 5; i++) {
-        const candidate = path.resolve(searchDir, './agent_reports/walkthrough_system_analysis_report.md');
+        const candidate = path.resolve(searchDir, './agent_reports/system_analysis_walkthrough.md');
         if (fs.existsSync(candidate)) {
           analysisPath = candidate;
           break;
@@ -847,7 +847,7 @@ async function runAgent(opts) {
 
       // Final fallback to server workspace root just in case
       if (!fs.existsSync(analysisPath)) {
-        analysisPath = path.resolve(workspaceDir, './agent_reports/walkthrough_system_analysis_report.md');
+        analysisPath = path.resolve(workspaceDir, './agent_reports/system_analysis_walkthrough.md');
       }
 
       if (fs.existsSync(analysisPath)) {
@@ -1026,7 +1026,7 @@ ${report}`;
           const c = (m.content || '').toLowerCase();
           return m.role === 'user' && c.includes('tool result') &&
             ['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'].some(t => c.includes(t)) &&
-            !c.includes('./agent_reports/walkthrough.md');
+            !c.includes('developer_walkthrough.md');
         });
       }
       if (!agentState.planWritten) {
@@ -1034,7 +1034,7 @@ ${report}`;
           const c = (m.content || '').toLowerCase();
           return m.role === 'user' && c.includes('tool result') &&
             ['write_file', 'bulk_write', 'scaffold_project'].some(t => c.includes(t)) &&
-            c.includes('./agent_reports/walkthrough.md') && !c.includes('./agent_reports/walkthrough_review_report');
+            c.includes('./agent_reports/developer_walkthrough.md');
         });
       }
 
@@ -1049,7 +1049,7 @@ ${report}`;
         prematureFinishCount++;
         console.warn(`[DevAgent] Premature finish (${prematureFinishCount}/3)`);
         if (prematureFinishCount < 3) {
-          const what = !agentState.codeModified ? 'write source code files' : 'write ./agent_reports/walkthrough.md';
+          const what = !agentState.codeModified ? 'write source code files' : 'write ./agent_reports/developer_walkthrough.md';
           if (planNudgeCount < 3) {
             console.warn(`[DevAgent] ${what} nudge (${planNudgeCount}/3)`);
           }
@@ -1067,13 +1067,13 @@ ${report}`;
 
       // ── Follow-review guard ───────────────────────────────────────────────
       const isFollowReview = history.some(m => (m.content || '').includes('[CODE: NOT OK]'));
-      if (!isReview && isFollowReview && (!history.some(m => (m.content || '').toLowerCase().includes('read_file') && m.content.toLowerCase().includes('./agent_reports/walkthrough_review_report.md')) || !agentState.codeModified)) {
+      if (!isReview && isFollowReview && (!history.some(m => (m.content || '').toLowerCase().includes('read_file') && m.content.toLowerCase().includes('./agent_reports/reviewer_walkthrough.md')) || !agentState.codeModified)) {
         followReviewNudgeCount++;
         console.warn(`[DevAgent] Follow-review nudge (${followReviewNudgeCount}/3)`);
         if (followReviewNudgeCount >= 3) return { success: false, response: 'Aborted: refused to address [CODE: NOT OK] after 3 nudges.', history };
         await agentMemory.pushNudge(
           `The reviewer issued [CODE: NOT OK].\n\n` +
-          `1. Call ACTION: read_file with walkthrough_review_report.md\n` +
+          `1. Call ACTION: read_file with reviewer_walkthrough.md\n` +
           `2. Fix every issue listed.\n` +
           `3. Only then call finish.`,
           `THOUGHT: The reviewer rejected my code. I must read the report and fix the issues.`
@@ -1107,7 +1107,7 @@ ${report}`;
           agentState.reportSaved = history.some(m => {
             if (m.role !== 'user') return false;
             const c = (m.content || '').toLowerCase();
-            return c.includes('./agent_reports/walkthrough_review_report.md') && (
+            return c.includes('./agent_reports/reviewer_walkthrough.md') && (
               c.includes('file written') || c.includes('file updated') || c.includes('tool result (write_file)')
             );
           });
@@ -1121,9 +1121,9 @@ ${report}`;
           await agentMemory.pushNudge(
             `You must write the review report before finishing.\n\n` +
             `1. ACTION: write_file\n` +
-            `2. PARAMETERS: { "path": "./agent_reports/walkthrough_review_report.md", "content": "## AGENT Reasoning\n...\n## Summary\n..." }\n\n` +
+            `2. PARAMETERS: { "path": "./agent_reports/reviewer_walkthrough.md", "content": "## AGENT Reasoning\\n...\\n## Summary\\n..." }\n\n` +
             `Do this NOW. Include your full audit findings.`,
-            `THOUGHT: I need to save my review findings to ./agent_reports/walkthrough_review_report.md before I can finish.`
+            `THOUGHT: I need to save my review findings to ./agent_reports/reviewer_walkthrough.md before I can finish.`
           );
           if (onStep) onStep({ type: 'status', text: 'Nudging: must write review report first.' });
           continue;
@@ -1178,7 +1178,7 @@ ${report}`;
             const m = history[i];
             if (m.role === 'assistant' && m.content) {
               const cUpper = m.content.toUpperCase();
-              if (cUpper.includes('WRITE_FILE') && cUpper.includes('WALKTHROUGH_SYSTEM_ANALYSIS_REPORT.MD')) {
+              if (cUpper.includes('WRITE_FILE') && cUpper.includes('SYSTEM_ANALYSIS_WALKTHROUGH.MD')) {
                 const hasTree = cUpper.includes('TREE VIEW');
                 const hasTech = cUpper.includes('TECHNOLOGY STACK');
                 const hasConventions = cUpper.includes('CONVENTIONS');
@@ -1228,7 +1228,7 @@ ${report}`;
 
             // Get report content: Prioritize the actual file on disk, fallback to history
             let reportContent = "";
-            const reportPath = path.resolve(effectiveWorkspaceDir, './agent_reports/walkthrough_system_analysis_report.md');
+            const reportPath = path.resolve(workspaceDir, './agent_reports/system_analysis_walkthrough.md');
             if (fs.existsSync(reportPath)) {
               reportContent = fs.readFileSync(reportPath, 'utf8');
 
@@ -1246,7 +1246,7 @@ ${report}`;
             } else {
               for (let i = history.length - 1; i >= 0; i--) {
                 const m = history[i];
-                if (m.role === 'assistant' && (m.content || '').toUpperCase().includes('WALKTHROUGH_SYSTEM_ANALYSIS_REPORT.MD')) {
+                if (m.role === 'assistant' && (m.content || '').toUpperCase().includes('SYSTEM_ANALYSIS_WALKTHROUGH.MD')) {
                   reportContent = m.content;
                   break;
                 }
@@ -1278,7 +1278,7 @@ ${report}`;
                   `FORENSIC AUDIT FAILED:\n${directive}\n` +
                   `1. REMOVE all "Ghost Folders" or "Ghost Files" from your report. Only include what physically exists.\n` +
                   `2. ENSURE the Technology Stack is a 1:1 match with package.json (no extra, no missing).\n` +
-                  `3. UPDATE ./agent_reports/walkthrough_system_analysis_report.md with the corrected, real-world data immediately via write_file.`,
+                  `3. UPDATE ./agent_reports/system_analysis_walkthrough.md with the corrected, real-world data immediately via write_file.`,
                   `THOUGHT: My report failed the forensic guard. I must remove hallucinated folders/libraries and use the real data from my scan.`
                 );
 
@@ -1320,7 +1320,7 @@ ${report}`;
           agentState.planWritten = history.some(m => {
             if (m.role !== 'user' || !m.content) return false;
             const c = m.content.toLowerCase();
-            return (c.includes('./agent_reports/walkthrough.md') || c.includes('walkthrough.md') || c.includes('plan.md')) && (
+            return (c.includes('./agent_reports/developer_walkthrough.md') || c.includes('developer_walkthrough.md') || c.includes('plan.md')) && (
               c.includes('file written') || c.includes('file updated') || c.includes('tool result (write_file)')
             );
           });
@@ -1329,16 +1329,16 @@ ${report}`;
         if (!agentState.planWritten) {
           planNudgeCount++;
           console.warn(`[DevAgent] Walkthrough missing (${planNudgeCount}/3)`);
-          if (planNudgeCount >= 3) return { success: false, response: 'Generation aborted: refused to write walkthrough.md after 3 nudges.', history };
+          if (planNudgeCount >= 3) return { success: false, response: 'Generation aborted: refused to write developer_walkthrough.md after 3 nudges.', history };
 
           await agentMemory.pushNudge(
-            `You must write a summary of your implementations to ./agent_reports/walkthrough.md before finishing.\n\n` +
+            `You must write a summary of your implementations to ./agent_reports/developer_walkthrough.md before finishing.\n\n` +
             `1. ACTION: write_file\n` +
-            `2. PARAMETERS: { "path": "./agent_reports/walkthrough.md", "content": "# Project Walkthrough\\n\\n## Changes\\n- Feature X\\n- Fix Y\\n..." }\n\n` +
+            `2. PARAMETERS: { "path": "./agent_reports/developer_walkthrough.md", "content": "# Project Walkthrough\\n\\n## Changes\\n- Feature X\\n- Fix Y\\n..." }\n\n` +
             `This is mandatory for every task. Do it NOW.`,
-            `THOUGHT: I must document my implemented changes in ./agent_reports/walkthrough.md before I can finish.`
+            `THOUGHT: I must document my implemented changes in ./agent_reports/developer_walkthrough.md before I can finish.`
           );
-          if (onStep) onStep({ type: 'status', text: 'Nudging: must write walkthrough.md first.' });
+          if (onStep) onStep({ type: 'status', text: 'Nudging: must write developer_walkthrough.md first.' });
           continue;
         }
       }
@@ -1373,7 +1373,7 @@ ${report}`;
 
       if (isAnalysis && finalMsg.includes('[ANALYSIS: COMPLETE]')) {
         try {
-          const reportPath = path.join(effectiveWorkspaceDir, './agent_reports/walkthrough_system_analysis_report.md');
+          const reportPath = path.join(workspaceDir, './agent_reports/system_analysis_walkthrough.md');
           if (fs.existsSync(reportPath)) {
             const reportContent = fs.readFileSync(reportPath, 'utf8');
             finalMsg = `${finalMsg}\n\n---\n\n${reportContent}`;
@@ -1427,12 +1427,12 @@ ${report}`;
       let modeLabel = '';
 
       if (isReview) {
-        ok = ['write_file', 'replace_in_file'].includes(action) && /walkthrough_review_report\.md$/i.test(ap);
-        allowedPath = 'walkthrough_review_report.md';
+        ok = ['write_file', 'replace_in_file'].includes(action) && /reviewer_walkthrough\.md$/i.test(ap);
+        allowedPath = 'reviewer_walkthrough.md';
         modeLabel = 'REVIEW';
       } else if (isAnalysis) {
-        ok = ['write_file', 'replace_in_file'].includes(action) && /walkthrough_system_analysis_report\.md$/i.test(ap);
-        allowedPath = 'walkthrough_system_analysis_report.md';
+        ok = ['write_file', 'replace_in_file'].includes(action) && /system_analysis_walkthrough\.md$/i.test(ap);
+        allowedPath = 'system_analysis_walkthrough.md';
         modeLabel = 'ANALYSIS';
       }
 
@@ -1510,7 +1510,7 @@ ${report}`;
 
         // REPAIR: Forensic reports often get written with escaped newlines (\\n) by certain models.
         // Ratio check: if escaped \n count exceeds real \n count, repair before writing.
-        if (lp.includes('walkthrough_system_analysis_report.md') && p.content.includes('\\n')) {
+        if (lp.includes('system_analysis_walkthrough.md') && p.content.includes('\\n')) {
           const wEscaped = (p.content.match(/\\n/g) || []).length;
           const wReal = (p.content.match(/\n/g) || []).length;
           if (wEscaped > wReal) {
@@ -1523,7 +1523,7 @@ ${report}`;
       // Deciding base directory for tool execution
       // scaffold_project is a special case: if not 'flat', it should create a new folder in the root workspaceDir
       const toolBaseDir = (action === 'scaffold_project' && !p.flat) ? workspaceDir : effectiveWorkspaceDir;
-      result = await toolFn(p, toolBaseDir);
+      result = await toolFn(p, toolBaseDir, false, projectRoot || workspaceDir);
 
       if (action === 'list_files' && result.filesList) {
         console.log(`[DevAgent] listed ${result.filesList.length} files`);
@@ -1547,10 +1547,10 @@ ${report}`;
             console.log('[DevAgent] agentState.configRead = true');
           }
         } else if (writeTools.includes(action)) {
-          if (lp.includes('walkthrough_review_report.md') || lp.includes('walkthrough_system_analysis_report.md')) {
+          if (lp.includes('reviewer_walkthrough.md') || lp.includes('system_analysis_walkthrough.md')) {
             agentState.reportSaved = true;
             console.log('[DevAgent] agentState.reportSaved = true');
-          } else if (lp.includes('walkthrough.md')) {
+          } else if (lp.includes('developer_walkthrough.md')) {
             agentState.planWritten = true;
             console.log('[DevAgent] agentState.planWritten = true');
           } else {
@@ -1673,7 +1673,7 @@ ${report}`;
  * Alternative agent execution loop using LangGraph.
  */
 async function runAgentGraph(opts) {
-  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default', selectedModel = null, unlimitedSteps = false, sessionId = null } = opts;
+  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default', selectedModel = null, unlimitedSteps = false, sessionId = null, projectRoot = null } = opts;
 
   // Initialize flags and state (mostly copied from runAgent for parity)
   let isReview = false, isAnalysis = false;
@@ -1685,6 +1685,53 @@ async function runAgentGraph(opts) {
   }
   const mode = isReview ? 'review' : (isAnalysis ? 'analysis' : 'developer');
 
+  // Target folder resolution: scan history (from latest to oldest) for [TARGET FOLDER: XXX]
+  let effectiveWorkspaceDir = workspaceDir, targetFolderName = '';
+  let targetMatch = null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === 'user' && typeof m.content === 'string') {
+      targetMatch = m.content.match(/\[TARGET FOLDER:\s*([^\]]+)\]/);
+      if (targetMatch) break;
+    }
+  }
+
+  if (targetMatch) {
+    const tp = targetMatch[1].trim();
+    const res = path.isAbsolute(tp) ? tp : path.resolve(workspaceDir, tp.replace(/^[\/\\]+/, ''));
+    if (tp && tp !== '.') {
+      effectiveWorkspaceDir = res; targetFolderName = tp;
+      console.log(`[DevAgent-Graph] TARGET FOLDER (from history): "${tp}"`);
+    }
+  }
+
+  // Project auto-detection if no target pinned
+  if (!targetFolderName) {
+    try {
+      const PROJECT_SIGNALS = ['package.json', 'server.js', 'app.js', 'index.html', 'index.js'];
+      const entries = fs.readdirSync(workspaceDir, { withFileTypes: true });
+      const SKIP_DIRS = new Set(['.git', 'node_modules', '.cache', 'dist', 'build', 'coverage']);
+
+      let candidate = null;
+      for (const entry of entries) {
+        if (!entry.isDirectory() || SKIP_DIRS.has(entry.name)) continue;
+        const candidateDir = path.join(workspaceDir, entry.name);
+        if (PROJECT_SIGNALS.some(sig => fs.existsSync(path.join(candidateDir, sig)))) {
+          candidate = entry.name;
+          break;
+        }
+      }
+
+      if (candidate) {
+        effectiveWorkspaceDir = path.join(workspaceDir, candidate);
+        targetFolderName = candidate;
+        console.log(`[DevAgent-Graph] AUTO-DETECT: Selected project folder: "${candidate}"`);
+      }
+    } catch (e) {
+      console.warn('[DevAgent-Graph] Auto-detect failed:', e.message);
+    }
+  }
+
   // Model resolution
   let modelConfig = {};
   try {
@@ -1695,16 +1742,20 @@ async function runAgentGraph(opts) {
   const resolvedModel = (isReview ? modelConfig.review : (isAnalysis ? (modelConfig.analysis || modelConfig.review) : modelConfig.dev))
     || selectedModel || process.env.LM_STUDIO_MODEL || modelConfig.global || 'openai/gpt-oss-20b';
 
-  const systemPrompt = getSystemPrompt(mode, '', fastMode, autoRequestReview, stack, false);
+  const systemPrompt = getSystemPrompt(mode, targetFolderName, fastMode, autoRequestReview, stack, false);
 
   const config = {
     mode,
     resolvedModel,
     systemPrompt,
     fastMode,
-    effectiveWorkspaceDir: workspaceDir,
+    targetFolderName,
+    effectiveWorkspaceDir,
+    workspaceDir,
+    projectRoot,
     maxSteps: Number(process.env.AGENT_MAX_STEPS) || 50,
     allowedTools: getToolsForMode(mode).map(t => t.name),
+    autoRequestReview,
     onStep // Pass streaming callback to graph nodes
   };
 
@@ -1730,10 +1781,15 @@ async function runAgentGraph(opts) {
   const initialState = {
     messages: lcMessages,
     agentState: {
-      reportSaved: hasInHistory(['walkthrough_review_report.md', 'walkthrough_system_analysis_report.md']),
+      reportSaved: hasInHistory(['reviewer_walkthrough.md', 'system_analysis_walkthrough.md']),
       configRead: hasInHistory(['package.json', 'requirements.txt'], ['tool result', 'content:', 'bytes:']),
       codeModified: hasInHistory(['.js', '.ts', '.html', '.css', '.vue']),
-      planWritten: hasInHistory(['walkthrough.md', 'plan.md']),
+      planWritten: hasInHistory(['developer_walkthrough.md', 'plan.md']),
+      reviewRequested: hasInHistory(['request_review'], ['tool result', 'logged']),
+      reviewLoopCount: messages.filter(m => (m.content || '').includes('[CODE: NOT OK]')).length,
+      discoveredFiles: [],
+      replaceFailCounts: {},
+      hallucinationVerified: false
     },
     config,
     step: 0
@@ -1755,7 +1811,19 @@ async function runAgentGraph(opts) {
 
     // Extract final response
     const lastMsg = finalState.messages[finalState.messages.length - 1];
-    const response = lastMsg instanceof AIMessage ? lastMsg.content : "Task completed.";
+    let response = lastMsg instanceof AIMessage ? lastMsg.content : "Task completed.";
+
+    if (isAnalysis && response.includes('[ANALYSIS: COMPLETE]')) {
+      try {
+        const reportPath = path.join(workspaceDir, './agent_reports/system_analysis_walkthrough.md');
+        if (fs.existsSync(reportPath)) {
+          const reportContent = fs.readFileSync(reportPath, 'utf8');
+          response = `${response}\n\n---\n\n${reportContent}`;
+        }
+      } catch (e) {
+        console.warn('[DevAgent-Graph] Failed to read analysis report for final response:', e.message);
+      }
+    }
 
     // Convert back to role/content history for the client
     const history = finalState.messages.map(m => ({

@@ -1078,7 +1078,7 @@ section {
     [`${name}/js/main.js`]: `// Custom JS for ${name}
 console.log('Landing page loaded');
 `,
-    [`./agent_reports/walkthrough.md`]: `# ${name} - UI/UX Documentation\n\n## Objective\nResponsive landing page built with Bootstrap 5.\n\n## Structure\n- \`index.html\`: Semantic HTML5 structure with Bootstrap integration.\n- \`css/style.css\`: Custom styling overrides.\n- \`js/main.js\`: Frontend interactivity.\n`
+    [`./agent_reports/developer_walkthrough.md`]: `# ${name} - UI/UX Documentation\n\n## Objective\nResponsive landing page built with Bootstrap 5.\n\n## Structure\n- \`index.html\`: Semantic HTML5 structure with Bootstrap integration.\n- \`css/style.css\`: Custom styling overrides.\n- \`js/main.js\`: Frontend interactivity.\n`
   };
 }
 

@@ -17,9 +17,17 @@ app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json({ limit: '10mb' }));
 
 // ── Workspace ────────────────────────────────────────────────────────────────
-const workspaceDir = path.resolve(process.env.WORKSPACE_DIR || 'd:\\Projects\\devagent\\workspace');
+// Anchor relative paths to the project root (the directory above 'server')
+const projectRoot = path.resolve(__dirname, '../../');
+const workspaceDir = path.isAbsolute(process.env.WORKSPACE_DIR || '')
+  ? process.env.WORKSPACE_DIR
+  : path.resolve(projectRoot, process.env.WORKSPACE_DIR || 'workspace');
+
 fs.ensureDirSync(workspaceDir);
 app.locals.workspaceDir = workspaceDir;
+app.locals.projectRoot = projectRoot;
+console.log(`[Server] Project Root: ${projectRoot}`);
+console.log(`[Server] Workspace   : ${workspaceDir}`);
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/agent', agentRoutes);

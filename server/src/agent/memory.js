@@ -473,8 +473,9 @@ class AgentMemory {
         if (!content) return false;
         const c = content.toLowerCase();
         return (
-            c.includes('walkthrough_review_report') ||
-            c.includes('walkthrough_system_analysis_report') ||
+            c.includes('reviewer_walkthrough') ||
+            c.includes('system_analysis_walkthrough') ||
+            c.includes('developer_walkthrough') ||
             c.includes('request_review') ||
             c.startsWith('[system directive]') ||
             c.startsWith('[format recovery]') ||

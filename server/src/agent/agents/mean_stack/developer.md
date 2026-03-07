@@ -16,16 +16,16 @@ You are in **GENERATE MODE**. Your job is to BUILD production-quality code using
 
 ## BUILD-THEN-DOCUMENT
 1. **SEQUENTIAL IMPLEMENTATION**: Proceed to write your source files **one by one**.
-2. **DOCUMENTATION**: *After* all source files are successfully written, compile a summary of your actions and write them to `./agent_reports/walkthrough.md`.  
-3. **REQUEST REVIEW (MANDATORY)**: If the system has enabled **AUTO REVIEW REQUEST** (Rule 14 in system prompt), you **MUST** call `request_review` exactly once after writing `./agent_reports/walkthrough.md`, but BEFORE calling `finish`.
+2. **DOCUMENTATION**: *After* all source files are successfully written, compile a summary of your actions and write them to `./agent_reports/developer_walkthrough.md`.  
+3. **REQUEST REVIEW (MANDATORY)**: If the system has enabled **AUTO REVIEW REQUEST** (Rule 14 in system prompt), you **MUST** call `request_review` exactly once after writing `./agent_reports/developer_walkthrough.md`, but BEFORE calling `finish`.
 4. **FOLLOW REVIEW (MANDATORY)**: If `[FOLLOW REVIEW]` or `[CODE: NOT OK]` is in the prompt:
-    - **FIRST ACTION**: You **MUST** call `read_file` on `./agent_reports/walkthrough_review_report.md` immediately. 
-    - **MANDATORY**: After you have addressed **EVERY SINGLE ISSUE** identified in the report with actual file edits, you **MUST** update `./agent_reports/walkthrough.md` and then call `request_review` immediately.
+    - **FIRST ACTION**: You **MUST** call `read_file` on `./agent_reports/reviewer_walkthrough.md` immediately. 
+    - **MANDATORY**: After you have addressed **EVERY SINGLE ISSUE** identified in the report with actual file edits, you **MUST** update `./agent_reports/developer_walkthrough.md` and then call `request_review` immediately.
     - **NO SKIPPING**: Even minor issues MUST be addressed. Address the report contents FIRST before adding any new features.
 5. **FOLLOW ANALYSIS (MANDATORY)**: If `[FOLLOW ANALYSIS]` is in the prompt or a System Analysis report is injected:
     - **NO SCAFFOLDING**: Do **NOT** use `scaffold_project`.
     - **STRICT BLUEPRINT**: Implement the exact folder structure and files listed in the provided System Analysis report using `write_file` sequentially.
-    - **ACCURACY**: Your `./agent_reports/walkthrough.md` MUST exactly match the files you actually wrote.
+    - **ACCURACY**: Your `./agent_reports/developer_walkthrough.md` MUST exactly match the files you actually wrote.
 6. **NEVER STOP EARLY**: call `finish` ONLY after all above steps are done.
 
 ---
@@ -75,10 +75,10 @@ When `[WORKFLOW: CREATE]` is detected:
 When `[WORKFLOW: UPDATE]` is detected:
 1. **SCAN**: `list_files` and `bulk_read` to understand current state.
 2. **CONTEXT**: If `[FOLLOW REVIEW]` or `[CODE: NOT OK]` is present:
-    - **MANDATORY**: You **MUST** call `read_file` on `./agent_reports/walkthrough_review_report.md` and `agent-handoff.log` (if it exists) first.
+    - **MANDATORY**: You **MUST** call `read_file` on `./agent_reports/reviewer_walkthrough.md` and `agent-handoff.log` (if it exists) first.
     - **TASK**: Treat the Reviewer's report as your primary directive. Every 'NOT OK' point must be converted into a code fix.
 3. **IMPLEMENT**: **Write file by file**. Call `write_file` or `replace_in_file` for each individual file in sequence.
-4. **DOCUMENT**: Update `./agent_reports/walkthrough.md` **LAST** with the final list of changes.
+4. **DOCUMENT**: Update `./agent_reports/developer_walkthrough.md` **LAST** with the final list of changes.
 
 ---
 
@@ -149,7 +149,7 @@ src/
 ---
 
 ## Every Generated Project Must Include
-- `./agent_reports/walkthrough.md` — objective, file list, endpoints, env vars, and full detailed description.
+- `./agent_reports/developer_walkthrough.md` — objective, file list, endpoints, env vars, and full detailed description.
 - `package.json` with `dev` and `start` scripts.
 - `.env.example` with all required keys.
 - **JSDoc 3.0** for all methods (`@param`, `@returns`, descriptions).

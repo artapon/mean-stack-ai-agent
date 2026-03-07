@@ -408,7 +408,7 @@
             <div v-if="msg.text" class="msg-bubble-container">
               <div v-if="msg.role === 'assistant' && !msg.streaming" class="msg-header-actions">
                 <button 
-                  v-if="agentMode === 'analysis' || (msg.text && msg.text.includes('walkthrough_system_analysis_report.md'))" 
+                  v-if="agentMode === 'analysis' || (msg.text && msg.text.includes('system_analysis_walkthrough.md'))" 
                   class="msg-action-btn export-btn" 
                   @click="exportAnalysis" 
                   title="Export to HTML"
@@ -810,7 +810,7 @@ async function send(text, isAutoHandoff = false) {
             if (ev.type === 'tool_call' && ev.tool === 'write_file') {
               const p = ev.parameters || {};
               const targetPath = String(p.path || p.file || '').toLowerCase();
-              if (targetPath.endsWith('walkthrough_review_report.md') || targetPath.endsWith('walkthrough_system_analysis_report.md')) {
+              if (targetPath.endsWith('reviewer_walkthrough.md') || targetPath.endsWith('system_analysis_walkthrough.md')) {
                 console.log('[DevAgent] 🛠 Report saving initiated:', targetPath);
                 wasReportSaved = true;
               }
@@ -854,7 +854,7 @@ async function send(text, isAutoHandoff = false) {
             if (act.tool === 'write_file' || act.tool === 'bulk_write') {
               const p = act.parameters || {};
               const targetPath = String(p.path || p.file || '').toLowerCase();
-              if (targetPath.endsWith('walkthrough_review_report.md') || targetPath.endsWith('walkthrough_system_analysis_report.md')) sessionReportSaved = true;
+              if (targetPath.endsWith('reviewer_walkthrough.md') || targetPath.endsWith('system_analysis_walkthrough.md')) sessionReportSaved = true;
             }
           }
         });
@@ -915,9 +915,9 @@ async function send(text, isAutoHandoff = false) {
         send(`[WORKFLOW: UPDATE] [FOLLOW REVIEW] [CODE: NOT OK]
 The reviewer has rejected the current implementation.
 You are now in a HARD LOCK. You MUST:
-1. Read "walkthrough_review_report.md" immediately.
-2. Perform surgical fixes for EVERY identified issue.
-3. Update "walkthrough.md" with your changes.
+1. Read "reviewer_walkthrough.md" immediately.
+2. Fix the issues mentioned in the report.
+3. Update "developer_walkthrough.md" with your changes.
 4. MANDATORY: Call "request_review" to hand back to the reviewer.
 5. ONLY then call "finish".`, true);
       }, 1000);
@@ -1029,7 +1029,7 @@ const exportAnalysis = async () => {
     const url = '/api/agent/export-analysis';
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'walkthrough_system_analysis_report.html');
+    link.setAttribute('download', 'system_analysis_walkthrough.html');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1102,15 +1102,15 @@ function applyEvent(ev, idx) {
     if (inReview && ev.tool && WRITE_TOOLS.has(ev.tool)) return
     msg.activity = [...msg.activity, { type: 'error', text: `${ev.tool}: ${ev.error}` }]
   } else if (ev.type === 'response') {
-    const hasWrittenDoc = msg.activity?.some(a => a.type === 'tool' && a.tool === 'write_file' && (a.detail?.includes('walkthrough.md') || a.detail?.includes('implementation.md') || a.detail?.includes('walkthrough_review_report.md')));
+    const hasWrittenDoc = msg.activity?.some(a => a.type === 'tool' && a.tool === 'write_file' && (a.detail?.includes('developer_walkthrough.md') || a.detail?.includes('implementation.md') || a.detail?.includes('reviewer_walkthrough.md')));
     
     // Final sync
     let finalContent = ev.content || '';
     if (hasWrittenDoc && !finalContent.includes('✅')) {
        if (inReview) {
-         finalContent += `\n\n---\n**✅ Code Audit Complete.** The \`walkthrough_review_report.md\` has been successfully updated.`;
-       } else {
-         finalContent += `\n\n---\n**✅ AI Generation Complete.** The \`walkthrough.md\` report has been successfully updated at the project root.`;
+         finalContent += `\n\n---\n**✅ Code Audit Complete.** The \`reviewer_walkthrough.md\` has been successfully updated.`;
+       } else if (msg.activity?.some(a => a.type === 'tool' && a.tool === 'write_file' && a.detail?.includes('developer_walkthrough.md'))) {
+         finalContent += `\n\n---\n**✅ AI Generation Complete.** The \`developer_walkthrough.md\` report has been successfully updated at the project root.`;
        }
     }
 

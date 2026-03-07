@@ -2,23 +2,24 @@ const fs = require('fs-extra');
 const path = require('path');
 
 // Safety: prevent path traversal outside workspace
-function safePath(inputPath, workspaceDir, allowTraversal = false) {
+function safePath(inputPath, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
   const resolvedWorkspace = path.resolve(workspaceDir);
+  const reportsRoot = rootWorkspaceDir ? path.resolve(rootWorkspaceDir) : resolvedWorkspace;
 
   // 1. Force string and trim
   let p = String(inputPath || '').trim();
 
-  // 2. Aggressively strip hallucinated "/root/" or leading slashes
-  // Matches: "/root/", "\root\", "root/", "root\" at the start
-  p = p.replace(/^([/\\]+root[/\\]+|root[/\\]+|[/\\]+)/i, '');
+  // 2. Aggressively strip hallucinated "/root/", leading slashes, or "./"
+  // Matches: "/root/", "root/", "/", "./" at the start
+  p = p.replace(/^([/\\]+root[/\\]+|root[/\\]+|[/\\]+|\.[/\\]+)/i, '');
 
   // 3. Special case: allow centralized reports directory
   const reportsDir = process.env.AGENT_REPORTS_DIR || './agent_reports';
   const isAgentReports = p.toLowerCase().startsWith(reportsDir.toLowerCase() + '/') || p.toLowerCase() === reportsDir.toLowerCase();
 
   if (isAgentReports) {
-    // Resolve to the configured reports directory
-    const agentReportsDir = path.resolve(resolvedWorkspace, reportsDir);
+    // Resolve to the configured reports directory (relative to reportsRoot, which should be the root workspace)
+    const agentReportsDir = path.resolve(reportsRoot, reportsDir);
     const remainingPath = p.startsWith(reportsDir) ? p.substring(reportsDir.length + 1) : '';
     const abs = remainingPath ? path.join(agentReportsDir, remainingPath) : agentReportsDir;
     return abs;
@@ -48,9 +49,9 @@ function safePath(inputPath, workspaceDir, allowTraversal = false) {
 }
 
 // ── read_file ─────────────────────────────────────────────────────────────────
-async function readFile({ path: filePath }, workspaceDir, allowTraversal = false) {
+async function readFile({ path: filePath }, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
   if (!filePath) return { error: '"path" parameter is required.' };
-  const abs = safePath(filePath, workspaceDir, allowTraversal);
+  const abs = safePath(filePath, workspaceDir, allowTraversal, rootWorkspaceDir);
 
   if (!await fs.pathExists(abs)) return { error: `File not found: ${filePath}` };
 
@@ -62,7 +63,7 @@ async function readFile({ path: filePath }, workspaceDir, allowTraversal = false
 }
 
 // ── write_file ────────────────────────────────────────────────────────────────
-async function writeFile(params, workspaceDir) {
+async function writeFile(params, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
   const filePath = params.path || params.file || params.filepath || params.filename;
   const content = params.content !== undefined ? params.content : (params.text || params.data || '');
   const contentStr = String(content);
@@ -73,7 +74,7 @@ async function writeFile(params, workspaceDir) {
   console.log(`[DevAgent] write_file called - path: "${filePath}", contentLength: ${contentStr.length}`);
 
   // Safety: Prevent "Template Hallucinations" (agent trying to use JS code in markdown)
-  if (lp.includes('./agent_reports/walkthrough_system_analysis_report.md') &&
+  if (lp.includes('./agent_reports/system_analysis_walkthrough.md') &&
     (contentStr.includes('JSON.stringify') || contentStr.includes('list_files(') || contentStr.includes('"+'))) {
     const msg = `Rejecting write to "${filePath}": You are trying to use Javascript code or template syntax (like JSON.stringify) in a static report. YOU MUST write the report content (like the directory tree) as MANUAL PLAIN TEXT. Refer to the EXAMPLE FORMAT in your instructions.`;
     console.warn(`[DevAgent] ${msg}`);
@@ -100,7 +101,7 @@ async function writeFile(params, workspaceDir) {
     return { error: msg };
   }
 
-  const abs = safePath(filePath, workspaceDir, arguments[2] || false);
+  const abs = safePath(filePath, workspaceDir, allowTraversal, rootWorkspaceDir);
   const dir = path.dirname(abs);
   const dirStat = await fs.pathExists(dir) ? await fs.stat(dir) : null;
   if (dirStat && !dirStat.isDirectory()) {
@@ -115,9 +116,9 @@ async function writeFile(params, workspaceDir) {
 // ── list_files ────────────────────────────────────────────────────────────────
 const ignore = require('ignore');
 
-async function listFiles({ path: dirPath = '.' } = {}, workspaceDir, allowTraversal = false) {
+async function listFiles({ path: dirPath = '.' } = {}, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
   try {
-    const abs = safePath(dirPath, workspaceDir, allowTraversal);
+    const abs = safePath(dirPath, workspaceDir, allowTraversal, rootWorkspaceDir);
     if (!await fs.pathExists(abs)) return { error: `Directory not found: ${dirPath}` };
 
     // If the model accidentally passes a FILE path to list_files, degrade gracefully:
@@ -203,7 +204,7 @@ async function listFiles({ path: dirPath = '.' } = {}, workspaceDir, allowTraver
 }
 
 // ── bulk_write ────────────────────────────────────────────────────────────────
-async function bulkWrite(params, workspaceDir) {
+async function bulkWrite(params, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
   let files;
 
   if (Array.isArray(params)) {
@@ -252,7 +253,7 @@ async function bulkWrite(params, workspaceDir) {
     }
 
     try {
-      const abs = safePath(filePath, workspaceDir, arguments[2] || false);
+      const abs = safePath(filePath, workspaceDir, allowTraversal, rootWorkspaceDir);
       const dir = path.dirname(abs);
       const dirStat = await fs.pathExists(dir) ? await fs.stat(dir) : null;
       if (dirStat && !dirStat.isDirectory()) {
@@ -272,7 +273,7 @@ async function bulkWrite(params, workspaceDir) {
 }
 
 // ── apply_blueprint ──────────────────────────────────────────────────────────
-async function applyBlueprint(params, workspaceDir) {
+async function applyBlueprint(params, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
   // Ultra-robust content extraction
   let content = '';
 
@@ -396,11 +397,11 @@ async function applyBlueprint(params, workspaceDir) {
     };
   }
 
-  return await bulkWrite({ files }, workspaceDir, arguments[2] || false);
+  return await bulkWrite({ files }, workspaceDir, allowTraversal, rootWorkspaceDir);
 }
 
 // ── bulk_read ─────────────────────────────────────────────────────────────────
-async function bulkRead(params, workspaceDir) {
+async function bulkRead(params, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
   let paths = [];
   if (Array.isArray(params)) paths = params;
   else if (params && Array.isArray(params.paths)) paths = params.paths;
@@ -418,7 +419,7 @@ async function bulkRead(params, workspaceDir) {
   const results = [];
   for (const p of paths) {
     try {
-      const abs = safePath(p, workspaceDir, arguments[2] || false);
+      const abs = safePath(p, workspaceDir, allowTraversal, rootWorkspaceDir);
       if (!await fs.pathExists(abs)) {
         results.push({ path: p, error: 'File not found' });
         continue;
@@ -438,7 +439,7 @@ async function bulkRead(params, workspaceDir) {
 }
 
 // ── replace_in_file ──────────────────────────────────────────────────────────
-async function replaceInFile(params, workspaceDir) {
+async function replaceInFile(params, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
   const filePath = params.path || params.file;
   const { search, replace } = params;
 
@@ -447,7 +448,7 @@ async function replaceInFile(params, workspaceDir) {
   }
 
   try {
-    const abs = safePath(filePath, workspaceDir, arguments[2] || false);
+    const abs = safePath(filePath, workspaceDir, allowTraversal, rootWorkspaceDir);
     if (!await fs.pathExists(abs)) return { error: `File not found: ${filePath}` };
 
     const content = await fs.readFile(abs, 'utf-8');
