@@ -244,11 +244,20 @@
 
         <!-- Right: Controls -->
         <div class="chat-header-right">
+          <!-- LangGraph Orchestrator Toggle -->
+          <div class="orchestrator-toggle" :class="{ active: orchestrator === 'langgraph' }" title="Use LangGraph Orchestrator">
+            <label class="switch">
+              <input type="checkbox" v-model="orchestrator" true-value="langgraph" false-value="classic">
+              <span class="slider round slider-langgraph"></span>
+            </label>
+            <span class="orchestrator-label">LangGraph</span>
+          </div>
+
           <!-- Mode + Workflow pill group -->
           <div class="header-pill-group">
             <button class="pill-btn" :class="{ active: agentMode === 'analysis' }" @click="agentMode = 'analysis'" title="System Analysis Mode">📊 System Analysis</button>
             <button class="pill-btn" :class="{ active: agentMode === 'generate' }" @click="agentMode = 'generate'" title="Develop Mode">🛠 Developer</button>
-            <button class="pill-btn" :class="{ active: agentMode === 'review' }" @click="agentMode = 'review'" title="Review Mode">🔍 Reviewer</button>
+            <button class="pill-btn" :class="{ active: agentMode === 'review' }" @click="agentMode = 'review'" title="Audit Mode">⚖️ Audit</button>
           </div>
 
           <!-- Follow Review toggle -->
@@ -622,6 +631,7 @@ const followAnalysis  = ref(false)
 const fastMode        = ref(true)
 const unlimitedSteps  = ref(false)
 const autoRequestReview = ref(false)
+const orchestrator    = ref('classic') // 'classic' or 'langgraph'
 
 // ── Agent Stacks ─────────────────────────────────────────────────────────────
 const FALLBACK_STACKS = {
@@ -762,7 +772,8 @@ async function send(text, isAutoHandoff = false) {
         unlimitedSteps: unlimitedSteps.value,
         autoRequestReview: autoRequestReview.value,
         sessionId: sessionId.value,
-        stack: selectedStack.value
+        stack: selectedStack.value,
+        orchestrator: orchestrator.value
       }),
       signal  : abort.signal
     })
@@ -1881,6 +1892,34 @@ textarea {
   display: flex; align-items: center; gap: 10px;
 }
 .follow-label { font-size: 11px; font-weight: 600; color: var(--t2); text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* Orchestrator Toggle */
+.orchestrator-toggle {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 20px;
+  padding: 3px 12px 3px 3px;
+  transition: all 0.3s;
+}
+.orchestrator-toggle.active {
+  border-color: rgba(61, 220, 132, 0.3);
+  background: rgba(61, 220, 132, 0.05);
+}
+.orchestrator-label {
+  font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.3);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.orchestrator-toggle.active .orchestrator-label {
+  color: var(--green);
+}
+.orchestrator-toggle .slider-langgraph {
+  background-color: rgba(61, 220, 132, 0.2);
+  border-color: var(--green);
+}
+.orchestrator-toggle .slider-langgraph:before {
+  background-color: var(--green);
+}
 
 /* Switch design */
 .switch {

@@ -3,8 +3,10 @@ const fs = require('fs-extra');
 const { readFile, writeFile, listFiles, bulkWrite, applyBlueprint, bulkRead, replaceInFile } = require('../tools/filesystem');
 const { scaffoldProject } = require('../tools/scaffolder');
 const { callLangchain, LangchainWorkflow, DevAgentOutputParser, createLangchainTools, LangchainPlanner, LangchainAnalysisGuard } = require('./langchain');
+const { AIMessage, HumanMessage, SystemMessage } = require("@langchain/core/messages");
 const { logError, logInfo } = require('../utils/logger');
 const { createAgentMemory } = require('./memory');
+const { createAgentGraph } = require('./graph');
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1656,4 +1658,104 @@ ${report}`;
   return { success: false, response: timeout, history, memory: serializedMemory };
 }
 
-module.exports = { runAgent };
+/**
+ * Alternative agent execution loop using LangGraph.
+ */
+async function runAgentGraph(opts) {
+  const { messages, workspaceDir, onStep, signal, fastMode = false, autoRequestReview = false, stack = 'default', selectedModel = null, unlimitedSteps = false, sessionId = null } = opts;
+
+  // Initialize flags and state (mostly copied from runAgent for parity)
+  let isReview = false, isAnalysis = false;
+  for (const m of messages) {
+    if (m.role === 'user' && typeof m.content === 'string') {
+      if (m.content.includes('[MODE: REVIEW]')) isReview = true;
+      if (m.content.includes('[MODE: ANALYSIS]')) isAnalysis = true;
+    }
+  }
+  const mode = isReview ? 'review' : (isAnalysis ? 'analysis' : 'developer');
+
+  // Model resolution
+  let modelConfig = {};
+  try {
+    const mp = path.join(__dirname, 'models.json');
+    if (fs.existsSync(mp)) modelConfig = JSON.parse(fs.readFileSync(mp, 'utf-8')).config || {};
+  } catch (e) { }
+
+  const resolvedModel = (isReview ? modelConfig.review : (isAnalysis ? (modelConfig.analysis || modelConfig.review) : modelConfig.dev))
+    || selectedModel || process.env.LM_STUDIO_MODEL || modelConfig.global || 'openai/gpt-oss-20b';
+
+  const systemPrompt = getSystemPrompt(mode, '', fastMode, autoRequestReview, stack, false);
+
+  const config = {
+    mode,
+    resolvedModel,
+    systemPrompt,
+    fastMode,
+    effectiveWorkspaceDir: workspaceDir,
+    maxSteps: Number(process.env.AGENT_MAX_STEPS) || 50,
+    allowedTools: getToolsForMode(mode).map(t => t.name),
+    onStep // Pass streaming callback to graph nodes
+  };
+
+  // Convert incoming messages to LangChain messages for LangGraph
+  const lcMessages = messages.map(m => {
+    if (m.role === 'assistant') return new AIMessage(m.content);
+    if (m.role === 'system') return new SystemMessage(m.content);
+    return new HumanMessage(m.content);
+  });
+
+  const app = createAgentGraph(TOOLS);
+
+  console.log(`[DevAgent] Starting LangGraph Orchestration for mode: ${mode}`);
+
+  const initialState = {
+    messages: lcMessages,
+    agentState: {
+      reportSaved: false,
+      configRead: false,
+      codeModified: false,
+      planWritten: false,
+    },
+    config,
+    step: 0
+  };
+
+  try {
+    console.log(`[DevAgent] LangGraph recursion limit set to 1000. Max steps: ${config.maxSteps}`);
+    let finalState = initialState;
+
+    // Use streaming mode to process graph transitions
+    const stream = await app.stream(initialState, { signal, recursionLimit: 1000 });
+    for await (const update of stream) {
+      // Each update contains the state changes from a specific node
+      for (const [nodeName, nodeOutput] of Object.entries(update)) {
+        // Merge sequence outputs into our tracking state
+        finalState = { ...finalState, ...nodeOutput };
+      }
+    }
+
+    // Extract final response
+    const lastMsg = finalState.messages[finalState.messages.length - 1];
+    const response = lastMsg instanceof AIMessage ? lastMsg.content : "Task completed.";
+
+    // Convert back to role/content history for the client
+    const history = finalState.messages.map(m => ({
+      role: m instanceof AIMessage ? 'assistant' : (m instanceof SystemMessage ? 'system' : 'user'),
+      content: m.content
+    }));
+
+    if (onStep) onStep({ type: 'response', content: response });
+
+    return {
+      success: true,
+      response,
+      history,
+      isLangGraph: true
+    };
+  } catch (err) {
+    if (onStep) onStep({ type: 'error', message: err.message });
+    throw err;
+  }
+}
+
+module.exports = { runAgent, runAgentGraph };

@@ -329,5 +329,6 @@ module.exports = {
     DevAgentOutputParser,
     createLangchainTools,
     LangchainPlanner,
-    LangchainAnalysisGuard
+    LangchainAnalysisGuard,
+    cleanResponse
 };

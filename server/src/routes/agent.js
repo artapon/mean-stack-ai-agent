@@ -2,7 +2,6 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const router = express.Router();
-const { runAgent } = require('../agent/core');
 const { loadSession, saveSession, clearSession } = require('../utils/session');
 
 /**
@@ -205,9 +204,14 @@ router.post('/run', async (req, res) => {
   });
 
   try {
-    // 3. Run the agent (In this version, we assume 'messages' sent from client already contains 
-    //    the full history if desired, or just the new turn if they want a fresh start.)
-    const result = await runAgent({
+    // 3. Run the agent
+    const { orchestrator = 'classic' } = req.body;
+    const { runAgent, runAgentGraph } = require('../agent/core');
+    const agentFunc = orchestrator === 'langgraph' ? runAgentGraph : runAgent;
+
+    console.log(`[DevAgent] Orchestrator: ${orchestrator}`);
+
+    const result = await agentFunc({
       messages,
       stack,
       workspaceDir: req.app.locals.workspaceDir,
