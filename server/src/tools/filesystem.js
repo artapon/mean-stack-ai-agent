@@ -1,9 +1,11 @@
 const fs = require('fs-extra');
 const path = require('path');
+console.log(`[DevAgent] FILESYSTEM MODULE LOADED - 2026-03-07 23:55`);
 
 // Safety: prevent path traversal outside workspace
 function safePath(inputPath, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
   const resolvedWorkspace = path.resolve(workspaceDir);
+  console.log(`[DevAgent] safePath: input="${inputPath}", workspace="${workspaceDir}"`);
   const reportsRoot = rootWorkspaceDir ? path.resolve(rootWorkspaceDir) : resolvedWorkspace;
 
   // 1. Force string and trim
@@ -117,9 +119,13 @@ async function writeFile(params, workspaceDir, allowTraversal = false, rootWorks
 const ignore = require('ignore');
 
 async function listFiles({ path: dirPath = '.' } = {}, workspaceDir, allowTraversal = false, rootWorkspaceDir = null) {
+  console.log(`[DevAgent] list_files: dirPath="${dirPath}", workspaceDir="${workspaceDir}"`);
   try {
     const abs = safePath(dirPath, workspaceDir, allowTraversal, rootWorkspaceDir);
-    if (!await fs.pathExists(abs)) return { error: `Directory not found: ${dirPath}` };
+    if (!await fs.pathExists(abs)) {
+      console.error(`[DevAgent] list_files FAILED: Directory not found at "${abs}" (queried as "${dirPath}")`);
+      return { error: `Directory not found: ${dirPath} (Resolved to: ${abs})` };
+    }
 
     // If the model accidentally passes a FILE path to list_files, degrade gracefully:
     const rootStat = await fs.stat(abs);

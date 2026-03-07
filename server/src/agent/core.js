@@ -195,7 +195,6 @@ ${autoRequestReview && mode === 'developer' ? '11. Call "request_review" after E
 `;
 }
 
-
 // ── Tools ──────────────────────────────────────────────────────────────────────
 const TOOLS = {
   read_file: readFile,
@@ -656,6 +655,9 @@ async function runAgent(opts) {
 
   // Target folder resolution: scan history (from latest to oldest) for [TARGET FOLDER: XXX]
   let effectiveWorkspaceDir = workspaceDir, targetFolderName = '';
+
+  console.log(`[DevAgent] 🚀 STARTING AGENT | Mode: ${mode} | Workspace: ${workspaceDir}`);
+  if (onStep) onStep({ type: 'status', text: `🚀 Initializing Agent in: ${workspaceDir}` });
   let targetMatch = null;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
@@ -671,6 +673,7 @@ async function runAgent(opts) {
     if (tp && tp !== '.') {
       effectiveWorkspaceDir = res; targetFolderName = tp;
       console.log(`[DevAgent] TARGET FOLDER (from history): "${tp}"`);
+      if (onStep) onStep({ type: 'status', text: `📍 Target Folder Pinned: ${tp}` });
     }
   }
 
@@ -1702,6 +1705,7 @@ async function runAgentGraph(opts) {
     if (tp && tp !== '.') {
       effectiveWorkspaceDir = res; targetFolderName = tp;
       console.log(`[DevAgent-Graph] TARGET FOLDER (from history): "${tp}"`);
+      if (onStep) onStep({ type: 'status', text: `📍 Target Folder Pinned: ${tp}` });
     }
   }
 
@@ -1768,7 +1772,8 @@ async function runAgentGraph(opts) {
 
   const app = createAgentGraph(TOOLS);
 
-  console.log(`[DevAgent] Starting LangGraph Orchestration for mode: ${mode}`);
+  console.log(`[DevAgent] Starting LangGraph Orchestration in: ${effectiveWorkspaceDir}`);
+  if (onStep) onStep({ type: 'status', text: `🚀 Initializing LangGraph in: ${effectiveWorkspaceDir}` });
 
   // Initialize agent state by scanning history (standardizes behavior with classic loop)
   const historyContent = messages.map(m => (m.content || '').toLowerCase());
