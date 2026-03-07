@@ -12,12 +12,14 @@ function safePath(inputPath, workspaceDir, allowTraversal = false) {
   // Matches: "/root/", "\root\", "root/", "root\" at the start
   p = p.replace(/^([/\\]+root[/\\]+|root[/\\]+|[/\\]+)/i, '');
 
-  // 3. Special case: allow ../agent_reports for centralized reports
-  const isAgentReports = p.toLowerCase().startsWith('../agent_reports/') || p.toLowerCase() === '../agent_reports';
+  // 3. Special case: allow centralized reports directory
+  const reportsDir = process.env.AGENT_REPORTS_DIR || './agent_reports';
+  const isAgentReports = p.toLowerCase().startsWith(reportsDir.toLowerCase() + '/') || p.toLowerCase() === reportsDir.toLowerCase();
+
   if (isAgentReports) {
-    // Resolve to workspace/../agent_reports which is outside project folder
-    const agentReportsDir = path.resolve(resolvedWorkspace, '../agent_reports');
-    const remainingPath = p.substring('../agent_reports/'.length);
+    // Resolve to the configured reports directory
+    const agentReportsDir = path.resolve(resolvedWorkspace, reportsDir);
+    const remainingPath = p.startsWith(reportsDir) ? p.substring(reportsDir.length + 1) : '';
     const abs = remainingPath ? path.join(agentReportsDir, remainingPath) : agentReportsDir;
     return abs;
   }
@@ -71,7 +73,7 @@ async function writeFile(params, workspaceDir) {
   console.log(`[DevAgent] write_file called - path: "${filePath}", contentLength: ${contentStr.length}`);
 
   // Safety: Prevent "Template Hallucinations" (agent trying to use JS code in markdown)
-  if (lp.includes('../agent_reports/walkthrough_system_analysis_report.md') &&
+  if (lp.includes('./agent_reports/walkthrough_system_analysis_report.md') &&
     (contentStr.includes('JSON.stringify') || contentStr.includes('list_files(') || contentStr.includes('"+'))) {
     const msg = `Rejecting write to "${filePath}": You are trying to use Javascript code or template syntax (like JSON.stringify) in a static report. YOU MUST write the report content (like the directory tree) as MANUAL PLAIN TEXT. Refer to the EXAMPLE FORMAT in your instructions.`;
     console.warn(`[DevAgent] ${msg}`);

@@ -176,7 +176,7 @@ async function executeTool(state, TOOLS) {
         const newState = {};
         if (['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'].includes(resolvedAction)) {
             const p = parameters.path || parameters.file || '';
-            if (p.includes('walkthrough.md')) {
+            if (p.includes('walkthrough.md') || p.includes('plan.md')) {
                 newState.planWritten = true;
             } else if (p.includes('walkthrough_review_report.md') || p.includes('walkthrough_system_analysis_report.md')) {
                 newState.reportSaved = true;
@@ -321,13 +321,13 @@ async function handleNudge(state, type) {
             directive = `You called finish too early. You still need to write source code files and the walkthrough report. Do that NOW, then call finish.`;
             break;
         case "nudge_report_missing":
-            directive = `You must write the review report to ../agent_reports/walkthrough_review_report.md before finishing.`;
+            directive = `You must write the review report to ./agent_reports/walkthrough_review_report.md before finishing.`;
             break;
         case "nudge_verdict_missing":
             directive = `Your finish response is missing the required verdict ([CODE: OK], [CODE: NOT OK], or [ANALYSIS: COMPLETE]). Include it now.`;
             break;
         case "nudge_walkthrough_missing":
-            directive = `You must write the walkthrough summary to ../agent_reports/walkthrough.md before finishing.`;
+            directive = `You must write the walkthrough summary to ./agent_reports/walkthrough.md before finishing.`;
             break;
         case "nudge_config_missing":
             directive = `You MUST read the project's configuration (e.g., package.json) before finishing.`;
@@ -336,7 +336,7 @@ async function handleNudge(state, type) {
             directive = `The tool you used is not authorized in this mode. Please use only: ${config.allowedTools.join(", ")}`;
             break;
         case "nudge_analysis_missing":
-            directive = `You must write the system analysis report to ../agent_reports/walkthrough_system_analysis_report.md before finishing.`;
+            directive = `You must write the system analysis report to ./agent_reports/walkthrough_system_analysis_report.md before finishing.`;
             break;
         case "nudge_format_recovery":
             directive = `Your last response was garbled or merged the THOUGHT/ACTION/PARAMETERS blocks incorrectly. 

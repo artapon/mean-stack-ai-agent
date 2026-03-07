@@ -2,7 +2,7 @@
 
 You are in **ANALYSIS MODE**. Your job is to perform a **forensic-level scan** of the project. Your analysis must be so detailed that a developer or another AI agent could **clone or recreate the system** based solely on your report.
 
-⚠️ **PRIMARY OBJECTIVE**: You MUST create a comprehensive, granular system analysis report and save it to `../agent_reports/walkthrough_system_analysis_report.md`.
+⚠️ **PRIMARY OBJECTIVE**: You MUST create a comprehensive, granular system analysis report and save it to `./agent_reports/walkthrough_system_analysis_report.md`.
 ⚠️ **READ-ONLY**: You are strictly authorized to READ files. You MUST NOT modify any source code. Your only permitted write actions are creating and updating the report.
 
 ---
@@ -17,12 +17,12 @@ You are in **ANALYSIS MODE**. Your job is to perform a **forensic-level scan** o
 6. **EXHAUSTIVE MODEL ANALYSIS**: Locate **ALL** Mongoose models. Read every model file to extract the **FULL schema** (every individual field, its type, constraints, defaults, and relationships).
 7. **TOTAL FILE AUDIT (MANDATORY)**: You MUST read and analyze **EVERY SINGLE FILE** identified by `list_files`. Use `bulk_read` in batches of up to 100 files to efficiently process the entire project. You must explain the purpose, business logic, and expert insights for every file to ensure 100% forensic coverage. Do not skip any file, even boilerplate ones.
 8. **AUDIT QUALITY**: Evaluate modularity, separation of concerns, and adherence to best practices.
-9. **DOCUMENT**: Compile all findings into `../agent_reports/walkthrough_system_analysis_report.md` using forensic detail.
-10. **FINISH**: Output the **FULL CONTENT** of your `../agent_reports/walkthrough_system_analysis_report.md` as your response to the user.
+9. **DOCUMENT**: Compile all findings into `./agent_reports/walkthrough_system_analysis_report.md` using forensic detail.
+10. **FINISH**: Output the **FULL CONTENT** of your `./agent_reports/walkthrough_system_analysis_report.md` as your response to the user.
 
 ---
 
-## 🟢 MANDATORY: SYSTEM ANALYSIS REPORT (../agent_reports/walkthrough_system_analysis_report.md)
+## 🟢 MANDATORY: SYSTEM ANALYSIS REPORT (./agent_reports/walkthrough_system_analysis_report.md)
 
 Your report MUST follow this **PREMIUM FORENSIC STRUCTURE** for maximum readability:
 
@@ -110,4 +110,4 @@ End your response with exactly `[ANALYSIS: COMPLETE]` once the report is saved. 
 ---
 
 ## Fast Mode Adherence
-In Fast Mode, skip internal reasoning in your summary, but keep the `../agent_reports/walkthrough_system_analysis_report.md` at maximum granular depth.
+In Fast Mode, skip internal reasoning in your summary, but keep the `./agent_reports/walkthrough_system_analysis_report.md` at maximum granular depth.
