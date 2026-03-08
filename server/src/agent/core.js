@@ -487,7 +487,7 @@ function parseReply(rawText, isReview, fastMode) {
  * @param {boolean} isReview
  * @returns {string}
  */
-function summariseResult(action, params, result, isReview) {
+function summariseResult(action, params, result, isReview, onStep) {
   if (result?.error) {
     let advice = 'Check parameters and try a different approach.';
     if (result.error.toLowerCase().includes('is a directory')) advice = 'Path is a DIRECTORY — provide a filename.';
@@ -540,18 +540,18 @@ function summariseResult(action, params, result, isReview) {
  * @param {number} [maxStrLen]
  * @returns {any}
  */
-function redactForInfoLog(value, maxStrLen = 800) {
+function redactForInfoLog(value, maxStrLen = 2000) {
   const seen = new WeakSet();
 
-  const redactString = (s) => {
+  const truncateString = (s) => {
     if (typeof s !== 'string') return s;
     if (s.length <= maxStrLen) return s;
-    return `[omitted ${s.length} chars] ` + s.slice(0, Math.min(120, maxStrLen)) + '…';
+    return s.slice(0, maxStrLen) + `\n… [truncated, total ${s.length} chars]`;
   };
 
   const walk = (v, keyHint = '') => {
     if (v == null) return v;
-    if (typeof v === 'string') return redactString(v);
+    if (typeof v === 'string') return truncateString(v);
     if (typeof v === 'number' || typeof v === 'boolean') return v;
     if (Array.isArray(v)) return v.slice(0, 50).map((x) => walk(x, keyHint));
     if (typeof v !== 'object') return String(v);
@@ -562,7 +562,6 @@ function redactForInfoLog(value, maxStrLen = 800) {
     const out = {};
     for (const [k, val] of Object.entries(v)) {
       const lk = String(k).toLowerCase();
-      const isLargeField = ['content', 'replace', 'search', 'text', 'blueprint', 'rawtext', 'rawbuffer'].includes(lk);
       const isNestedFiles = lk === 'files' && Array.isArray(val);
 
       if (isNestedFiles) {
@@ -570,21 +569,14 @@ function redactForInfoLog(value, maxStrLen = 800) {
           if (!f || typeof f !== 'object') return walk(f, 'files');
           const fo = {};
           for (const [fk, fv] of Object.entries(f)) {
-            const lfk = String(fk).toLowerCase();
-            fo[fk] = (lfk === 'content' || lfk === 'replace' || lfk === 'search')
-              ? `[omitted ${typeof fv === 'string' ? fv.length : 'n/a'}]`
-              : walk(fv, fk);
+            fo[fk] = walk(fv, fk);
           }
           return fo;
         });
         continue;
       }
 
-      if (isLargeField) {
-        out[k] = `[omitted ${typeof val === 'string' ? val.length : 'n/a'}]`;
-      } else {
-        out[k] = walk(val, k);
-      }
+      out[k] = walk(val, k);
     }
     return out;
   };
@@ -823,6 +815,7 @@ async function runAgent(opts) {
       history = await agentMemory.toHistory();
 
       console.log(`[DevAgent] Roadmap generated and injected.`);
+      if (onStep) onStep({ type: 'roadmap', content: roadmap });
       if (onStep) onStep({ type: 'status', text: 'Roadmap ready. Starting implementation...' });
     } catch (err) {
       console.error('[DevAgent] Planner failed:', err.message);
@@ -1388,9 +1381,29 @@ ${report}`;
         }
       }
 
+      // Developer mode: append developer_walkthrough.md content if it was written
+      if (!isReview && !isAnalysis) {
+        try {
+          const walkthroughPath = path.join(workspaceDir, './agent_reports/developer_walkthrough.md');
+          if (fs.existsSync(walkthroughPath)) {
+            const walkthroughContent = fs.readFileSync(walkthroughPath, 'utf8');
+            finalMsg = walkthroughContent + (finalMsg ? `\n\n---\n\n${finalMsg}` : '');
+          }
+        } catch (e) {
+          console.warn('[DevAgent] Failed to read developer walkthrough for final response:', e.message);
+        }
+      }
+
       // Save LangChain memory for session persistence
       const serializedMemory = await agentMemory.serialize();
 
+      logInfo('agent_finish', `[step ${step}] finish — agent done`, {
+        step,
+        mode,
+        totalSteps: step,
+        success: true,
+        thought: parsed.thought || undefined
+      });
       if (onStep) onStep({ type: 'response', content: finalMsg });
       return { success: true, response: finalMsg, history, memory: serializedMemory };
     }
@@ -1414,11 +1427,20 @@ ${report}`;
     }
 
     const toolFn = TOOLS[action];
-    if (onStep) onStep({ type: 'tool_call', tool: action, parameters: parsed.parameters });
-    logInfo('tool_call', `Calling tool "${action}"`, {
+    if (onStep) onStep({ type: 'tool_call', tool: action, parameters: parsed.parameters, step });
+
+    // Build a readable log message — show target file for write operations
+    const _p    = parsed.parameters || {};
+    const _file = _p.path || _p.file || _p.filename || _p.filepath || _p.target || '';
+    const _toolMsg = _file
+      ? `[step ${step}] ${action} → ${_file}`
+      : `[step ${step}] ${action}`;
+    logInfo('tool_call', _toolMsg, {
       step,
       action,
-      parameters: redactForInfoLog(parsed.parameters || {})
+      file: _file || undefined,
+      thought: parsed.thought || undefined,
+      parameters: redactForInfoLog(_p, 2000)
     });
 
     // ── Review / Analysis mode write restrictions ─────────────────────────────
@@ -1565,12 +1587,16 @@ ${report}`;
         if (action === 'bulk_write' || action === 'apply_blueprint') agentState.codeModified = true;
       }
 
-      if (onStep) onStep({ type: 'tool_result', tool: action, result });
-      logInfo('tool_result', `Tool "${action}" completed`, {
+      if (onStep) onStep({ type: 'tool_result', tool: action, result, step });
+      const _resultMsg = _file
+        ? `[step ${step}] ${action} ✓ ${_file}`
+        : `[step ${step}] ${action} ✓`;
+      logInfo('tool_result', _resultMsg, {
         step,
         action,
-        ok: !result?.error,
-        error: result?.error || null
+        file: _file || undefined,
+        ok: true,
+        result: redactForInfoLog(result, 2000)
       });
 
     } catch (toolErr) {
@@ -1578,11 +1604,11 @@ ${report}`;
       logError('tool_execution_error', toolErr.message, { action, parameters: parsed.parameters }, parsed.thought);
       result = { error: toolErr.message };
       if (onStep) onStep({ type: 'tool_error', tool: action, error: toolErr.message });
-      logInfo('tool_result', `Tool "${action}" failed`, { step, action, ok: false, error: toolErr.message });
+      logInfo('tool_result', `[step ${step}] ${action} ✗ ${toolErr.message}`, { step, action, file: _file || undefined, ok: false, error: toolErr.message, parameters: redactForInfoLog(_p, 2000) });
     }
 
     if (signal?.aborted) {
-      const s = summariseResult(action, parsed.parameters || {}, result, isReview);
+      const s = summariseResult(action, parsed.parameters || {}, result, isReview, onStep);
       if (onStep) onStep({ type: 'response', content: s });
       return { success: true, response: s };
     }
@@ -1636,7 +1662,7 @@ ${report}`;
     }
 
     // ── Append tool result to history ─────────────────────────────────────────
-    const summary = summariseResult(action, parsed.parameters || {}, result, isReview);
+    const summary = summariseResult(action, parsed.parameters || {}, result, isReview, onStep);
     let content = `Tool result (${action}):\n${summary}`;
 
     if (['read_file', 'list_files', 'bulk_read'].includes(action)) {

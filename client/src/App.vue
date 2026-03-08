@@ -20,7 +20,7 @@
       </div>
 
       <div class="nav-items">
-        <!-- Dashboard (first) -->
+        <!-- Dashboard -->
         <button
           class="nav-item"
           :class="{ active: currentView === 'dashboard' }"
@@ -36,38 +36,32 @@
           <span>Dashboard</span>
         </button>
 
-        <!-- Agent submenu (second) -->
-        <div class="nav-item-group">
-          <button
-            class="nav-item"
-            :class="{ active: currentView === 'chat' }"
-            @click="currentView = 'chat'"
-            title="Switch Agent"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="8" r="4"/>
-              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-            </svg>
-            <span>Agent</span>
-            <svg class="nav-chevron open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left:auto">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </button>
-          <div class="nav-submenu">
-            <button
-              v-for="(meta, id) in stacksMetadata" :key="id"
-              class="nav-subitem"
-              :class="{ active: selectedStack === id }"
-              @click="selectStack(id)"
-            >
-              <span v-if="id === 'default'">🏗</span>
-              <span v-else-if="id === 'mean_stack'">🍃</span>
-              <span v-else-if="id === 'html_css'">🎨</span>
-              <span v-else>✨</span>
-              <span class="nav-subitem-name">{{ meta.name }}</span>
-            </button>
-          </div>
-        </div>
+        <!-- Chat -->
+        <button
+          class="nav-item"
+          :class="{ active: currentView === 'chat' }"
+          @click="currentView = 'chat'"
+          title="Chat"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span>Chat</span>
+        </button>
+
+        <!-- Settings -->
+        <button
+          class="nav-item"
+          :class="{ active: currentView === 'settings' }"
+          @click="currentView = 'settings'"
+          title="Settings"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>Settings</span>
+        </button>
       </div>
 
       <div class="nav-bottom">
@@ -78,7 +72,10 @@
     <!-- ── Workspace Sidebar ──────────────────────────────────────────── -->
     <aside class="sidebar" v-if="currentView === 'chat'">
       <div class="sidebar-header">
-        <span class="sidebar-title">Workspace</span>
+        <div class="sidebar-title-wrap">
+          <span class="sidebar-title">Workspace</span>
+          <span v-if="workspacePath" class="sidebar-ws-path" :title="workspacePath">{{ workspacePath.split(/[\\/]/).pop() || workspacePath }}</span>
+        </div>
         <button class="icon-btn-sm" @click="loadFiles" :disabled="fbLoading" title="Refresh">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="fbLoading ? 'spin-sm' : ''">
             <path v-if="!fbLoading" d="M23 4v6h-6M1 20v-6h6"/>
@@ -157,6 +154,9 @@
           <div v-if="!fbFolders.length && !fbFiles.length && currentPath !== '.'" class="fb-empty">
             Empty folder
           </div>
+          <div v-if="!fbFolders.length && !fbFiles.length && currentPath === '.'" class="fb-empty">
+            Workspace is empty
+          </div>
         </div>
 
         <div v-if="fbLoading" class="fb-loading">
@@ -194,7 +194,7 @@
     </aside>
 
     <!-- ── Main Area ──────────────────────────────────────────────────── -->
-    <main :class="currentView === 'dashboard' ? 'dashboard-main' : 'chat'">
+    <main :class="currentView === 'dashboard' ? 'dashboard-main' : currentView === 'settings' ? 'settings-main' : 'chat'">
 
       <!-- ── Dashboard View ───────────────────────────────────────── -->
       <template v-if="currentView === 'dashboard'">
@@ -354,6 +354,7 @@
                     <div v-for="step in (task.steps || []).slice(-8)" :key="step.id" class="db-step-row">
                       <span class="db-step-dot" :class="step.status || 'pending'"></span>
                       <span class="db-step-action">{{ step.action }}</span>
+                      <span v-if="step.detail" class="db-step-detail">{{ step.detail.split(/[\\/]/).pop() }}</span>
                       <span class="db-step-time">{{ fmtTime(step.timestamp) }}</span>
                     </div>
                     <div v-if="task.error" class="db-task-error-line">
@@ -450,7 +451,7 @@
               <span class="db-col-title">Live Logs</span>
               <div class="db-log-filters">
                 <button
-                  v-for="lvl in ['all','info','warn','error']" :key="lvl"
+                  v-for="lvl in ['all','roadmap','debug','info','warn','error']" :key="lvl"
                   class="db-log-filter-btn" :class="[lvl !== 'all' ? 'lf-' + lvl : '', { active: dashLogFilter === lvl }]"
                   @click="dashLogFilter = lvl"
                 >
@@ -465,19 +466,230 @@
                 <div class="db-empty-title">No logs yet</div>
                 <div class="db-empty-sub">Events stream here in real-time</div>
               </div>
-              <div
-                v-for="(log, i) in filteredLogs.slice(0, 300)" :key="log.id || i"
-                class="db-log-entry" :class="'ll-' + log.level"
-              >
-                <span class="db-log-ts">{{ fmtTime(log.timestamp) }}</span>
-                <span class="db-log-lvl">{{ (log.level || 'info').toUpperCase().slice(0,4) }}</span>
-                <span class="db-log-svc" v-if="log.metadata?.service">{{ log.metadata.service }}</span>
-                <span class="db-log-msg">{{ log.message }}</span>
-              </div>
+              <!-- Roadmap block header -->
+              <template v-for="(log, i) in filteredLogs.slice(0, 300)" :key="log.id || i">
+                <div v-if="log.level === 'roadmap'" class="db-roadmap-entry">
+                  <span class="db-roadmap-line">{{ log.message }}</span>
+                </div>
+                <div v-else class="db-log-entry" :class="'ll-' + log.level">
+                  <span class="db-log-ts">{{ fmtTime(log.timestamp) }}</span>
+                  <span class="db-log-lvl">{{ (log.level || 'info').toUpperCase().slice(0,4) }}</span>
+                  <span class="db-log-svc" v-if="log.metadata?.service">{{ log.metadata.service }}</span>
+                  <span class="db-log-msg">
+                    {{ log.message }}
+                    <span v-if="log.detail" class="db-log-detail">{{ log.detail }}</span>
+                  </span>
+                </div>
+              </template>
             </div>
           </div>
 
         </div><!-- end db-body -->
+      </template>
+
+      <!-- ── Settings View ─────────────────────────────────────────── -->
+      <template v-else-if="currentView === 'settings'">
+        <header class="stg-header">
+          <div class="stg-header-left">
+            <div class="stg-brand-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </div>
+            <div>
+              <h1 class="stg-title">Settings</h1>
+              <p class="stg-subtitle">Persistent agent configuration</p>
+            </div>
+          </div>
+          <div class="stg-header-right">
+            <span class="stg-save-indicator stg-saved" :class="{ visible: settingsSaved }">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Saved
+            </span>
+            <button class="stg-reset-btn" @click="resetSettings" title="Restore defaults">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              Reset
+            </button>
+            <button class="stg-save-btn" @click="saveSettings" :disabled="settingsSaving">
+              <svg v-if="settingsSaving" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spin-sm"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              {{ settingsSaving ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+        </header>
+
+        <div class="stg-body">
+
+          <!-- Workspace Path section -->
+          <section class="stg-section">
+            <div class="stg-section-header">
+              <div class="stg-section-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div>
+                <div class="stg-section-title">Workspace Path</div>
+                <div class="stg-section-desc">Directory where the agent reads and writes project files</div>
+              </div>
+            </div>
+            <div class="stg-input-wrap">
+              <input
+                class="stg-input"
+                type="text"
+                v-model="workspacePathSetting"
+                placeholder="Leave empty to use default (./workspace)"
+                spellcheck="false"
+              />
+            </div>
+            <p class="stg-select-desc" v-if="workspacePath">
+              Current: <span class="stg-path-display">{{ workspacePath }}</span>
+            </p>
+          </section>
+
+          <!-- Agent Type section -->
+          <section class="stg-section">
+            <div class="stg-section-header">
+              <div class="stg-section-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+              </div>
+              <div>
+                <div class="stg-section-title">Agent Type</div>
+                <div class="stg-section-desc">Select the active agent profile and technology stack</div>
+              </div>
+            </div>
+
+            <div class="stg-select-wrap">
+              <select class="stg-select" v-model="selectedStack">
+                <template v-for="(meta, id) in stacksMetadata" :key="id">
+                  <option v-if="meta && meta.name" :value="id">{{ meta.name }}</option>
+                </template>
+              </select>
+              <svg class="stg-select-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <p class="stg-select-desc" v-if="stacksMetadata[selectedStack]">{{ stacksMetadata[selectedStack].description }}</p>
+          </section>
+
+          <!-- Orchestrator section -->
+          <section class="stg-section">
+            <div class="stg-section-header">
+              <div class="stg-section-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+              </div>
+              <div>
+                <div class="stg-section-title">Orchestrator</div>
+                <div class="stg-section-desc">Choose the execution engine for agent runs</div>
+              </div>
+            </div>
+
+            <div class="stg-option-cards">
+              <div class="stg-option-card" :class="{ selected: orchestrator === 'classic' }" @click="orchestrator = 'classic'">
+                <div class="stg-card-check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="stg-card-icon">⚡</div>
+                <div class="stg-card-body">
+                  <div class="stg-card-title">Classic</div>
+                  <div class="stg-card-desc">Direct loop execution — fast and reliable for most tasks</div>
+                </div>
+              </div>
+              <div class="stg-option-card" :class="{ selected: orchestrator === 'langgraph' }" @click="orchestrator = 'langgraph'">
+                <div class="stg-card-check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="stg-card-icon">🔗</div>
+                <div class="stg-card-body">
+                  <div class="stg-card-title">LangGraph</div>
+                  <div class="stg-card-desc">Graph-based workflow — advanced state management and branching</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Review Workflow section -->
+          <section class="stg-section">
+            <div class="stg-section-header">
+              <div class="stg-section-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </div>
+              <div>
+                <div class="stg-section-title">Review Workflow</div>
+                <div class="stg-section-desc">Automate the develop → review → improve cycle</div>
+              </div>
+            </div>
+
+            <div class="stg-toggles">
+              <div class="stg-toggle-row">
+                <div class="stg-toggle-info">
+                  <div class="stg-toggle-label">Auto Review &amp; Feedback</div>
+                  <div class="stg-toggle-desc">Automatically trigger a code review after each developer run completes</div>
+                </div>
+                <label class="stg-switch">
+                  <input type="checkbox" v-model="autoRequestReview">
+                  <span class="stg-thumb"></span>
+                </label>
+              </div>
+
+              <div class="stg-toggle-row">
+                <div class="stg-toggle-info">
+                  <div class="stg-toggle-label">Follow Review</div>
+                  <div class="stg-toggle-desc">When a review finishes, automatically apply its suggestions in a new developer run</div>
+                </div>
+                <label class="stg-switch">
+                  <input type="checkbox" v-model="followReview">
+                  <span class="stg-thumb"></span>
+                </label>
+              </div>
+
+              <div class="stg-toggle-row">
+                <div class="stg-toggle-info">
+                  <div class="stg-toggle-label">Follow Analysis</div>
+                  <div class="stg-toggle-desc">When a system analysis finishes, automatically act on its recommendations</div>
+                </div>
+                <label class="stg-switch">
+                  <input type="checkbox" v-model="followAnalysis">
+                  <span class="stg-thumb"></span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- Execution section -->
+          <section class="stg-section">
+            <div class="stg-section-header">
+              <div class="stg-section-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <div>
+                <div class="stg-section-title">Execution</div>
+                <div class="stg-section-desc">Performance and safety limits for agent runs</div>
+              </div>
+            </div>
+
+            <div class="stg-toggles">
+              <div class="stg-toggle-row">
+                <div class="stg-toggle-info">
+                  <div class="stg-toggle-label">Fast Mode</div>
+                  <div class="stg-toggle-desc">Skip the THOUGHT step for faster generation (recommended for most tasks)</div>
+                </div>
+                <label class="stg-switch">
+                  <input type="checkbox" v-model="fastMode">
+                  <span class="stg-thumb stg-thumb-fast"></span>
+                </label>
+              </div>
+
+              <div class="stg-toggle-row">
+                <div class="stg-toggle-info">
+                  <div class="stg-toggle-label">Unlimited Steps</div>
+                  <div class="stg-toggle-desc">
+                    Remove the step safety limit — agent can run up to 10,000 steps
+                    <span class="stg-tag stg-tag-warn">Use with caution</span>
+                  </div>
+                </div>
+                <label class="stg-switch">
+                  <input type="checkbox" v-model="unlimitedSteps">
+                  <span class="stg-thumb stg-thumb-danger"></span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+        </div>
       </template>
 
       <!-- ── Chat View ─────────────────────────────────────────────── -->
@@ -494,47 +706,11 @@
 
         <!-- Right: Controls -->
         <div class="chat-header-right">
-          <!-- LangGraph Orchestrator Toggle -->
-          <div class="orchestrator-toggle" :class="{ active: orchestrator === 'langgraph' }" title="Use LangGraph Orchestrator">
-            <label class="switch">
-              <input type="checkbox" v-model="orchestrator" true-value="langgraph" false-value="classic">
-              <span class="slider round slider-langgraph"></span>
-            </label>
-            <span class="orchestrator-label">LangGraph</span>
-          </div>
-
           <!-- Mode + Workflow pill group -->
           <div class="header-pill-group">
             <button class="pill-btn" :class="{ active: agentMode === 'analysis' }" @click="agentMode = 'analysis'" title="System Analysis Mode">📊 System Analysis</button>
             <button class="pill-btn" :class="{ active: agentMode === 'generate' }" @click="agentMode = 'generate'" title="Develop Mode">🛠 Developer</button>
             <button class="pill-btn" :class="{ active: agentMode === 'review' }" @click="agentMode = 'review'" title="Audit Mode">⚖️ Audit</button>
-          </div>
-
-          <!-- Follow Review toggle -->
-          <div class="follow-review-toggle" v-if="agentMode === 'generate'" title="Apply review suggestions automatically">
-            <label class="switch">
-              <input type="checkbox" v-model="followReview">
-              <span class="slider round"></span>
-            </label>
-            <span class="follow-label">Follow Review</span>
-          </div>
-
-          <!-- Follow System Analysis toggle -->
-          <div class="follow-review-toggle" v-if="agentMode === 'generate'" title="Apply analysis recommendations automatically">
-            <label class="switch">
-              <input type="checkbox" v-model="followAnalysis">
-              <span class="slider round slider-analysis"></span>
-            </label>
-            <span class="follow-label">Follow Analysis</span>
-          </div>
-
-          <!-- Auto Review toggle (Dev Mode only) -->
-          <div class="follow-review-toggle" v-if="agentMode === 'generate'" title="Automatically request a review upon completion">
-            <label class="switch">
-              <input type="checkbox" v-model="autoRequestReview">
-              <span class="slider round slider-review"></span>
-            </label>
-            <span class="follow-label">Auto Review & Feedback</span>
           </div>
 
           <!-- Stop (visible only while running) -->
@@ -757,7 +933,8 @@ const handoffCount = ref(0)
 const maxAgentLoops = ref(5)
 
 // ── Workspace State ──
-const workspacePath = ref('')
+const workspacePath        = ref('')   // display only — resolved path from server
+const workspacePathSetting = ref('')   // editable in Settings
 const fbLoading    = ref(false)
 const fbError      = ref('')
 const targetFolder = ref(null)
@@ -796,8 +973,10 @@ async function loadFiles() {
   try {
     const res  = await fetch(`/api/files/list?path=${encodeURIComponent(currentPath.value)}`)
     const data = await res.json()
-    if (data.error) throw new Error(data.error)
-    fbItems.value = (data.items || []).sort((a, b) => {
+    const payload = data.data || data
+    if (!data.success && data.error) throw new Error(data.error)
+    if (payload.error) throw new Error(payload.error)
+    fbItems.value = (payload.items || []).sort((a, b) => {
       if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
       return a.name.localeCompare(b.name)
     })
@@ -826,7 +1005,8 @@ async function openFile(item) {
   try {
     const res  = await fetch(`/api/files/read?path=${encodeURIComponent(item.path)}`)
     const data = await res.json()
-    fileContent.value = data.content || data.error || ''
+    const payload = data.data || data
+    fileContent.value = payload.content || payload.error || ''
   } catch (e) {
     fileContent.value = `Error: ${e.message}`
   }
@@ -856,6 +1036,9 @@ const fastMode        = ref(true)
 const unlimitedSteps  = ref(false)
 const autoRequestReview = ref(false)
 const orchestrator    = ref('classic') // 'classic' or 'langgraph'
+const settingsSaving  = ref(false)
+const settingsSaved   = ref(false)
+let _savedTimer = null
 
 // ── Agent Stacks ─────────────────────────────────────────────────────────────
 const FALLBACK_STACKS = {
@@ -863,8 +1046,12 @@ const FALLBACK_STACKS = {
   "mean_stack": { "name": "MEAN Stack",           "description": "Expert in MongoDB, Express.js, Angular, and Node.",    "prompts": ["Create a Mongoose model for User with JWT auth", "Build an Express REST API", "Implement signup and login service"] },
   "html_css":   { "name": "HTML/CSS/Bootstrap",   "description": "Senior UI/UX Developer with Bootstrap 5 expertise.",  "prompts": ["Build a modern landing page with Bootstrap 5", "Create a responsive navbar and footer", "Create a dark-mode glassmorphism theme"] }
 }
-const selectedStack = ref(localStorage.getItem('devagent_selected_stack') || 'default')
-const stacksMetadata = ref({ ...FALLBACK_STACKS })
+const selectedStack   = ref(localStorage.getItem('devagent_selected_stack') || 'default')
+const stacksMetadata  = ref({ ...FALLBACK_STACKS })
+// Ensure a valid stack is always selected after stacks load from server
+watch(stacksMetadata, (meta) => {
+  if (!meta[selectedStack.value]) selectedStack.value = 'default'
+}, { immediate: false })
 const currentView = ref('chat') // 'chat' | 'dashboard'
 
 // ── Dashboard State ───────────────────────────────────────────────────────────
@@ -1014,16 +1201,96 @@ async function fetchStacks() {
 }
 fetchStacks()
 
+// selectStack — navigate to chat after picking from nav (legacy use)
 function selectStack(id) {
   selectedStack.value = id
   localStorage.setItem('devagent_selected_stack', id)
   currentView.value = 'chat'
 }
 
+
 function openDashboard() {
   currentView.value = 'dashboard'
   loadDashboard()
   connectDashSSE()
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+
+async function loadSettings() {
+  try {
+    const res  = await fetch('/api/settings')
+    const data = await res.json()
+    if (data.success && data.data) {
+      const s = data.data
+      selectedStack.value        = s.agentType         ?? 'default'
+      orchestrator.value         = s.orchestrator      ?? 'classic'
+      followReview.value         = s.followReview      ?? false
+      followAnalysis.value       = s.followAnalysis     ?? false
+      autoRequestReview.value    = s.autoRequestReview ?? false
+      fastMode.value             = s.fastMode          ?? true
+      unlimitedSteps.value       = s.unlimitedSteps     ?? false
+      workspacePathSetting.value = s.workspacePath      ?? ''
+    }
+  } catch (e) {
+    console.warn('[Settings] Failed to load settings:', e)
+  }
+}
+
+async function saveSettings() {
+  clearTimeout(_savedTimer)
+  settingsSaving.value = true
+  settingsSaved.value  = false
+  try {
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentType:         selectedStack.value,
+        orchestrator:      orchestrator.value,
+        followReview:      followReview.value,
+        followAnalysis:    followAnalysis.value,
+        autoRequestReview: autoRequestReview.value,
+        fastMode:          fastMode.value,
+        unlimitedSteps:    unlimitedSteps.value,
+        workspacePath:     workspacePathSetting.value,
+      })
+    })
+    settingsSaved.value = true
+    _savedTimer = setTimeout(() => { settingsSaved.value = false }, 2500)
+    // Refresh health & file browser to reflect new workspace
+    try {
+      const hr = await fetch('/api/agent/health')
+      const hd = await hr.json()
+      workspacePath.value = hd.workspace
+    } catch (_) {}
+    currentPath.value = '.'
+    loadFiles()
+  } catch (e) {
+    console.error('[Settings] Failed to save:', e)
+  } finally {
+    settingsSaving.value = false
+  }
+}
+
+async function resetSettings() {
+  try {
+    const res  = await fetch('/api/settings/reset', { method: 'POST' })
+    const data = await res.json()
+    if (data.success && data.data) {
+      const s = data.data
+      selectedStack.value        = s.agentType         ?? 'default'
+      orchestrator.value         = s.orchestrator      ?? 'classic'
+      followReview.value         = s.followReview      ?? false
+      followAnalysis.value       = s.followAnalysis     ?? false
+      autoRequestReview.value    = s.autoRequestReview ?? false
+      fastMode.value             = s.fastMode          ?? true
+      unlimitedSteps.value       = s.unlimitedSteps     ?? false
+      workspacePathSetting.value = s.workspacePath      ?? ''
+    }
+  } catch (e) {
+    console.error('[Settings] Failed to reset:', e)
+  }
 }
 
 const currentPresets = computed(() => {
@@ -1569,7 +1836,7 @@ onMounted(async () => {
   if (savedFolder) targetFolder.value = savedFolder
 
   try {
-    const res = await fetch('/api/health')
+    const res = await fetch('/api/agent/health')
     const data = await res.json()
     lmEndpoint.value = data.endpoint
     lmModel.value = data.model
@@ -1580,6 +1847,7 @@ onMounted(async () => {
   }
   loadModels()
   loadFiles()
+  loadSettings()
 
   // Global Copy Logic: Handles both Thought callouts and Full Message bubbles
   window.addEventListener('click', async (e) => {
@@ -1952,12 +2220,18 @@ textarea {
   flex-shrink: 0;
 }
 
+.sidebar-title-wrap { display: flex; flex-direction: column; gap: 2px; }
 .sidebar-title {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .1em;
   color: rgba(255,255,255,0.3);
   text-transform: uppercase;
+}
+.sidebar-ws-path {
+  font-size: 10px; font-family: 'JetBrains Mono', monospace;
+  color: var(--green, #4ade80); opacity: 0.7;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;
 }
 
 .sidebar-section { padding: 16px 14px 0; }
@@ -3508,7 +3782,8 @@ input:checked + .slider.slider-unlimited:before {
 .db-step-dot.completed { background: #3ddc84; }
 .db-step-dot.running   { background: #5b9cff; animation: pulse 1.4s infinite; }
 .db-step-dot.failed    { background: #ff6b6b; }
-.db-step-action { font-size: 11px; color: rgba(255,255,255,0.65); flex: 1; font-family: var(--mono, monospace); }
+.db-step-action { font-size: 11px; color: rgba(255,255,255,0.65); font-family: var(--mono, monospace); flex-shrink: 0; }
+.db-step-detail { font-size: 11px; color: #4ade80; font-family: var(--mono, monospace); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-step-time   { font-size: 10px; color: rgba(255,255,255,0.25); font-family: var(--mono, monospace); flex-shrink: 0; }
 .db-task-error-line {
   display: flex; align-items: flex-start; gap: 5px;
@@ -3564,9 +3839,11 @@ input:checked + .slider.slider-unlimited:before {
 }
 .db-log-filter-btn:hover { color: rgba(255,255,255,0.6); }
 .db-log-filter-btn.active { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.15); }
+.db-log-filter-btn.lf-roadmap.active { background: rgba(61,220,132,.1); color: #3ddc84; border-color: rgba(61,220,132,.25); }
+.db-log-filter-btn.lf-debug.active { background: rgba(167,139,250,.1); color: #a78bfa; border-color: rgba(167,139,250,.25); }
+.db-log-filter-btn.lf-info.active  { background: rgba(91,156,255,.1);  color: #5b9cff; border-color: rgba(91,156,255,.25); }
 .db-log-filter-btn.lf-warn.active  { background: rgba(255,209,102,.1); color: #ffd166; border-color: rgba(255,209,102,.25); }
 .db-log-filter-btn.lf-error.active { background: rgba(255,107,107,.1); color: #ff6b6b; border-color: rgba(255,107,107,.25); }
-.db-log-filter-btn.lf-info.active  { background: rgba(91,156,255,.1);  color: #5b9cff; border-color: rgba(91,156,255,.25); }
 .db-filter-cnt {
   font-size: 9px; padding: 0 4px; border-radius: 4px;
   background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.4);
@@ -3597,10 +3874,30 @@ input:checked + .slider.slider-unlimited:before {
 .ll-info  .db-log-lvl { color: #5b9cff; }
 .ll-warn  .db-log-lvl { color: #ffd166; }
 .ll-error .db-log-lvl { color: #ff6b6b; }
+.ll-debug .db-log-lvl { color: #a78bfa; }
 .ll-error .db-log-msg { color: rgba(255,107,107,0.85); }
-.ll-debug .db-log-lvl { color: rgba(255,255,255,0.3); }
+.ll-debug .db-log-msg { color: rgba(255,255,255,0.4); font-style: italic; }
 .ll-error { background: rgba(255,107,107,0.04); }
 .ll-warn  { background: rgba(255,209,102,0.025); }
+.ll-debug { background: rgba(167,139,250,0.03); }
+.db-log-detail {
+  display: inline-block; margin-left: 6px;
+  font-family: var(--mono); font-size: 10px;
+  color: #3ddc84; opacity: 0.85;
+}
+
+/* Roadmap entries */
+.db-roadmap-entry {
+  padding: 2px 14px;
+  background: rgba(61,220,132,0.04);
+  border-left: 2px solid rgba(61,220,132,0.35);
+  margin: 1px 0;
+}
+.db-roadmap-line {
+  font-family: var(--mono); font-size: 11px;
+  color: rgba(61,220,132,0.85); line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word;
+}
 
 @media (max-width: 1100px) {
   .db-kpi-row { grid-template-columns: repeat(3, 1fr); }
@@ -3611,4 +3908,205 @@ input:checked + .slider.slider-unlimited:before {
   .db-kpi-row { grid-template-columns: repeat(2, 1fr); }
   .db-body    { grid-template-columns: 1fr; }
 }
+
+/* ── Settings View ───────────────────────────────────────────────────────── */
+.settings-main {
+  flex: 1; min-width: 0;
+  background: #07090f;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* Agent type select */
+.stg-select-wrap {
+  position: relative; display: flex; align-items: center;
+}
+.stg-select {
+  width: 100%; padding: 10px 36px 10px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid var(--border2);
+  border-radius: 10px;
+  color: var(--t0); font-size: 13px; font-weight: 600;
+  font-family: var(--sans);
+  appearance: none; cursor: pointer;
+  transition: border-color .2s, box-shadow .2s;
+}
+.stg-select:focus {
+  outline: none;
+  border-color: rgba(91,156,255,0.5);
+  box-shadow: 0 0 0 3px rgba(91,156,255,0.08);
+}
+.stg-select option { background: #12151f; color: var(--t0); }
+.stg-select-arrow {
+  position: absolute; right: 12px; pointer-events: none; color: var(--t3);
+}
+.stg-select-desc {
+  margin: 8px 0 0; font-size: 12px; color: var(--t3); line-height: 1.5;
+}
+.stg-input-wrap { width: 100%; }
+.stg-input {
+  width: 100%; padding: 10px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid var(--border2);
+  border-radius: 10px;
+  color: var(--t0); font-size: 13px; font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  transition: border-color .2s, box-shadow .2s;
+  box-sizing: border-box;
+}
+.stg-input:focus {
+  outline: none;
+  border-color: rgba(91,156,255,0.5);
+  box-shadow: 0 0 0 3px rgba(91,156,255,0.08);
+}
+.stg-input::placeholder { color: var(--t4, #4a5068); }
+.stg-path-display {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--green, #4ade80);
+}
+
+.stg-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 32px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.stg-header-left { display: flex; align-items: center; gap: 14px; }
+.stg-brand-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  background: rgba(91,156,255,0.1); border: 1px solid rgba(91,156,255,0.2);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
+}
+.stg-title { font-size: 18px; font-weight: 700; color: var(--t0); margin: 0 0 2px; }
+.stg-subtitle { font-size: 12px; color: var(--t3); margin: 0; }
+.stg-header-right { display: flex; align-items: center; gap: 10px; }
+
+.stg-save-indicator {
+  display: none; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: var(--t2);
+}
+.stg-save-indicator.visible { display: flex; }
+.stg-save-indicator.stg-saved { color: var(--green); }
+
+.stg-reset-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border2); border-radius: var(--r-sm);
+  color: var(--t2); background: transparent; cursor: pointer;
+  transition: all .15s;
+}
+.stg-reset-btn:hover { border-color: var(--red); color: var(--red); background: rgba(255,107,107,.06); }
+
+.stg-save-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 16px; font-size: 12px; font-weight: 700;
+  border: 1px solid rgba(91,156,255,0.4); border-radius: var(--r-sm);
+  color: #fff; background: rgba(91,156,255,0.15); cursor: pointer;
+  transition: all .15s;
+}
+.stg-save-btn:hover:not(:disabled) {
+  background: rgba(91,156,255,0.28); border-color: rgba(91,156,255,0.7);
+  box-shadow: 0 0 10px rgba(91,156,255,0.2);
+}
+.stg-save-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.stg-body {
+  flex: 1; overflow-y: auto; padding: 28px 32px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+.stg-section {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 22px 24px;
+}
+
+.stg-section-header {
+  display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px;
+}
+.stg-section-icon {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--t2); margin-top: 2px;
+}
+.stg-section-title { font-size: 14px; font-weight: 700; color: var(--t0); margin-bottom: 3px; }
+.stg-section-desc  { font-size: 12px; color: var(--t3); line-height: 1.5; }
+
+/* Orchestrator option cards */
+.stg-option-cards { display: flex; gap: 12px; }
+.stg-option-card {
+  flex: 1; display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; border-radius: 10px; cursor: pointer;
+  border: 1.5px solid var(--border); background: rgba(255,255,255,0.02);
+  transition: all .2s;
+}
+.stg-option-card:hover { border-color: var(--border2); background: rgba(255,255,255,0.04); }
+.stg-option-card.selected {
+  border-color: rgba(91,156,255,0.5); background: rgba(91,156,255,0.07);
+}
+.stg-card-check {
+  width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%;
+  border: 1.5px solid var(--border2); display: flex; align-items: center; justify-content: center;
+  color: transparent; transition: all .2s;
+}
+.stg-option-card.selected .stg-card-check {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.stg-card-icon { font-size: 20px; flex-shrink: 0; }
+.stg-card-title { font-size: 13px; font-weight: 700; color: var(--t0); margin-bottom: 3px; }
+.stg-card-desc  { font-size: 11px; color: var(--t3); line-height: 1.4; }
+
+/* Toggle rows */
+.stg-toggles { display: flex; flex-direction: column; gap: 0; }
+.stg-toggle-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.stg-toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+.stg-toggle-row:first-child { padding-top: 0; }
+.stg-toggle-info { flex: 1; min-width: 0; }
+.stg-toggle-label { font-size: 13px; font-weight: 600; color: var(--t0); margin-bottom: 3px; }
+.stg-toggle-desc  { font-size: 12px; color: var(--t3); line-height: 1.5; }
+
+.stg-tag {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 5px; margin-left: 6px;
+  text-transform: uppercase; letter-spacing: 0.04em; vertical-align: middle;
+}
+.stg-tag-warn {
+  background: rgba(255,209,102,0.12); border: 1px solid rgba(255,209,102,0.3);
+  color: var(--yellow);
+}
+
+/* Settings switch */
+.stg-switch {
+  position: relative; display: inline-block;
+  width: 40px; height: 22px; flex-shrink: 0; cursor: pointer;
+}
+.stg-switch input { opacity: 0; width: 0; height: 0; }
+.stg-thumb {
+  position: absolute; inset: 0; border-radius: 22px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+  transition: all .25s;
+}
+.stg-thumb::before {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: rgba(255,255,255,0.4); transition: all .25s;
+}
+.stg-switch input:checked + .stg-thumb {
+  background: rgba(91,156,255,0.25); border-color: rgba(91,156,255,0.5);
+}
+.stg-switch input:checked + .stg-thumb::before {
+  transform: translateX(18px); background: var(--accent);
+}
+.stg-switch input:checked + .stg-thumb-fast {
+  background: rgba(255,209,102,0.2); border-color: rgba(255,209,102,0.5);
+}
+.stg-switch input:checked + .stg-thumb-fast::before { background: var(--yellow); }
+.stg-switch input:checked + .stg-thumb-danger {
+  background: rgba(255,107,107,0.2); border-color: rgba(255,107,107,0.5);
+}
+.stg-switch input:checked + .stg-thumb-danger::before { background: var(--red); }
 </style>

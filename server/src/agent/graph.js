@@ -133,7 +133,8 @@ async function callModel(state) {
         config.onStep({
             type: 'tool_call',
             tool: parsed.action,
-            parameters: parsed.parameters
+            parameters: parsed.parameters,
+            step: (state.step || 0) + 1
         });
     }
 

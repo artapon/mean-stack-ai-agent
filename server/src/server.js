@@ -1,89 +1,68 @@
-// RESTART MARKER: 2026-03-07 23:51
+'use strict';
+
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const express = require('express');
-const fs = require('fs-extra');
+const fs      = require('fs-extra');
+
 const config = require('./config');
+const { validateConfig } = require('./config');
+const { logger }         = require('./utils/logger');
 const { setupMiddleware, setupErrorHandling, setupProcessHandlers } = require('./middleware');
 
-// Module routes
-const agentRoutes = require('./modules/agent/agent.routes');
-const filesRoutes = require('./modules/files/files.routes');
+const agentRoutes     = require('./modules/agent/agent.routes');
+const filesRoutes     = require('./modules/files/files.routes');
 const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
+const settingsRoutes  = require('./modules/settings/settings.routes');
 
-console.log('[Server] Loaded LM_STUDIO_MODEL:', process.env.LM_STUDIO_MODEL);
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+
+setupProcessHandlers();
+validateConfig();
 
 const app = express();
 
-// Process error handlers
-setupProcessHandlers();
-
-// Middleware
-setupMiddleware(app);
-
-// Ensure workspace exists
+// Ensure workspace directory exists before accepting requests
 fs.ensureDirSync(config.workspaceDir);
 app.locals.workspaceDir = config.workspaceDir;
-app.locals.projectRoot = config.projectRoot;
+app.locals.projectRoot  = config.projectRoot;
 
-console.log('━'.repeat(50));
-console.log(`[Server] Project Root : ${config.projectRoot}`);
-console.log(`[Server] Workspace    : ${config.workspaceDir}`);
-console.log(`[Server] Reports Dir  : ${config.reportsPath}`);
-console.log(`[Server] CWD          : ${process.cwd()}`);
-console.log('━'.repeat(50));
-console.log('[Server] Initializing routes...');
+setupMiddleware(app);
 
-// ── Routes ───────────────────────────────────────────────────────────────────
+// ── Routes ─────────────────────────────────────────────────────────────────────
 
-// Agent module routes
-app.use('/api/agent', agentRoutes);
-console.log('[Server] Agent routes initialized.');
+app.use('/api/agent',    agentRoutes);
+app.use('/api/files',    filesRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/',             dashboardRoutes);
 
-// Files module routes
-app.use('/api/files', filesRoutes);
-console.log('[Server] Files routes initialized.');
-
-// Dashboard routes (both page and API)
-app.use('/', dashboardRoutes);
-console.log('[Server] Dashboard routes initialized.');
-
-// Health check (also provided in AgentController but kept here for convenience)
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    endpoint: config.lmStudio.baseUrl + '/chat',
-    model: config.lmStudio.model,
-    workspace: config.workspaceDir,
-    projectRoot: config.projectRoot,
-    env: {
-      WORKSPACE_DIR: process.env.WORKSPACE_DIR,
-      isAbsolute: path.isAbsolute(process.env.WORKSPACE_DIR || '')
-    },
-    maxAgentLoops: config.agent.maxReviewLoops
-  });
-});
-
-// Debug route
-app.get('/api/debug/root', async (_req, res) => {
-  try {
-    const files = await fs.readdir(config.projectRoot);
-    res.json({ projectRoot: config.projectRoot, files });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Error handling
 setupErrorHandling(app);
 
-// ── Start ─────────────────────────────────────────────────────────────────────
-const PORT = config.port;
-app.listen(PORT, () => {
-  console.log(`\n🤖  DevAgent server  →  http://localhost:${PORT}`);
-  console.log(`📁  Workspace        →  ${config.workspaceDir}`);
-  console.log(`🧠  LM Studio        →  ${config.lmStudio.baseUrl}/chat\n`);
+// ── Start server ───────────────────────────────────────────────────────────────
+
+const server = app.listen(config.port, () => {
+  logger.info(`DevAgent server started on http://localhost:${config.port}`);
+  logger.info(`Workspace  → ${config.workspaceDir}`);
+  logger.info(`LM Studio  → ${config.lmStudio.baseUrl}`);
 });
+
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+
+function shutdown(signal) {
+  logger.info(`${signal} received — shutting down gracefully`);
+  server.close(() => {
+    logger.info('HTTP server closed');
+    process.exit(0);
+  });
+  // Force-exit if connections don't drain within 10 s
+  setTimeout(() => {
+    logger.warn('Forced exit after timeout');
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
 
 module.exports = app;

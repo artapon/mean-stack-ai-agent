@@ -1,447 +1,384 @@
-const EventEmitter = require('events');
-const BaseService = require('../../../core/base.service');
-const config = require('../../../config');
-const path = require('path');
-const fs = require('fs-extra');
+'use strict';
 
 /**
- * DashboardService - Tracks agent tasks, workflows, and streams real-time logs
+ * DashboardService — in-memory task/workflow tracker with SSE broadcasting.
+ *
+ * Design notes:
+ *  - Does NOT extend BaseService to avoid circular dependency with the logger
+ *    (logger → dashboard → base-service → logger).
+ *  - TTL cleanup runs every 5 min and prunes completed/failed records > 1 h old.
+ *  - Task map is capped at MAX_TASKS; oldest entries are evicted first.
+ *  - Log buffer is a fixed-size ring of MAX_LOGS entries.
  */
-class DashboardService extends BaseService {
+
+const MAX_TASKS    = 500;   // live task map hard cap
+const MAX_HISTORY  = 1000;  // task history entries
+const MAX_LOGS     = 500;   // log ring buffer
+const TTL_MS       = 60 * 60 * 1000;   // 1 hour
+const CLEANUP_MS   = 5  * 60 * 1000;   // 5 minutes
+
+class DashboardService {
   constructor() {
-    super({ serviceName: 'DashboardService' });
-    this.eventEmitter = new EventEmitter();
-    this.eventEmitter.setMaxListeners(100);
-    
     // Task tracking
-    this.tasks = new Map();
-    this.taskHistory = [];
-    this.maxHistorySize = 1000;
-    
+    this.tasks       = new Map();   // taskId → task object (all statuses)
+    this.taskHistory = [];          // trimmed snapshot of completed/failed tasks
+
     // Workflow tracking
-    this.workflows = new Map();
-    
-    // Active connections for SSE
+    this.workflows   = new Map();
+
+    // SSE connections
     this.connections = new Set();
-    
-    // Stats
+
+    // Stats counters
     this.stats = {
-      totalTasks: 0,
-      completedTasks: 0,
-      failedTasks: 0,
-      activeTasks: 0,
-      startTime: Date.now()
+      totalTasks:      0,
+      completedTasks:  0,
+      failedTasks:     0,
+      activeTasks:     0,
+      totalWorkflows:  0,
+      totalLogs:       0,
+      startTime:       Date.now()
     };
-    
-    this.logBuffer = [];
-    this.maxBufferSize = 500;
+
+    // Log ring buffer
+    this.logBuffer    = [];
+
+    // Start periodic TTL cleanup
+    this._cleanupTimer = setInterval(() => this._ttlCleanup(), CLEANUP_MS);
+    // Don't keep Node process alive just for this timer
+    if (this._cleanupTimer.unref) this._cleanupTimer.unref();
   }
 
-  /**
-   * Register a new task
-   */
+  // ── Task lifecycle ─────────────────────────────────────────────────────────
+
   registerTask(taskId, metadata = {}) {
+    // Evict oldest entry if at cap
+    if (this.tasks.size >= MAX_TASKS) {
+      const oldestKey = this.tasks.keys().next().value;
+      this.tasks.delete(oldestKey);
+    }
+
     const task = {
-      id: taskId,
-      status: 'pending',
+      id:        taskId,
+      status:    'pending',
       startTime: null,
-      endTime: null,
-      metadata: {
-        model: metadata.model || 'unknown',
-        stack: metadata.stack || 'default',
+      endTime:   null,
+      duration:  null,
+      error:     null,
+      metadata:  {
+        model:  metadata.model  || 'unknown',
+        stack:  metadata.stack  || 'default',
         prompt: metadata.prompt || '',
         ...metadata
       },
       steps: [],
-      logs: []
+      logs:  []
     };
-    
+
     this.tasks.set(taskId, task);
     this.stats.totalTasks++;
     this.stats.activeTasks++;
-    
+
     this.broadcast('task:created', task);
-    this.log('info', `Task registered: ${taskId}`, { task });
-    
+    this.addLog('info', `Task registered: ${taskId}`, { service: 'dashboard' });
     return task;
   }
 
-  /**
-   * Start a task
-   */
   startTask(taskId) {
     const task = this.tasks.get(taskId);
     if (!task) return null;
-    
-    task.status = 'running';
+    task.status    = 'running';
     task.startTime = Date.now();
-    
     this.broadcast('task:started', task);
-    this.log('info', `Task started: ${taskId}`);
-    
     return task;
   }
 
-  /**
-   * Add step to task
-   */
   addTaskStep(taskId, step) {
     const task = this.tasks.get(taskId);
     if (!task) return;
-    
     const stepData = {
-      id: task.steps.length + 1,
+      id:        task.steps.length + 1,
       timestamp: Date.now(),
-      action: step.action || 'unknown',
-      status: step.status || 'pending',
-      details: step.details || {}
+      action:    step.action  || 'unknown',
+      detail:    step.detail  || '',
+      status:    step.status  || 'pending',
+      details:   step.details || {}
     };
-    
     task.steps.push(stepData);
     this.broadcast('task:step', { taskId, step: stepData });
   }
 
-  /**
-   * Complete a task
-   */
   completeTask(taskId, result = {}) {
     const task = this.tasks.get(taskId);
     if (!task) return null;
-    
-    task.status = 'completed';
-    task.endTime = Date.now();
-    task.duration = task.endTime - task.startTime;
-    task.result = result;
-    
+    task.status   = 'completed';
+    task.endTime  = Date.now();
+    task.duration = task.endTime - (task.startTime || task.endTime);
+    task.result   = result;
     this.stats.completedTasks++;
-    this.stats.activeTasks--;
-    
-    this.addToHistory(task);
+    this.stats.activeTasks = Math.max(0, this.stats.activeTasks - 1);
+    this._addToHistory(task);
     this.broadcast('task:completed', task);
-    this.log('info', `Task completed: ${taskId}`, { duration: task.duration });
-    
+    this.addLog('info', `Task completed: ${taskId}`, { service: 'dashboard', duration: task.duration });
     return task;
   }
 
-  /**
-   * Fail a task
-   */
   failTask(taskId, error) {
     const task = this.tasks.get(taskId);
     if (!task) return null;
-    
-    task.status = 'failed';
-    task.endTime = Date.now();
-    task.duration = task.endTime - task.startTime;
-    task.error = error.message || error;
-    
+    task.status   = 'failed';
+    task.endTime  = Date.now();
+    task.duration = task.endTime - (task.startTime || task.endTime);
+    task.error    = error?.message || String(error);
     this.stats.failedTasks++;
-    this.stats.activeTasks--;
-    
-    this.addToHistory(task);
+    this.stats.activeTasks = Math.max(0, this.stats.activeTasks - 1);
+    this._addToHistory(task);
     this.broadcast('task:failed', task);
-    this.log('error', `Task failed: ${taskId}`, { error: task.error });
-    
+    this.addLog('error', `Task failed: ${taskId}`, { service: 'dashboard', error: task.error });
     return task;
   }
 
-  /**
-   * Register a workflow
-   */
+  // ── Workflow lifecycle ─────────────────────────────────────────────────────
+
   registerWorkflow(workflowId, metadata = {}) {
     const workflow = {
-      id: workflowId,
-      status: 'pending',
-      startTime: null,
-      endTime: null,
-      metadata: {
-        name: metadata.name || 'Unnamed Workflow',
+      id:          workflowId,
+      status:      'pending',
+      startTime:   null,
+      endTime:     null,
+      duration:    null,
+      progress:    0,
+      currentStep: 0,
+      totalSteps:  metadata.totalSteps || 0,
+      metadata:    {
+        name:        metadata.name        || 'Unnamed Workflow',
         description: metadata.description || '',
         ...metadata
       },
-      tasks: [],
-      currentStep: 0,
-      totalSteps: metadata.totalSteps || 0
+      tasks: []
     };
-    
+
     this.workflows.set(workflowId, workflow);
+    this.stats.totalWorkflows++;
     this.broadcast('workflow:created', workflow);
-    
     return workflow;
   }
 
-  /**
-   * Start workflow
-   */
   startWorkflow(workflowId) {
-    const workflow = this.workflows.get(workflowId);
-    if (!workflow) return null;
-    
-    workflow.status = 'running';
-    workflow.startTime = Date.now();
-    
-    this.broadcast('workflow:started', workflow);
-    this.log('info', `Workflow started: ${workflowId}`);
-    
-    return workflow;
+    const wf = this.workflows.get(workflowId);
+    if (!wf) return null;
+    wf.status    = 'running';
+    wf.startTime = Date.now();
+    this.broadcast('workflow:started', wf);
+    this.addLog('info', `Workflow started: ${workflowId}`, { service: 'dashboard' });
+    return wf;
   }
 
-  /**
-   * Update workflow progress
-   */
   updateWorkflowProgress(workflowId, currentStep, totalSteps) {
-    const workflow = this.workflows.get(workflowId);
-    if (!workflow) return;
-    
-    workflow.currentStep = currentStep;
-    workflow.totalSteps = totalSteps;
-    workflow.progress = Math.round((currentStep / totalSteps) * 100);
-    
-    this.broadcast('workflow:progress', { workflowId, currentStep, totalSteps, progress: workflow.progress });
+    const wf = this.workflows.get(workflowId);
+    if (!wf) return;
+    wf.currentStep = currentStep;
+    wf.totalSteps  = totalSteps;
+    wf.progress    = totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0;
+    this.broadcast('workflow:progress', { workflowId, currentStep, totalSteps, progress: wf.progress });
   }
 
-  /**
-   * Complete workflow
-   */
   completeWorkflow(workflowId) {
-    const workflow = this.workflows.get(workflowId);
-    if (!workflow) return null;
-    
-    workflow.status = 'completed';
-    workflow.endTime = Date.now();
-    workflow.duration = workflow.endTime - workflow.startTime;
-    
-    this.broadcast('workflow:completed', workflow);
-    this.log('info', `Workflow completed: ${workflowId}`);
-    
-    return workflow;
+    const wf = this.workflows.get(workflowId);
+    if (!wf) return null;
+    wf.status   = 'completed';
+    wf.endTime  = Date.now();
+    wf.duration = wf.endTime - (wf.startTime || wf.endTime);
+    wf.progress = 100;
+    this.broadcast('workflow:completed', wf);
+    this.addLog('info', `Workflow completed: ${workflowId}`, { service: 'dashboard' });
+    return wf;
   }
 
+  // ── Log buffer ─────────────────────────────────────────────────────────────
+
   /**
-   * Add log entry
+   * Add a structured log entry and broadcast to connected clients.
+   * This is the canonical log method — does NOT call the global logger to
+   * prevent circular calls (global logger → addLog → global logger …).
    */
   addLog(level, message, metadata = {}) {
     const entry = {
-      id: Date.now() + Math.random().toString(36).substr(2, 9),
+      id:        `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       timestamp: Date.now(),
       level,
       message,
-      metadata,
-      service: metadata.service || 'dashboard'
+      metadata:  { service: 'dashboard', ...metadata }
     };
-    
+
+    // Ring buffer: evict oldest when full
+    if (this.logBuffer.length >= MAX_LOGS) this.logBuffer.shift();
     this.logBuffer.push(entry);
-    if (this.logBuffer.length > this.maxBufferSize) {
-      this.logBuffer.shift();
-    }
-    
+    this.stats.totalLogs++;
+
     this.broadcast('log:entry', entry);
     return entry;
   }
 
-  /**
-   * Add agent log from external source
-   */
+  /** Accept a pre-formed log object from external sources (e.g. AgentService). */
   addAgentLog(logData) {
-    const entry = {
-      id: logData.id || Date.now() + Math.random().toString(36).substr(2, 9),
-      timestamp: logData.timestamp || Date.now(),
-      level: logData.level || 'info',
-      message: logData.message || '',
-      metadata: {
+    return this.addLog(
+      logData.level    || 'info',
+      logData.message  || '',
+      {
         service: 'agent',
-        step: logData.step,
-        action: logData.action,
+        step:    logData.step,
+        action:  logData.action,
         ...logData.metadata
       }
-    };
-    
-    this.logBuffer.push(entry);
-    if (this.logBuffer.length > this.maxBufferSize) {
-      this.logBuffer.shift();
-    }
-    
-    this.broadcast('log:entry', entry);
+    );
   }
 
-  /**
-   * Get recent logs
-   */
-  getRecentLogs(count = 100, level = null) {
-    let logs = [...this.logBuffer];
-    if (level && level !== 'all') {
-      logs = logs.filter(l => l.level === level);
-    }
-    return logs.slice(-count);
-  }
+  // ── Queries ───────────────────────────────────────────────────────────────
 
-  /**
-   * Get active tasks
-   */
   getActiveTasks() {
     return Array.from(this.tasks.values())
       .filter(t => t.status === 'running')
       .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
   }
 
-  /**
-   * Get all tasks
-   */
   getAllTasks() {
     return Array.from(this.tasks.values())
-      .sort((a, b) => (b.startTime || b.timestamp || 0) - (a.startTime || a.timestamp || 0));
+      .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
   }
 
-  /**
-   * Get task by ID
-   */
   getTask(taskId) {
-    return this.tasks.get(taskId) || null;
+    return this.tasks.get(taskId) ?? null;
   }
 
-  /**
-   * Get active workflows
-   */
   getActiveWorkflows() {
     return Array.from(this.workflows.values())
       .filter(w => w.status === 'running')
       .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
   }
 
-  /**
-   * Get all workflows
-   */
   getAllWorkflows() {
     return Array.from(this.workflows.values())
       .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
   }
 
-  /**
-   * Get stats
-   */
+  getRecentLogs(count = 100, level = null) {
+    let logs = this.logBuffer;
+    if (level && level !== 'all') logs = logs.filter(l => l.level === level);
+    return logs.slice(-count);
+  }
+
   getStats() {
     return {
       ...this.stats,
-      uptime: Date.now() - this.stats.startTime,
+      uptime:            Date.now() - this.stats.startTime,
       activeConnections: this.connections.size,
-      bufferedLogs: this.logBuffer.length,
-      activeTasks: this.getActiveTasks().length,
-      activeWorkflows: this.getActiveWorkflows().length
+      bufferedLogs:      this.logBuffer.length,
+      activeTasks:       this.getActiveTasks().length,
+      activeWorkflows:   this.getActiveWorkflows().length
     };
   }
 
-  /**
-   * Get dashboard data
-   */
   getDashboardData() {
     return {
-      stats: this.getStats(),
-      activeTasks: this.getActiveTasks(),
-      recentTasks: this.getAllTasks().slice(0, 20),
-      activeWorkflows: this.getActiveWorkflows(),
-      recentWorkflows: this.getAllWorkflows().slice(0, 10),
-      recentLogs: this.getRecentLogs(50)
+      stats:            this.getStats(),
+      activeTasks:      this.getActiveTasks(),
+      recentTasks:      this.getAllTasks().slice(0, 20),
+      taskHistory:      this.taskHistory.slice(0, 50),
+      activeWorkflows:  this.getActiveWorkflows(),
+      recentWorkflows:  this.getAllWorkflows().slice(0, 10),
+      recentLogs:       this.getRecentLogs(100)
     };
   }
 
-  /**
-   * Add SSE connection
-   */
+  // ── SSE connection management ─────────────────────────────────────────────
+
   addConnection(response) {
     this.connections.add(response);
-    
-    response.on('close', () => {
-      this.removeConnection(response);
-    });
-    
-    // Send initial data
-    this.sendToConnection(response, 'init', this.getDashboardData());
+    response.on('close', () => this.removeConnection(response));
+    // Send full snapshot on connect
+    this._sendToConnection(response, 'init', this.getDashboardData());
   }
 
-  /**
-   * Remove SSE connection
-   */
   removeConnection(response) {
     this.connections.delete(response);
   }
 
-  /**
-   * Broadcast event to all connections
-   */
   broadcast(event, data) {
-    this.connections.forEach(conn => {
-      this.sendToConnection(conn, event, data);
-    });
+    if (this.connections.size === 0) return;
+    for (const conn of this.connections) {
+      this._sendToConnection(conn, event, data);
+    }
   }
 
-  /**
-   * Send data to single connection
-   */
-  sendToConnection(response, event, data) {
+  _sendToConnection(response, event, data) {
     try {
       if (!response.writableEnded) {
-        response.write(`event: ${event}\n`);
-        response.write(`data: ${JSON.stringify(data)}\n\n`);
+        response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       }
-    } catch (err) {
+    } catch {
       this.removeConnection(response);
     }
   }
 
-  /**
-   * Add task to history
-   */
-  addToHistory(task) {
+  // ── Internal helpers ──────────────────────────────────────────────────────
+
+  _addToHistory(task) {
     this.taskHistory.unshift({
-      id: task.id,
-      status: task.status,
+      id:        task.id,
+      status:    task.status,
+      error:     task.error  || null,
       startTime: task.startTime,
-      endTime: task.endTime,
-      duration: task.duration,
-      metadata: task.metadata
+      endTime:   task.endTime,
+      duration:  task.duration,
+      metadata:  task.metadata
     });
-    
-    if (this.taskHistory.length > this.maxHistorySize) {
-      this.taskHistory.pop();
-    }
+    if (this.taskHistory.length > MAX_HISTORY) this.taskHistory.pop();
   }
 
   /**
-   * Clear all data
+   * TTL cleanup — removes completed/failed tasks and workflows older than 1 hour.
+   * Runs automatically every CLEANUP_MS (5 min).
    */
-  clearAll() {
-    this.tasks.clear();
-    this.workflows.clear();
-    this.logBuffer = [];
-    this.taskHistory = [];
-    this.stats = {
-      totalTasks: 0,
-      completedTasks: 0,
-      failedTasks: 0,
-      activeTasks: 0,
-      startTime: Date.now()
-    };
-    
-    this.broadcast('dashboard:cleared', { timestamp: Date.now() });
-  }
+  _ttlCleanup() {
+    const cutoff = Date.now() - TTL_MS;
+    let removed  = 0;
 
-  /**
-   * Clean up old data
-   */
-  cleanup(maxAge = 24 * 60 * 60 * 1000) { // 24 hours
-    const now = Date.now();
-    
     for (const [id, task] of this.tasks) {
-      if (task.endTime && (now - task.endTime) > maxAge) {
+      if (task.endTime && task.endTime < cutoff) {
         this.tasks.delete(id);
+        removed++;
       }
     }
-    
-    for (const [id, workflow] of this.workflows) {
-      if (workflow.endTime && (now - workflow.endTime) > maxAge) {
+
+    for (const [id, wf] of this.workflows) {
+      if (wf.endTime && wf.endTime < cutoff) {
         this.workflows.delete(id);
       }
     }
+
+    if (removed > 0) {
+      this.addLog('debug', `TTL cleanup: removed ${removed} old task(s)`, { service: 'dashboard' });
+    }
+  }
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+
+  clearAll() {
+    this.tasks.clear();
+    this.workflows.clear();
+    this.logBuffer   = [];
+    this.taskHistory = [];
+    this.stats = {
+      totalTasks:     0,
+      completedTasks: 0,
+      failedTasks:    0,
+      activeTasks:    0,
+      totalWorkflows: 0,
+      totalLogs:      0,
+      startTime:      Date.now()
+    };
+    this.broadcast('dashboard:cleared', { timestamp: Date.now() });
   }
 }
 

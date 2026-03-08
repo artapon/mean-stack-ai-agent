@@ -1,98 +1,99 @@
-const fs = require('fs-extra');
-const path = require('path');
+'use strict';
 
+const fs   = require('fs-extra');
+const path = require('path');
+const { createLogger } = require('./logger');
+
+const log         = createLogger('Session');
 const sessionsDir = path.resolve(__dirname, '../../sessions');
 
-/**
- * Ensures the sessions directory exists.
- */
+/** Ensures sessions directory exists (idempotent). */
 async function ensureSessionsDir() {
-    await fs.ensureDir(sessionsDir);
+  await fs.ensureDir(sessionsDir);
 }
 
 /**
- * Loads a session by ID.
- * Supports both v1 (raw history) and v2 (LangChain serialized memory).
- * @param {string} sessionId 
- * @returns {Promise<{history: Array, memory?: Object, version?: number}>}
+ * Load a session by ID.
+ * Supports v1 (raw history array) and v2 (LangChain serialised memory object).
+ *
+ * @param {string} sessionId
+ * @returns {Promise<{ history: Array, memory?: object, version?: number }>}
  */
 async function loadSession(sessionId) {
-    if (!sessionId) return { history: [] };
-    const sessionPath = path.join(sessionsDir, `${sessionId}.json`);
-    if (await fs.exists(sessionPath)) {
-        try {
-            const data = await fs.readJson(sessionPath);
+  if (!sessionId) return { history: [] };
 
-            // v2 LangChain memory format
-            if (data.version === 2) {
-                console.log(`[Session] Loaded LangChain memory session ${sessionId} (v2)`);
-                return {
-                    history: data.messages ? data.messages.map(m => ({
-                        role: m.type === 'ai' ? 'assistant' : (m.type === 'system' ? 'system' : 'user'),
-                        content: m.content
-                    })) : [],
-                    memory: data,
-                    version: 2
-                };
-            }
+  const sessionPath = path.join(sessionsDir, `${sessionId}.json`);
 
-            // v1 legacy format
-            console.log(`[Session] Loaded legacy session ${sessionId} (v1)`);
-            return data;
-        } catch (err) {
-            console.error(`[Session] Failed to read session ${sessionId}:`, err.message);
-            return { history: [] };
-        }
+  if (!(await fs.exists(sessionPath))) return { history: [] };
+
+  try {
+    const data = await fs.readJson(sessionPath);
+
+    // v2 — LangChain memory format
+    if (data.version === 2) {
+      log.info(`Loaded v2 session ${sessionId}`, { messages: (data.messages || []).length });
+      return {
+        history: (data.messages || []).map(m => ({
+          role:    m.type === 'ai' ? 'assistant' : m.type === 'system' ? 'system' : 'user',
+          content: m.content
+        })),
+        memory:  data,
+        version: 2
+      };
     }
+
+    // v1 — legacy array format
+    log.info(`Loaded v1 session ${sessionId}`);
+    return data;
+  } catch (err) {
+    log.error(`Failed to read session ${sessionId}`, { error: err.message });
     return { history: [] };
+  }
 }
 
 /**
- * Saves a session by ID.
- * Supports both v1 (raw history array) and v2 (LangChain serialized memory object).
- * 
- * @param {string} sessionId 
- * @param {Array|Object} historyOrMemory — raw history array OR LangChain serialized memory
+ * Persist a session by ID.
+ *
+ * @param {string} sessionId
+ * @param {Array|object} historyOrMemory  Raw history array (v1) or LangChain memory object (v2).
  */
 async function saveSession(sessionId, historyOrMemory) {
-    if (!sessionId) return;
-    await ensureSessionsDir();
-    const sessionPath = path.join(sessionsDir, `${sessionId}.json`);
-    try {
-        // If historyOrMemory is a v2 LangChain memory object, save directly
-        if (historyOrMemory && historyOrMemory.version === 2) {
-            await fs.writeJson(sessionPath, historyOrMemory, { spaces: 2 });
-            console.log(`[Session] Saved LangChain memory session ${sessionId} (v2, ${(historyOrMemory.messages || []).length} messages).`);
-        } else {
-            // Legacy format: wrap in { history: [...] }
-            await fs.writeJson(sessionPath, { history: historyOrMemory }, { spaces: 2 });
-            console.log(`[Session] Saved legacy session ${sessionId} (v1).`);
-        }
-    } catch (err) {
-        console.error(`[Session] Failed to save session ${sessionId}:`, err.message);
+  if (!sessionId) return;
+  await ensureSessionsDir();
+
+  const sessionPath = path.join(sessionsDir, `${sessionId}.json`);
+
+  try {
+    if (historyOrMemory?.version === 2) {
+      await fs.writeJson(sessionPath, historyOrMemory, { spaces: 2 });
+      log.info(`Saved v2 session ${sessionId}`, { messages: (historyOrMemory.messages || []).length });
+    } else {
+      await fs.writeJson(sessionPath, { history: historyOrMemory }, { spaces: 2 });
+      log.info(`Saved v1 session ${sessionId}`, { messages: (historyOrMemory || []).length });
     }
+  } catch (err) {
+    log.error(`Failed to save session ${sessionId}`, { error: err.message });
+  }
 }
 
 /**
- * Clears (deletes) a session by ID.
- * @param {string} sessionId 
+ * Delete a session by ID.
+ *
+ * @param {string} sessionId
  */
 async function clearSession(sessionId) {
-    if (!sessionId) return;
-    const sessionPath = path.join(sessionsDir, `${sessionId}.json`);
-    if (await fs.exists(sessionPath)) {
-        try {
-            await fs.remove(sessionPath);
-            console.log(`[Session] Cleared session ${sessionId}`);
-        } catch (err) {
-            console.error(`[Session] Failed to clear session ${sessionId}:`, err.message);
-        }
-    }
+  if (!sessionId) return;
+
+  const sessionPath = path.join(sessionsDir, `${sessionId}.json`);
+
+  if (!(await fs.exists(sessionPath))) return;
+
+  try {
+    await fs.remove(sessionPath);
+    log.info(`Cleared session ${sessionId}`);
+  } catch (err) {
+    log.error(`Failed to clear session ${sessionId}`, { error: err.message });
+  }
 }
 
-module.exports = {
-    loadSession,
-    saveSession,
-    clearSession
-};
-
+module.exports = { loadSession, saveSession, clearSession };

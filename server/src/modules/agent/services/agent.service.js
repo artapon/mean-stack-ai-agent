@@ -4,7 +4,7 @@ const { loadSession, saveSession, clearSession } = require('../../../utils/sessi
 const config = require('../../../config');
 const fs = require('fs');
 const path = require('path');
-const dashboardService = require('../../dashboard/services/dashboard.service');
+const dashboardService = require('../../../dashboard/services/dashboard.service');
 
 /**
  * AgentService - Handles agent execution and session management

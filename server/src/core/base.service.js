@@ -1,69 +1,64 @@
+'use strict';
+
+const { createLogger } = require('../utils/logger');
+
 /**
- * BaseService - Abstract base class for all HMVC services
- * Contains business logic, coordinates between controllers and models
+ * BaseService — abstract base class for all HMVC services.
+ *
+ * Provides:
+ *  - Per-service logger (`this.logger` / `this.log()`)
+ *  - Input validation helper
+ *  - Dependency injection slot
  */
 class BaseService {
   constructor(options = {}) {
-    this.serviceName = options.serviceName || 'base';
+    this.serviceName  = options.serviceName || 'Service';
     this.dependencies = options.dependencies || {};
+    this.logger       = createLogger(this.serviceName);
   }
 
+  // ── Logging ─────────────────────────────────────────────────────────────────
+
   /**
-   * Log service activity
+   * Convenience wrapper so subclasses can call `this.log('info', msg, meta)`.
+   * Falls back to `info` for unknown levels.
    */
   log(level, message, meta = {}) {
-    const prefix = `[${this.serviceName}]`;
-    const timestamp = new Date().toISOString();
-    const logEntry = { timestamp, level, service: this.serviceName, message, ...meta };
-    
-    if (level === 'error') {
-      console.error(prefix, message, meta);
-    } else if (level === 'warn') {
-      console.warn(prefix, message, meta);
-    } else {
-      console.log(prefix, message, meta);
-    }
-    return logEntry;
+    (this.logger[level] ?? this.logger.info).call(this.logger, message, meta);
   }
 
+  // ── Validation ───────────────────────────────────────────────────────────────
+
   /**
-   * Validate input data against schema
+   * Validate plain-object `data` against a `rules` map.
+   *
+   * Rule shape: `{ required?: boolean, type?: 'string'|'number'|'boolean'|'array'|'object' }`
+   *
+   * @param {object} data
+   * @param {Record<string, {required?: boolean, type?: string}>} rules
+   * @returns {{ valid: boolean, errors: string[] }}
    */
   validate(data, rules) {
     const errors = [];
+
     for (const [field, rule] of Object.entries(rules)) {
       const value = data[field];
-      
+
       if (rule.required && (value === undefined || value === null || value === '')) {
-        errors.push(`${field} is required`);
+        errors.push(`"${field}" is required`);
+        continue; // skip type check when missing
       }
-      
-      if (value !== undefined && rule.type) {
-        if (rule.type === 'array' && !Array.isArray(value)) {
-          errors.push(`${field} must be an array`);
-        } else if (rule.type !== 'array' && typeof value !== rule.type) {
-          errors.push(`${field} must be ${rule.type}`);
+
+      if (value !== undefined && value !== null && rule.type) {
+        const isArray = Array.isArray(value);
+        const actual  = isArray ? 'array' : typeof value;
+        if (actual !== rule.type) {
+          errors.push(`"${field}" must be ${rule.type} (got ${actual})`);
         }
       }
     }
-    
-    return {
-      valid: errors.length === 0,
-      errors
-    };
-  }
 
-  /**
-   * Execute operation with error handling
-   */
-  async execute(operation, context = {}) {
-    try {
-      this.log('info', `Executing ${operation}`, context);
-      return await this[operation](context);
-    } catch (error) {
-      this.log('error', `Failed ${operation}`, { error: error.message, context });
-      throw error;
-    }
+    return { valid: errors.length === 0, errors };
   }
 }
 

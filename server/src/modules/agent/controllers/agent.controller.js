@@ -1,5 +1,6 @@
-const BaseController = require('../../../core/base.controller');
-const AgentService = require('../services/agent.service');
+const BaseController  = require('../../../core/base.controller');
+const AgentService    = require('../services/agent.service');
+const settingsService = require('../../settings/services/settings.service');
 const config = require('../../../config');
 const path = require('path');
 const fs = require('fs');
@@ -75,6 +76,7 @@ class AgentController extends BaseController {
     });
 
     try {
+      const workspaceDir = await this._getWorkspaceDir();
       const result = await AgentService.runAgent(
         {
           messages,
@@ -83,8 +85,8 @@ class AgentController extends BaseController {
           sessionId,
           stack,
           orchestrator,
-          workspaceDir: req.app.locals.workspaceDir,
-          projectRoot: req.app.locals.projectRoot
+          workspaceDir,
+          projectRoot: config.projectRoot
         },
         send
       );
@@ -164,15 +166,26 @@ class AgentController extends BaseController {
     }
   }
 
+  /** Resolve the effective workspace from settings (falls back to env/config default). */
+  async _getWorkspaceDir() {
+    const settings = await settingsService.load();
+    if (settings.workspacePath && settings.workspacePath.trim()) {
+      const ws = settings.workspacePath.trim();
+      return path.isAbsolute(ws) ? ws : path.join(config.projectRoot, ws);
+    }
+    return config.workspaceDir;
+  }
+
   /**
-   * GET /api/health - Health check
+   * GET /api/agent/health - Health check
    */
-  healthCheck(req, res) {
+  async healthCheck(req, res) {
+    const workspace = await this._getWorkspaceDir();
     return this.ok(res, {
       status: 'ok',
       endpoint: config.lmStudio.baseUrl + '/chat',
       model: config.lmStudio.model,
-      workspace: config.workspaceDir,
+      workspace,
       projectRoot: config.projectRoot,
       maxAgentLoops: config.agent.maxReviewLoops
     });
