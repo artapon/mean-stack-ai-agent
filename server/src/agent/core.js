@@ -731,7 +731,9 @@ async function runAgent(opts) {
     || selectedModel || process.env.LM_STUDIO_MODEL || modelConfig.global || 'openai/gpt-oss-20b';
 
   const BASE_MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
-  let MAX_STEPS = isAnalysis ? Math.max(BASE_MAX_STEPS, 200) : BASE_MAX_STEPS;
+  let MAX_STEPS = BASE_MAX_STEPS;
+  if (isAnalysis) MAX_STEPS = Math.max(BASE_MAX_STEPS, 200);
+  else if (mode === 'developer') MAX_STEPS = Math.max(BASE_MAX_STEPS, 100);
   if (unlimitedSteps) MAX_STEPS = 10000; // Virtually unlimited safety cap
   const MAX_REVIEW_LOOPS = Number(process.env.AGENT_MAX_LOOPS) || 3;
 
@@ -1037,7 +1039,7 @@ ${report}`;
           const c = (m.content || '').toLowerCase();
           return m.role === 'user' && c.includes('tool result') &&
             ['write_file', 'bulk_write', 'scaffold_project'].some(t => c.includes(t)) &&
-            c.includes('./agent_reports/developer_walkthrough.md');
+            (c.includes('developer_walkthrough.md') || c.includes('plan.md'));
         });
       }
 
@@ -1048,7 +1050,7 @@ ${report}`;
       });
 
       // ── Premature finish guard ─────────────────────────────────────────────
-      if (isUpdateTask && (!agentState.codeModified || !agentState.planWritten) && step < 10 && !isReview) {
+      if (isUpdateTask && (!agentState.codeModified || !agentState.planWritten) && step < MAX_STEPS && !isReview) {
         prematureFinishCount++;
         console.warn(`[DevAgent] Premature finish (${prematureFinishCount}/3)`);
         if (prematureFinishCount < 3) {
@@ -1746,6 +1748,12 @@ async function runAgentGraph(opts) {
   const resolvedModel = (isReview ? modelConfig.review : (isAnalysis ? (modelConfig.analysis || modelConfig.review) : modelConfig.dev))
     || selectedModel || process.env.LM_STUDIO_MODEL || modelConfig.global || 'openai/gpt-oss-20b';
 
+  const BASE_MAX_STEPS = Number(process.env.AGENT_MAX_STEPS) || 50;
+  let MAX_STEPS = BASE_MAX_STEPS;
+  if (isAnalysis) MAX_STEPS = Math.max(BASE_MAX_STEPS, 200);
+  else if (mode === 'developer') MAX_STEPS = Math.max(BASE_MAX_STEPS, 100);
+  if (unlimitedSteps) MAX_STEPS = 10000;
+
   const systemPrompt = getSystemPrompt(mode, targetFolderName, fastMode, autoRequestReview, stack, false);
 
   const config = {
@@ -1757,7 +1765,7 @@ async function runAgentGraph(opts) {
     effectiveWorkspaceDir,
     workspaceDir,
     projectRoot,
-    maxSteps: Number(process.env.AGENT_MAX_STEPS) || 50,
+    maxSteps: MAX_STEPS,
     allowedTools: getToolsForMode(mode).map(t => t.name),
     autoRequestReview,
     onStep // Pass streaming callback to graph nodes
@@ -1766,7 +1774,8 @@ async function runAgentGraph(opts) {
   // Convert incoming messages to LangChain messages for LangGraph
   const lcMessages = messages.map(m => {
     if (m.role === 'assistant') return new AIMessage(m.content);
-    if (m.role === 'system') return new SystemMessage(m.content);
+    // Map system messages to HumanMessage to ensure we always have a "user query" for picky prompt templates (like LM Studio)
+    if (m.role === 'system') return new HumanMessage(`[SYSTEM DIRECTIVE] ${m.content}`);
     return new HumanMessage(m.content);
   });
 
@@ -1790,7 +1799,7 @@ async function runAgentGraph(opts) {
       configRead: hasInHistory(['package.json', 'requirements.txt'], ['tool result', 'content:', 'bytes:']),
       codeModified: hasInHistory(['.js', '.ts', '.html', '.css', '.vue']),
       planWritten: hasInHistory(['developer_walkthrough.md', 'plan.md']),
-      reviewRequested: hasInHistory(['request_review'], ['tool result', 'logged']),
+      reviewRequested: hasInHistory(['request_review'], ['tool result', 'logged', 'success']),
       reviewLoopCount: messages.filter(m => (m.content || '').includes('[CODE: NOT OK]')).length,
       discoveredFiles: [],
       replaceFailCounts: {},

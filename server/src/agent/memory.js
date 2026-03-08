@@ -394,7 +394,9 @@ class AgentMemory {
                 if (!this.systemPrompt) {
                     this.systemPrompt = msg.content;
                 } else {
-                    await this.chatHistory.addMessage(new SystemMessage(msg.content));
+                    // Secondary system messages become human directives to avoid [System, System] sequences
+                    const prefixed = msg.content.startsWith('[SYSTEM DIRECTIVE]') ? msg.content : `[SYSTEM DIRECTIVE] ${msg.content}`;
+                    await this.chatHistory.addMessage(new HumanMessage(prefixed));
                 }
             } else if (msg.role === 'assistant') {
                 await this.chatHistory.addMessage(new AIMessage(msg.content));

@@ -133,6 +133,12 @@ class LangchainWorkflow {
             return new HumanMessage(m.content);
         });
 
+        // SAFETY: Prevent "No user query found" in LM Studio 0.3+
+        // If the message list contains no HumanMessage, LM Studio's Jinja templates fail.
+        if (!messages.some(m => m instanceof HumanMessage)) {
+            messages.push(new HumanMessage("[SYSTEM DIRECTIVE] Continue with the next step in your reasoning process as defined by the system prompt."));
+        }
+
         try {
             let fullText = "";
             let isThinking = false;

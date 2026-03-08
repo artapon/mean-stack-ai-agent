@@ -293,13 +293,7 @@
             Stop
           </button>
 
-          <!-- Browse Folder (icon only) -->
-          <button class="btn-icon" :disabled="browsing" @click="browseFolder" title="Browse Folder">
-            <span v-if="browsing" class="spin-sm"></span>
-            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-          </button>
+
         </div>
       </header>
 
@@ -515,7 +509,7 @@ const workspacePath = ref('')
 const fbLoading    = ref(false)
 const fbError      = ref('')
 const targetFolder = ref(null)
-const browsing     = ref(false)
+
 const agentMode    = ref('generate') // 'generate' or 'review'
 const fbItems      = ref([])
 const currentPath  = ref('.')
@@ -537,29 +531,7 @@ function setTargetFolder(path) {
   }
 }
 
-async function browseFolder() {
-  browsing.value = true
-  try {
-    const res  = await fetch('/api/files/browse')
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}))
-      throw new Error(errBody.error || `Server Error: ${res.statusText} (${res.status})`)
-    }
-    const data = await res.json()
-    if (data.path) {
-      targetFolder.value = data.path
-      currentPath.value  = data.path
-      if (showBrowser.value) loadFiles()
-    } else if (data.cancelled) {
-      console.log('[Browse] Cancelled by user')
-    }
-  } catch (e) {
-    console.error('[Browse Error]', e)
-    alert('Failed to trigger folder picker: ' + e.message)
-  } finally {
-    browsing.value = false
-  }
-}
+
 
 const fbFolders    = computed(() => fbItems.value.filter(i => i.type === 'directory'))
 const fbFiles      = computed(() => fbItems.value.filter(i => i.type === 'file'))

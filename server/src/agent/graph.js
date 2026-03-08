@@ -77,6 +77,11 @@ async function callModel(state) {
     }
     finalMessages.push(...windowedMessages);
 
+    // SAFETY: Prevent "No user query found" in LM Studio
+    if (!finalMessages.some(m => m instanceof HumanMessage)) {
+        finalMessages.push(new HumanMessage("[SYSTEM DIRECTIVE] Continue with your next step."));
+    }
+
     console.log(`[LangGraph] Calling model: ${config.resolvedModel}`);
 
     let fullText = "";
@@ -100,12 +105,27 @@ async function callModel(state) {
     } catch (err) {
         console.error(`[LangGraph] Model call failed:`, err.message);
         const repeatCount = (state.lastActionSig === "error") ? (state.lastActionRepeat || 0) + 1 : 0;
-        return {
+
+        const newState = {
             lastAction: { action: "error", error: err.message },
-            messages: [new AIMessage(`Error: ${err.message}`)],
             lastActionSig: "error",
             lastActionRepeat: repeatCount
         };
+
+        // Aggressive recovery for LM Studio Jinja errors
+        if (err.message.includes("No user query found") || err.message.includes("jinja")) {
+            console.warn("[LangGraph] Template error detected. Forcing HumanMessage context reset.");
+            // Reset messages to contain exactly the system prompt + a human instruction
+            const recoveryMessages = [
+                new SystemMessage(config.systemPrompt || "You are a helpful assistant."),
+                new HumanMessage("[SYSTEM DIRECTIVE] The previous prompt failed. Please proceed with your task using the provided tools.")
+            ];
+            newState.messages = recoveryMessages;
+        } else {
+            newState.messages = [new AIMessage(`Error: ${err.message}`)];
+        }
+
+        return newState;
     }
 
     // Stream action to the UI
@@ -209,14 +229,21 @@ async function executeTool(state, TOOLS) {
 
         const newState = {};
         if (['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project', 'delete_file'].includes(resolvedAction)) {
-            const p = (parameters.path || parameters.file || '').toLowerCase();
-            if (p.includes('developer_walkthrough.md') || p.includes('plan.md')) {
-                newState.planWritten = true;
-            } else if (p.includes('reviewer_walkthrough.md') || p.includes('system_analysis_walkthrough.md')) {
-                newState.reportSaved = true;
-            } else {
-                newState.codeModified = true;
-            }
+            // Check top level path first
+            const topPath = (parameters.path || parameters.file || '').toLowerCase();
+            // Check nested paths (for bulk operations)
+            const nestedPaths = Array.isArray(parameters.files)
+                ? parameters.files.map(f => (f.path || f.file || '').toLowerCase()).join('|')
+                : (typeof parameters.content === 'string' ? parameters.content.slice(0, 1000).toLowerCase() : ''); // apply_blueprint might have it in content headers
+
+            const isPlan = topPath.includes('developer_walkthrough.md') || topPath.includes('plan.md') ||
+                nestedPaths.includes('developer_walkthrough.md') || nestedPaths.includes('plan.md');
+            const isReport = topPath.includes('reviewer_walkthrough.md') || topPath.includes('system_analysis_walkthrough.md') ||
+                nestedPaths.includes('reviewer_walkthrough.md') || nestedPaths.includes('system_analysis_walkthrough.md');
+
+            if (isPlan) newState.planWritten = true;
+            else if (isReport) newState.reportSaved = true;
+            else newState.codeModified = true;
         }
 
         if (resolvedAction === 'list_files' && result.filesList) {
@@ -307,9 +334,16 @@ function router(state) {
 
     // 2. Check for Finish
     if (action === "finish") {
-        // ... (guards)
-        if (config.mode === 'developer' && (!agentState.codeModified || !agentState.planWritten) && step < 10) {
-            return "nudge_premature_finish";
+        // Developer Mode guards
+        if (config.mode === 'developer' && step < maxSteps) {
+            // Priority: If they modified code, they MUST write the walkthrough
+            if (agentState.codeModified && !agentState.planWritten) {
+                return "nudge_walkthrough_missing";
+            }
+            // If they haven't modified code OR written a plan, and it's early, they might be slacking
+            if (!agentState.codeModified && !agentState.planWritten && step < 3) {
+                return "nudge_premature_finish";
+            }
         }
 
         // Review Mode guards
@@ -329,13 +363,8 @@ function router(state) {
             }
         }
 
-        // Walkthrough guard (Developer mode)
-        if (config.mode === 'developer' && !agentState.planWritten) {
-            return "nudge_walkthrough_missing";
-        }
-
         // Auto review-request guard (Developer mode)
-        if (config.autoRequestReview && config.mode === 'developer' && !agentState.reviewRequested) {
+        if (config.autoRequestReview && config.mode === 'developer' && !agentState.reviewRequested && agentState.codeModified) {
             return "nudge_review_missing";
         }
 
@@ -345,9 +374,16 @@ function router(state) {
     // 2. Check for Errors/Format Issues
     if (lastAction.error) {
         // If the model call itself failed (e.g. API error), don't loop forever
-        if (lastAction.action === "error" && (state.lastActionRepeat || 0) >= 3) {
+        // EXCEPT for Jinja/UserQuery errors which we now have auto-recovery for
+        const isTemplateError = lastAction.error?.includes("No user query found") || lastAction.error?.includes("jinja");
+        if (lastAction.action === "error" && (state.lastActionRepeat || 0) >= 3 && !isTemplateError) {
             console.error(`[LangGraph] Persistent model error. Aborting.`);
             return "finish";
+        }
+
+        if (isTemplateError) {
+            console.log("[LangGraph] Template error detected, routing back to call_model for recovery.");
+            return "call_model";
         }
 
         if (lastAction.isGarbled) return "nudge_format_recovery";

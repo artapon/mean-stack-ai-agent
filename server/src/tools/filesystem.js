@@ -16,15 +16,18 @@ function safePath(inputPath, workspaceDir, allowTraversal = false, rootWorkspace
   p = p.replace(/^([/\\]+root[/\\]+|root[/\\]+|[/\\]+|\.[/\\]+)/i, '');
 
   // 3. Special case: allow centralized reports directory
-  const reportsDir = process.env.AGENT_REPORTS_DIR || './agent_reports';
-  const isAgentReports = p.toLowerCase().startsWith(reportsDir.toLowerCase() + '/') || p.toLowerCase() === reportsDir.toLowerCase();
+  const reportsDir = (process.env.AGENT_REPORTS_DIR || 'agent_reports').replace(/^\.[/\\]+/, '');
+  const cleanReportsDir = reportsDir.toLowerCase();
+  const segments = p.toLowerCase().split(/[/\\]/);
+  const reportsIdx = segments.indexOf(cleanReportsDir);
 
-  if (isAgentReports) {
+  if (reportsIdx !== -1) {
     // Resolve to the configured reports directory (relative to reportsRoot, which should be the root workspace)
     const agentReportsDir = path.resolve(reportsRoot, reportsDir);
-    const remainingPath = p.startsWith(reportsDir) ? p.substring(reportsDir.length + 1) : '';
-    const abs = remainingPath ? path.join(agentReportsDir, remainingPath) : agentReportsDir;
-    return abs;
+    // Extract everything after the 'agent_reports' segment
+    const originalSegments = p.split(/[/\\]/);
+    const remainingPath = originalSegments.slice(reportsIdx + 1).join(path.sep);
+    return remainingPath ? path.join(agentReportsDir, remainingPath) : agentReportsDir;
   }
 
   // 4. Resolve path. On Windows, a leading slash resolves to the drive root.
