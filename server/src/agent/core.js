@@ -925,6 +925,15 @@ ${report}`;
     console.log(rawText.length > 500 ? rawText.slice(0, 500) + '...' : rawText);
     if (parsed.thought && onStep) onStep({ type: 'thought', content: parsed.thought });
 
+    logInfo('action', `[step ${step}] Parsed action: ${action || 'none'}`, {
+      step,
+      action: action || 'none',
+      thought: parsed.thought || undefined,
+      parameters: redactForInfoLog(parsed.parameters, 2000),
+      isGarbled: parsed.isGarbled,
+      error: parsed.error
+    });
+
     // ── No action ────────────────────────────────────────────────────────────
     if (!action) {
       // Not a system failure — model produced an answer without an ACTION.
@@ -1430,7 +1439,7 @@ ${report}`;
     if (onStep) onStep({ type: 'tool_call', tool: action, parameters: parsed.parameters, step });
 
     // Build a readable log message — show target file for write operations
-    const _p    = parsed.parameters || {};
+    const _p = parsed.parameters || {};
     const _file = _p.path || _p.file || _p.filename || _p.filepath || _p.target || '';
     const _toolMsg = _file
       ? `[step ${step}] ${action} → ${_file}`

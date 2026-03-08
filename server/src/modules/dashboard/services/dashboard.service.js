@@ -11,37 +11,37 @@
  *  - Log buffer is a fixed-size ring of MAX_LOGS entries.
  */
 
-const MAX_TASKS    = 500;   // live task map hard cap
-const MAX_HISTORY  = 1000;  // task history entries
-const MAX_LOGS     = 500;   // log ring buffer
-const TTL_MS       = 60 * 60 * 1000;   // 1 hour
-const CLEANUP_MS   = 5  * 60 * 1000;   // 5 minutes
+const MAX_TASKS = 500;   // live task map hard cap
+const MAX_HISTORY = 1000;  // task history entries
+const MAX_LOGS = 500;   // log ring buffer
+const TTL_MS = 60 * 60 * 1000;   // 1 hour
+const CLEANUP_MS = 5 * 60 * 1000;   // 5 minutes
 
 class DashboardService {
   constructor() {
     // Task tracking
-    this.tasks       = new Map();   // taskId → task object (all statuses)
+    this.tasks = new Map();   // taskId → task object (all statuses)
     this.taskHistory = [];          // trimmed snapshot of completed/failed tasks
 
     // Workflow tracking
-    this.workflows   = new Map();
+    this.workflows = new Map();
 
     // SSE connections
     this.connections = new Set();
 
     // Stats counters
     this.stats = {
-      totalTasks:      0,
-      completedTasks:  0,
-      failedTasks:     0,
-      activeTasks:     0,
-      totalWorkflows:  0,
-      totalLogs:       0,
-      startTime:       Date.now()
+      totalTasks: 0,
+      completedTasks: 0,
+      failedTasks: 0,
+      activeTasks: 0,
+      totalWorkflows: 0,
+      totalLogs: 0,
+      startTime: Date.now()
     };
 
     // Log ring buffer
-    this.logBuffer    = [];
+    this.logBuffer = [];
 
     // Start periodic TTL cleanup
     this._cleanupTimer = setInterval(() => this._ttlCleanup(), CLEANUP_MS);
@@ -59,20 +59,20 @@ class DashboardService {
     }
 
     const task = {
-      id:        taskId,
-      status:    'pending',
+      id: taskId,
+      status: 'pending',
       startTime: null,
-      endTime:   null,
-      duration:  null,
-      error:     null,
-      metadata:  {
-        model:  metadata.model  || 'unknown',
-        stack:  metadata.stack  || 'default',
+      endTime: null,
+      duration: null,
+      error: null,
+      metadata: {
+        model: metadata.model || 'unknown',
+        stack: metadata.stack || 'default',
         prompt: metadata.prompt || '',
         ...metadata
       },
       steps: [],
-      logs:  []
+      logs: []
     };
 
     this.tasks.set(taskId, task);
@@ -87,7 +87,7 @@ class DashboardService {
   startTask(taskId) {
     const task = this.tasks.get(taskId);
     if (!task) return null;
-    task.status    = 'running';
+    task.status = 'running';
     task.startTime = Date.now();
     this.broadcast('task:started', task);
     return task;
@@ -97,12 +97,13 @@ class DashboardService {
     const task = this.tasks.get(taskId);
     if (!task) return;
     const stepData = {
-      id:        task.steps.length + 1,
+      id: task.steps.length + 1,
       timestamp: Date.now(),
-      action:    step.action  || 'unknown',
-      detail:    step.detail  || '',
-      status:    step.status  || 'pending',
-      details:   step.details || {}
+      action: step.action || 'unknown',
+      detail: step.detail || '',
+      thought: step.thought || '',
+      status: step.status || 'pending',
+      details: step.details || {}
     };
     task.steps.push(stepData);
     this.broadcast('task:step', { taskId, step: stepData });
@@ -111,10 +112,10 @@ class DashboardService {
   completeTask(taskId, result = {}) {
     const task = this.tasks.get(taskId);
     if (!task) return null;
-    task.status   = 'completed';
-    task.endTime  = Date.now();
+    task.status = 'completed';
+    task.endTime = Date.now();
     task.duration = task.endTime - (task.startTime || task.endTime);
-    task.result   = result;
+    task.result = result;
     this.stats.completedTasks++;
     this.stats.activeTasks = Math.max(0, this.stats.activeTasks - 1);
     this._addToHistory(task);
@@ -126,10 +127,10 @@ class DashboardService {
   failTask(taskId, error) {
     const task = this.tasks.get(taskId);
     if (!task) return null;
-    task.status   = 'failed';
-    task.endTime  = Date.now();
+    task.status = 'failed';
+    task.endTime = Date.now();
     task.duration = task.endTime - (task.startTime || task.endTime);
-    task.error    = error?.message || String(error);
+    task.error = error?.message || String(error);
     this.stats.failedTasks++;
     this.stats.activeTasks = Math.max(0, this.stats.activeTasks - 1);
     this._addToHistory(task);
@@ -142,16 +143,16 @@ class DashboardService {
 
   registerWorkflow(workflowId, metadata = {}) {
     const workflow = {
-      id:          workflowId,
-      status:      'pending',
-      startTime:   null,
-      endTime:     null,
-      duration:    null,
-      progress:    0,
+      id: workflowId,
+      status: 'pending',
+      startTime: null,
+      endTime: null,
+      duration: null,
+      progress: 0,
       currentStep: 0,
-      totalSteps:  metadata.totalSteps || 0,
-      metadata:    {
-        name:        metadata.name        || 'Unnamed Workflow',
+      totalSteps: metadata.totalSteps || 0,
+      metadata: {
+        name: metadata.name || 'Unnamed Workflow',
         description: metadata.description || '',
         ...metadata
       },
@@ -167,7 +168,7 @@ class DashboardService {
   startWorkflow(workflowId) {
     const wf = this.workflows.get(workflowId);
     if (!wf) return null;
-    wf.status    = 'running';
+    wf.status = 'running';
     wf.startTime = Date.now();
     this.broadcast('workflow:started', wf);
     this.addLog('info', `Workflow started: ${workflowId}`, { service: 'dashboard' });
@@ -178,16 +179,16 @@ class DashboardService {
     const wf = this.workflows.get(workflowId);
     if (!wf) return;
     wf.currentStep = currentStep;
-    wf.totalSteps  = totalSteps;
-    wf.progress    = totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0;
+    wf.totalSteps = totalSteps;
+    wf.progress = totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0;
     this.broadcast('workflow:progress', { workflowId, currentStep, totalSteps, progress: wf.progress });
   }
 
   completeWorkflow(workflowId) {
     const wf = this.workflows.get(workflowId);
     if (!wf) return null;
-    wf.status   = 'completed';
-    wf.endTime  = Date.now();
+    wf.status = 'completed';
+    wf.endTime = Date.now();
     wf.duration = wf.endTime - (wf.startTime || wf.endTime);
     wf.progress = 100;
     this.broadcast('workflow:completed', wf);
@@ -204,11 +205,11 @@ class DashboardService {
    */
   addLog(level, message, metadata = {}) {
     const entry = {
-      id:        `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       timestamp: Date.now(),
       level,
       message,
-      metadata:  { service: 'dashboard', ...metadata }
+      metadata: { service: 'dashboard', ...metadata }
     };
 
     // Ring buffer: evict oldest when full
@@ -223,12 +224,12 @@ class DashboardService {
   /** Accept a pre-formed log object from external sources (e.g. AgentService). */
   addAgentLog(logData) {
     return this.addLog(
-      logData.level    || 'info',
-      logData.message  || '',
+      logData.level || 'info',
+      logData.message || '',
       {
         service: 'agent',
-        step:    logData.step,
-        action:  logData.action,
+        step: logData.step,
+        action: logData.action,
         ...logData.metadata
       }
     );
@@ -271,23 +272,23 @@ class DashboardService {
   getStats() {
     return {
       ...this.stats,
-      uptime:            Date.now() - this.stats.startTime,
+      uptime: Date.now() - this.stats.startTime,
       activeConnections: this.connections.size,
-      bufferedLogs:      this.logBuffer.length,
-      activeTasks:       this.getActiveTasks().length,
-      activeWorkflows:   this.getActiveWorkflows().length
+      bufferedLogs: this.logBuffer.length,
+      activeTasks: this.getActiveTasks().length,
+      activeWorkflows: this.getActiveWorkflows().length
     };
   }
 
   getDashboardData() {
     return {
-      stats:            this.getStats(),
-      activeTasks:      this.getActiveTasks(),
-      recentTasks:      this.getAllTasks().slice(0, 20),
-      taskHistory:      this.taskHistory.slice(0, 50),
-      activeWorkflows:  this.getActiveWorkflows(),
-      recentWorkflows:  this.getAllWorkflows().slice(0, 10),
-      recentLogs:       this.getRecentLogs(100)
+      stats: this.getStats(),
+      activeTasks: this.getActiveTasks(),
+      recentTasks: this.getAllTasks().slice(0, 20),
+      taskHistory: this.taskHistory.slice(0, 50),
+      activeWorkflows: this.getActiveWorkflows(),
+      recentWorkflows: this.getAllWorkflows().slice(0, 10),
+      recentLogs: this.getRecentLogs(100)
     };
   }
 
@@ -325,13 +326,13 @@ class DashboardService {
 
   _addToHistory(task) {
     this.taskHistory.unshift({
-      id:        task.id,
-      status:    task.status,
-      error:     task.error  || null,
+      id: task.id,
+      status: task.status,
+      error: task.error || null,
       startTime: task.startTime,
-      endTime:   task.endTime,
-      duration:  task.duration,
-      metadata:  task.metadata
+      endTime: task.endTime,
+      duration: task.duration,
+      metadata: task.metadata
     });
     if (this.taskHistory.length > MAX_HISTORY) this.taskHistory.pop();
   }
@@ -342,7 +343,7 @@ class DashboardService {
    */
   _ttlCleanup() {
     const cutoff = Date.now() - TTL_MS;
-    let removed  = 0;
+    let removed = 0;
 
     for (const [id, task] of this.tasks) {
       if (task.endTime && task.endTime < cutoff) {
@@ -367,16 +368,16 @@ class DashboardService {
   clearAll() {
     this.tasks.clear();
     this.workflows.clear();
-    this.logBuffer   = [];
+    this.logBuffer = [];
     this.taskHistory = [];
     this.stats = {
-      totalTasks:     0,
+      totalTasks: 0,
       completedTasks: 0,
-      failedTasks:    0,
-      activeTasks:    0,
+      failedTasks: 0,
+      activeTasks: 0,
       totalWorkflows: 0,
-      totalLogs:      0,
-      startTime:      Date.now()
+      totalLogs: 0,
+      startTime: Date.now()
     };
     this.broadcast('dashboard:cleared', { timestamp: Date.now() });
   }

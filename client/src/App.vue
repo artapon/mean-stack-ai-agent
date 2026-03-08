@@ -16,7 +16,7 @@
             </defs>
           </svg>
         </div>
-        <span class="nav-logo-text">DevAgent</span>
+        <span class="nav-logo-text">Beta Agent</span>
       </div>
 
       <div class="nav-items">
@@ -283,15 +283,7 @@
               <div class="db-kpi-label">Failed</div>
             </div>
           </div>
-          <div class="db-kpi db-kpi-purple">
-            <div class="db-kpi-icon db-kpi-icon-wf">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
-            </div>
-            <div class="db-kpi-body">
-              <div class="db-kpi-value">{{ dashStats.activeWorkflows ?? dashWorkflows.length }}</div>
-              <div class="db-kpi-label">Workflows</div>
-            </div>
-          </div>
+
           <div class="db-kpi db-kpi-yellow">
             <div class="db-kpi-icon db-kpi-icon-logs">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -335,7 +327,11 @@
                 >
                   <div class="db-task-top-row">
                     <span class="db-status-dot" :class="task.status"></span>
-                    <span class="db-task-id">{{ task.id?.slice(-8) }}</span>
+                    <span class="db-task-id">Task: {{ task.id?.slice(-8) }}</span>
+                    <span class="db-task-live-action" v-if="task.status === 'running' && task.steps?.length">
+                      {{ task.steps[task.steps.length - 1].action }}
+                    </span>
+                    <div class="db-task-spacer"></div>
                     <span class="db-status-badge" :class="task.status">{{ task.status }}</span>
                     <span class="db-task-elapsed" v-if="task.startTime">{{ fmtDuration(Date.now() - task.startTime) }}</span>
                   </div>
@@ -379,7 +375,8 @@
                 >
                   <div class="db-task-top-row">
                     <span class="db-status-dot" :class="task.status"></span>
-                    <span class="db-task-id">{{ task.id?.slice(-8) }}</span>
+                    <span class="db-task-id">Task: {{ task.id?.slice(-8) }}</span>
+                    <div class="db-task-spacer"></div>
                     <span class="db-status-badge" :class="task.status">{{ task.status }}</span>
                     <span class="db-task-elapsed" v-if="task.duration">{{ fmtDuration(task.duration) }}</span>
                   </div>
@@ -400,46 +397,37 @@
             </div>
           </div>
 
-          <!-- ── Workflows column ── -->
+          <!-- ── Actions column ── -->
           <div class="db-col">
             <div class="db-col-header">
               <div class="db-col-title-row">
-                <span class="db-col-title">Workflows</span>
-                <span class="db-badge-running" v-if="dashActiveWorkflows.length">{{ dashActiveWorkflows.length }} active</span>
+                <span class="db-col-title">Actions</span>
+                <span class="db-badge-running" v-if="dashActionList.length">{{ dashActionList.length }} steps</span>
               </div>
             </div>
             <div class="db-col-body">
-              <div v-if="!allWorkflows.length" class="db-empty-state">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
-                <div class="db-empty-title">No workflows</div>
-                <div class="db-empty-sub">Pipelines will appear here</div>
+              <div v-if="!dashActionList.length" class="db-empty-state">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <div class="db-empty-title">No actions yet</div>
+                <div class="db-empty-sub">Agent steps will appear here</div>
               </div>
-              <div v-for="wf in allWorkflows" :key="wf.id" class="db-wf-card" :class="'st-' + wf.status">
-                <div class="db-wf-top">
-                  <div class="db-wf-name">{{ wf.metadata?.name || wf.id?.slice(-10) }}</div>
-                  <span class="db-status-badge" :class="wf.status">{{ wf.status }}</span>
+              <div
+                v-for="act in dashActionList" :key="act.id || (act.taskId + '-' + act.stepNum)"
+                class="db-task-card"
+                :class="'st-' + (act.status || 'pending')"
+              >
+                <div class="db-task-top-row">
+                  <span class="db-status-dot" :class="act.status || 'pending'"></span>
+                  <span class="db-task-id" style="color: #fff">{{ act.action || 'Unknown Action' }}</span>
+                  <div class="db-task-spacer"></div>
+                  <span class="db-status-badge" :class="act.status || 'pending'">{{ act.status || 'pending' }}</span>
+                  <span class="db-task-elapsed" v-if="act.timestamp">{{ fmtTime(act.timestamp) }}</span>
                 </div>
-                <div class="db-wf-desc" v-if="wf.metadata?.description">{{ wf.metadata.description }}</div>
-                <!-- Progress bar -->
-                <div class="db-wf-progress" v-if="wf.totalSteps || wf.progress">
-                  <div class="db-wf-track">
-                    <div class="db-wf-fill" :class="wf.status" :style="{ width: Math.min(wf.progress || 0, 100) + '%' }"></div>
-                  </div>
-                  <span class="db-wf-pct">{{ wf.progress || 0 }}%</span>
+                <div class="db-task-prompt" v-if="act.detail" style="font-family: var(--mono); font-size: 11px; opacity: 0.8; margin-top: 4px;">
+                  {{ act.detail.split(/[\\/]/).pop() || act.detail }}
                 </div>
-                <!-- Step pills -->
-                <div class="db-wf-steps-row" v-if="wf.totalSteps">
-                  <span class="db-wf-step-lbl">Step {{ wf.currentStep || 0 }} / {{ wf.totalSteps }}</span>
-                  <div class="db-wf-step-dots">
-                    <span v-for="n in Math.min(wf.totalSteps, 10)" :key="n"
-                      class="db-wf-dot"
-                      :class="n <= (wf.currentStep || 0) ? 'done' : n === (wf.currentStep || 0) + 1 ? 'current' : ''">
-                    </span>
-                  </div>
-                </div>
-                <div class="db-wf-footer">
-                  <span class="db-task-elapsed" v-if="wf.startTime">{{ fmtDuration((wf.endTime || Date.now()) - wf.startTime) }}</span>
-                  <span class="db-chip chip-steps" v-if="wf.tasks?.length">{{ wf.tasks.length }} tasks</span>
+                <div class="db-task-prompt" v-if="act.thought" style="margin-top: 6px; border-left: 2px solid rgba(255,255,255,0.15); padding-left: 8px;">
+                  <i>{{ act.thought.slice(0, 100) }}{{ act.thought.length > 100 ? '...' : '' }}</i>
                 </div>
               </div>
             </div>
@@ -616,7 +604,7 @@
             <div class="stg-toggles">
               <div class="stg-toggle-row">
                 <div class="stg-toggle-info">
-                  <div class="stg-toggle-label">Auto Review &amp; Feedback</div>
+                  <div class="stg-toggle-label">Developer agent auto request Review &amp; Feedback</div>
                   <div class="stg-toggle-desc">Automatically trigger a code review after each developer run completes</div>
                 </div>
                 <label class="stg-switch">
@@ -627,7 +615,7 @@
 
               <div class="stg-toggle-row">
                 <div class="stg-toggle-info">
-                  <div class="stg-toggle-label">Follow Review</div>
+                  <div class="stg-toggle-label">Developer agent working follow Audit agent review</div>
                   <div class="stg-toggle-desc">When a review finishes, automatically apply its suggestions in a new developer run</div>
                 </div>
                 <label class="stg-switch">
@@ -1059,8 +1047,6 @@ const dashStats        = ref({})
 const dashActiveTasks  = ref([])
 const dashRecentTasks  = ref([])
 const dashHistory      = ref([])
-const dashActiveWorkflows = ref([])
-const dashRecentWorkflows = ref([])
 const dashLogs         = ref([])
 const dashLoading      = ref(false)
 const dashConnected    = ref(false)
@@ -1071,18 +1057,35 @@ const dbExpandedTask   = ref(null)
 
 // Backwards-compat alias used by SSE & old api path
 const dashTasks     = dashActiveTasks
-const dashWorkflows = dashActiveWorkflows
-
-const allWorkflows = computed(() => {
-  const seen = new Set()
-  return [...dashActiveWorkflows.value, ...dashRecentWorkflows.value].filter(w => {
-    if (seen.has(w.id)) return false; seen.add(w.id); return true
-  })
-})
 
 const filteredLogs = computed(() => {
   if (dashLogFilter.value === 'all') return dashLogs.value
   return dashLogs.value.filter(l => l.level === dashLogFilter.value)
+})
+
+const dashCurrentAction = computed(() => {
+  const t = dashActiveTasks.value.find(t => t.status === 'running' && t.steps && t.steps.length > 0)
+  if (t) {
+    const action = t.steps[t.steps.length - 1].action
+    return action.length > 18 ? action.slice(0, 18) + '...' : action
+  }
+  return 'Idle'
+})
+
+const dashActionList = computed(() => {
+  const actions = []
+  dashActiveTasks.value.forEach(t => {
+    if (t.steps) {
+      t.steps.forEach((s, idx) => {
+        actions.push({
+          taskId: t.id,
+          stepNum: idx + 1,
+          ...s
+        })
+      })
+    }
+  })
+  return actions.reverse()
 })
 
 function fmtDuration(ms) {
@@ -1110,11 +1113,6 @@ function upsertTask(task) {
   const i = arr.findIndex(t => t.id === task.id)
   if (i >= 0) arr.splice(i, 1, task); else arr.unshift(task)
 }
-function upsertWorkflow(wf) {
-  const arr = dashActiveWorkflows.value
-  const i = arr.findIndex(w => w.id === wf.id)
-  if (i >= 0) arr.splice(i, 1, wf); else arr.unshift(wf)
-}
 
 async function loadDashboard() {
   dashLoading.value = true
@@ -1125,8 +1123,6 @@ async function loadDashboard() {
     dashActiveTasks.value     = data.activeTasks || []
     dashRecentTasks.value     = data.recentTasks || []
     dashHistory.value         = data.taskHistory || []
-    dashActiveWorkflows.value = data.activeWorkflows || []
-    dashRecentWorkflows.value = data.recentWorkflows || []
     dashLogs.value            = (data.recentLogs || data.logs || []).slice().reverse()
     dashConnected.value = true
   } catch {
@@ -1138,8 +1134,8 @@ async function loadDashboard() {
 
 async function clearDashboard() {
   try { await fetch('/api/dashboard/clear', { method: 'POST' }) } catch {}
-  dashActiveTasks.value = []; dashHistory.value = []; dashActiveWorkflows.value = []
-  dashRecentWorkflows.value = []; dashLogs.value = []; dashStats.value = {}
+  dashActiveTasks.value = []; dashHistory.value = [];
+  dashLogs.value = []; dashStats.value = {}
 }
 
 let dashSSE = null
@@ -1162,10 +1158,6 @@ function connectDashSSE() {
       if (t) { if (!t.steps) t.steps = []; t.steps.push(step) }
     } catch {}
   })
-  dashSSE.addEventListener('workflow:created',  (e) => { try { upsertWorkflow(JSON.parse(e.data)) } catch {} })
-  dashSSE.addEventListener('workflow:started',  (e) => { try { upsertWorkflow(JSON.parse(e.data)) } catch {} })
-  dashSSE.addEventListener('workflow:progress', (e) => { try { const d = JSON.parse(e.data); upsertWorkflow(d) } catch {} })
-  dashSSE.addEventListener('workflow:completed',(e) => { try { upsertWorkflow(JSON.parse(e.data)) } catch {} })
   dashSSE.addEventListener('log:entry', (e) => { try { dashLogs.value.unshift(JSON.parse(e.data)) } catch {} })
   dashSSE.addEventListener('init', (e) => {
     try {
@@ -1174,15 +1166,13 @@ function connectDashSSE() {
       if (d.activeTasks)       dashActiveTasks.value     = d.activeTasks
       if (d.recentTasks)       dashRecentTasks.value     = d.recentTasks
       if (d.taskHistory)       dashHistory.value         = d.taskHistory
-      if (d.activeWorkflows)   dashActiveWorkflows.value = d.activeWorkflows
-      if (d.recentWorkflows)   dashRecentWorkflows.value = d.recentWorkflows
       if (d.recentLogs)        dashLogs.value            = d.recentLogs.slice().reverse()
       dashConnected.value = true
     } catch {}
   })
   dashSSE.addEventListener('dashboard:cleared', () => {
     dashActiveTasks.value = []; dashHistory.value = []
-    dashActiveWorkflows.value = []; dashLogs.value = []; dashStats.value = {}
+    dashLogs.value = []; dashStats.value = {}
   })
 }
 
@@ -3639,7 +3629,7 @@ input:checked + .slider.slider-unlimited:before {
 
 /* ── KPI row ── */
 .db-kpi-row {
-  display: grid; grid-template-columns: repeat(6, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   gap: 1px; background: rgba(255,255,255,0.055);
   border-bottom: 1px solid rgba(255,255,255,0.055);
   flex-shrink: 0;
@@ -3658,7 +3648,7 @@ input:checked + .slider.slider-unlimited:before {
 .db-kpi-icon-active { background: rgba(61,220,132,.12); color: #3ddc84; }
 .db-kpi-icon-done   { background: rgba(91,156,255,.12); color: #5b9cff; }
 .db-kpi-icon-fail   { background: rgba(255,107,107,.12); color: #ff6b6b; }
-.db-kpi-icon-wf     { background: rgba(167,139,250,.12); color: #a78bfa; }
+.db-kpi-icon-action { background: rgba(167,139,250,.12); color: #a78bfa; }
 .db-kpi-icon-logs   { background: rgba(255,209,102,.1);  color: #ffd166; }
 .db-kpi-body { min-width: 0; }
 .db-kpi-value { font-size: 22px; font-weight: 700; color: #eef1f8; line-height: 1; }
@@ -3668,22 +3658,24 @@ input:checked + .slider.slider-unlimited:before {
 .db-kpi-red   .db-kpi-value { color: #ff6b6b; }
 .db-kpi-purple .db-kpi-value { color: #a78bfa; }
 .db-kpi-yellow .db-kpi-value { color: #ffd166; }
+.db-kpi-text-value { font-size: 15px !important; font-weight: 600 !important; font-family: var(--mono, monospace); line-height: 1.2 !important; margin-top: 4px; }
 .db-kpi-pulse {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
   width: 8px; height: 8px; border-radius: 50%; background: #3ddc84;
   animation: pulse 1.4s ease-in-out infinite;
 }
 
-/* ── 3-column body ── */
+/* ── Dashboard body ── */
 .db-body {
-  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  display: grid; grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1px; background: rgba(255,255,255,0.055);
   flex: 1; min-height: 0; overflow: hidden;
 }
 .db-col {
   background: #07090f; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
 }
-.db-col-logs { background: #060810; }
+.db-col-logs { background: #060810; grid-column: 1 / -1; }
 
 .db-col-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -3743,7 +3735,13 @@ input:checked + .slider.slider-unlimited:before {
 .db-status-dot.failed    { background: #ff6b6b; }
 .db-status-dot.pending   { background: #ffd166; }
 
-.db-task-id   { font-size: 10px; font-family: var(--mono, monospace); color: rgba(255,255,255,0.28); flex: 1; }
+.db-task-id   { font-size: 10px; font-family: var(--mono, monospace); color: rgba(255,255,255,0.28); }
+.db-task-spacer { flex: 1; min-width: 4px; }
+.db-task-live-action {
+  font-size: 10px; font-family: var(--mono, monospace); color: #3ddc84;
+  background: rgba(61, 220, 132, 0.1); padding: 2px 6px; border-radius: 4px;
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .db-task-elapsed { font-size: 10px; color: rgba(255,255,255,0.3); font-family: var(--mono, monospace); flex-shrink: 0; }
 
 .db-status-badge {
@@ -3792,41 +3790,6 @@ input:checked + .slider.slider-unlimited:before {
   word-break: break-word;
 }
 
-/* ── Workflow cards ── */
-.db-wf-card {
-  padding: 12px 14px; border-radius: 9px;
-  background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);
-  display: flex; flex-direction: column; gap: 8px;
-  transition: border-color .15s;
-}
-.db-wf-card.st-running   { border-color: rgba(167,139,250,.25); background: rgba(167,139,250,.04); }
-.db-wf-card.st-completed { border-color: rgba(91,156,255,.15); }
-.db-wf-card.st-failed    { border-color: rgba(255,107,107,.2); }
-.db-wf-top  { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.db-wf-name { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-wf-desc { font-size: 11px; color: rgba(255,255,255,0.35); line-height: 1.4; }
-.db-wf-progress { display: flex; align-items: center; gap: 8px; }
-.db-wf-track {
-  flex: 1; height: 5px; border-radius: 3px;
-  background: rgba(255,255,255,0.07); overflow: hidden;
-}
-.db-wf-fill {
-  height: 100%; border-radius: 3px; transition: width .4s ease;
-  background: linear-gradient(90deg, #3d8eff, #a78bfa);
-}
-.db-wf-fill.completed { background: linear-gradient(90deg, #3ddc84, #5b9cff); }
-.db-wf-fill.failed    { background: #ff6b6b; }
-.db-wf-pct { font-size: 11px; font-family: var(--mono, monospace); color: rgba(255,255,255,0.45); flex-shrink: 0; }
-.db-wf-steps-row { display: flex; align-items: center; gap: 8px; }
-.db-wf-step-lbl { font-size: 10px; color: rgba(255,255,255,0.3); flex-shrink: 0; }
-.db-wf-step-dots { display: flex; gap: 3px; flex-wrap: wrap; }
-.db-wf-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: rgba(255,255,255,0.1); transition: background .2s;
-}
-.db-wf-dot.done    { background: #5b9cff; }
-.db-wf-dot.current { background: #a78bfa; animation: pulse 1.2s infinite; }
-.db-wf-footer { display: flex; align-items: center; justify-content: space-between; }
 
 /* ── Log stream ── */
 .db-log-filters { display: flex; gap: 3px; }
@@ -3901,8 +3864,7 @@ input:checked + .slider.slider-unlimited:before {
 
 @media (max-width: 1100px) {
   .db-kpi-row { grid-template-columns: repeat(3, 1fr); }
-  .db-body    { grid-template-columns: 1fr 1fr; }
-  .db-col-logs { grid-column: 1 / -1; max-height: 280px; }
+  .db-col-logs { max-height: 380px; }
 }
 @media (max-width: 700px) {
   .db-kpi-row { grid-template-columns: repeat(2, 1fr); }

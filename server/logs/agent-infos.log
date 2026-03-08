@@ -1,535 +1,253 @@
-[2026-03-08T15:04:11.485Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:04:11.489Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:04:11.489Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:04:11.489Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:04:11.637Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:04:11.638Z] [WARN ] [Middleware] GET /api/health → 404 (1ms)
-[2026-03-08T15:04:11.651Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:04:11.652Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:04:11.654Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:04:11.657Z] [INFO ] [Session] Loaded v2 session mmhot1ve3cnafgqumzf {"messages":14}
-[2026-03-08T15:04:14.092Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:04:14.092Z] [WARN ] [Middleware] GET /api/health → 404 (0ms)
-[2026-03-08T15:04:14.104Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:04:14.106Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:04:14.105Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:04:14.109Z] [INFO ] [Session] Loaded v2 session mmhot1ve3cnafgqumzf {"messages":14}
-[2026-03-08T15:04:41.569Z] [INFO ] [SettingsService] Settings saved
-[2026-03-08T15:04:44.883Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhot1ve3cnafgqumzf"}
-[2026-03-08T15:04:44.883Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772982284883-qsd6fcz","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:04:44.890Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:04:46.216Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:04:49.632Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:04:50.171Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772982284883-qsd6fcz"}
-[2026-03-08T15:04:50.170Z] [INFO ] [Session] Saved v1 session mmhot1ve3cnafgqumzf {"messages":1}
-[2026-03-08T15:04:50.171Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:04:50.181Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:08:13.294Z] [WARN ] [Middleware] GET /api/health → 404 (1ms)
-[2026-03-08T15:08:13.293Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:08:13.304Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:08:13.304Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
-[2026-03-08T15:08:13.305Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:08:13.318Z] [INFO ] [Session] Loaded v1 session mmhot1ve3cnafgqumzf
-[2026-03-08T15:08:15.718Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:08:16.342Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:08:53.960Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhot1ve3cnafgqumzf"}
-[2026-03-08T15:08:53.972Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:08:53.961Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772982533961-lxq6v0q","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:16:34.104Z] [WARN ] [AgentService] Stop requested — aborting active run
-[2026-03-08T15:16:34.121Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:16:38.375Z] [INFO ] [Session] Cleared session mmhot1ve3cnafgqumzf
-[2026-03-08T15:16:56.575Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:16:56.575Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:16:56.575Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:16:56.571Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:16:56.731Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:16:56.768Z] [WARN ] [Middleware] GET /api/models → 404 (2ms)
-[2026-03-08T15:16:56.732Z] [WARN ] [Middleware] GET /api/health → 404 (1ms)
-[2026-03-08T15:16:56.767Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:16:56.771Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:17:01.905Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhwat0qo8yv3a5s9l"}
-[2026-03-08T15:17:01.908Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983021907-ip2vlnq","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:17:01.918Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:17:03.409Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:17:05.776Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:17:06.241Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983021907-ip2vlnq"}
-[2026-03-08T15:17:06.241Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:17:06.241Z] [INFO ] [Session] Saved v1 session mmhwat0qo8yv3a5s9l {"messages":1}
-[2026-03-08T15:17:06.249Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:17:35.463Z] [INFO ] [Agent] New agent run request {"messageCount":5,"fastMode":true,"stack":"default","sessionId":"mmhwat0qo8yv3a5s9l"}
-[2026-03-08T15:17:35.468Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:17:35.464Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983055463-o1u8tda","stack":"default","orchestrator":"langgraph","messageCount":5}
-[2026-03-08T15:19:30.865Z] [WARN ] [AgentService] Stop requested — aborting active run
-[2026-03-08T15:19:30.870Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:19:35.409Z] [INFO ] [Agent] New agent run request {"messageCount":7,"fastMode":false,"stack":"default","sessionId":"mmhwat0qo8yv3a5s9l"}
-[2026-03-08T15:19:35.410Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983175410-m8pb9te","stack":"default","orchestrator":"langgraph","messageCount":7}
-[2026-03-08T15:19:35.414Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:20:20.646Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:20:20.646Z] [WARN ] [AgentService] Stop requested — aborting active run
-[2026-03-08T15:20:22.101Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:20:22.102Z] [WARN ] [Middleware] GET /api/health → 404 (1ms)
-[2026-03-08T15:20:22.111Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:20:22.112Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:20:22.113Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:20:22.115Z] [INFO ] [Session] Loaded v1 session mmhwat0qo8yv3a5s9l
-[2026-03-08T15:20:27.762Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:20:27.765Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:20:27.765Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:20:27.765Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:20:28.499Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:20:28.499Z] [WARN ] [Middleware] GET /api/health → 404 (0ms)
-[2026-03-08T15:20:28.514Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:20:28.516Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:20:28.521Z] [INFO ] [Session] Loaded v1 session mmhwat0qo8yv3a5s9l
-[2026-03-08T15:20:28.515Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:20:30.005Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:20:30.006Z] [WARN ] [Middleware] GET /api/health → 404 (1ms)
-[2026-03-08T15:20:30.019Z] [INFO ] [Session] Loaded v1 session mmhwat0qo8yv3a5s9l
-[2026-03-08T15:20:30.017Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
-[2026-03-08T15:20:30.017Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:20:30.016Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:20:34.812Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhwat0qo8yv3a5s9l"}
-[2026-03-08T15:20:34.812Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983234812-eri17p6","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:20:34.818Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:20:35.997Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:20:39.159Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:20:39.592Z] [INFO ] [Session] Saved v1 session mmhwat0qo8yv3a5s9l {"messages":1}
-[2026-03-08T15:20:39.592Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983234812-eri17p6"}
-[2026-03-08T15:20:39.592Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:20:39.600Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:23:23.565Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:23:23.570Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:23:23.570Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:23:23.570Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:23:23.762Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:23:23.763Z] [WARN ] [Middleware] GET /api/health → 404 (1ms)
-[2026-03-08T15:23:23.787Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:23:23.791Z] [INFO ] [Session] Loaded v1 session mmhwat0qo8yv3a5s9l
-[2026-03-08T15:23:23.786Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:23:23.785Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:23:25.406Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:23:25.407Z] [WARN ] [Middleware] GET /api/health → 404 (1ms)
-[2026-03-08T15:23:25.419Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:23:25.421Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:23:25.421Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
-[2026-03-08T15:23:25.423Z] [INFO ] [Session] Loaded v1 session mmhwat0qo8yv3a5s9l
-[2026-03-08T15:23:28.484Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhwat0qo8yv3a5s9l"}
-[2026-03-08T15:23:28.485Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983408485-xhezyf1","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:23:28.491Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:23:29.412Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:23:31.964Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:23:32.413Z] [INFO ] [Session] Saved v1 session mmhwat0qo8yv3a5s9l {"messages":1}
-[2026-03-08T15:23:32.413Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:23:32.413Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983408485-xhezyf1"}
-[2026-03-08T15:23:32.428Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:23:50.199Z] [INFO ] [Agent] New agent run request {"messageCount":5,"fastMode":true,"stack":"default","sessionId":"mmhwat0qo8yv3a5s9l"}
-[2026-03-08T15:23:50.200Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983430200-gmwbrx9","stack":"default","orchestrator":"langgraph","messageCount":5}
-[2026-03-08T15:23:50.201Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:24:40.515Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:24:40.518Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:24:40.519Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:24:40.519Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:24:48.636Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:24:48.636Z] [WARN ] [Middleware] GET /api/health → 404 (1ms)
-[2026-03-08T15:24:48.727Z] [INFO ] [Session] Loaded v2 session mmhcldzctbrvyf6pm2i {"messages":8}
-[2026-03-08T15:24:48.723Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:24:48.722Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:24:48.721Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:24:57.589Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:24:57.590Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983497590-dhkwkh6","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:24:57.597Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:24:58.762Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:25:01.163Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:25:01.622Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:25:01.622Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983497590-dhkwkh6"}
-[2026-03-08T15:25:01.622Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:25:01.645Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:25:17.978Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983517978-pp1tvce","stack":"default","orchestrator":"langgraph","messageCount":5}
-[2026-03-08T15:25:17.977Z] [INFO ] [Agent] New agent run request {"messageCount":5,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:25:17.982Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:25:34.498Z] [WARN ] [AgentService] Stop requested — aborting active run
-[2026-03-08T15:25:34.503Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:25:38.551Z] [INFO ] [SettingsService] Settings saved
-[2026-03-08T15:25:45.136Z] [INFO ] [Agent] New agent run request {"messageCount":7,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:25:45.136Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983545136-r6c8iv6","stack":"default","orchestrator":"classic","messageCount":7}
-[2026-03-08T15:25:45.139Z] [INFO ] [Server] [agent_start] Agent run started {"model":"qwen2.5-coder-7b-instruct","mode":"developer","fastMode":true,"workspaceDir":"D:\\Projects\\devagent\\workspace","targetFolder":"my-node-app","maxSteps":100,"maxReviewLoops":3}
-[2026-03-08T15:25:45.141Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:26:12.173Z] [INFO ] [Session] Saved v2 session mmhcldzctbrvyf6pm2i {"messages":9}
-[2026-03-08T15:26:12.173Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983545136-r6c8iv6"}
-[2026-03-08T15:26:12.173Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:26:12.184Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:26:56.815Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:26:56.819Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:26:56.818Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:26:56.819Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:27:06.046Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:27:06.050Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:27:06.050Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:27:06.050Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:27:49.107Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:27:49.110Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:27:49.110Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:27:49.110Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:27:49.294Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:27:49.293Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:27:49.275Z] [WARN ] [Middleware] GET /api/health → 404 (1ms)
-[2026-03-08T15:27:49.274Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:27:49.295Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:27:49.488Z] [INFO ] [Session] Loaded v2 session mmhcldzctbrvyf6pm2i {"messages":9}
-[2026-03-08T15:27:53.847Z] [WARN ] [Middleware] 404 Not Found: GET /api/health
-[2026-03-08T15:27:53.847Z] [WARN ] [Middleware] GET /api/health → 404 (0ms)
-[2026-03-08T15:27:53.859Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:27:53.860Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:27:53.861Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:27:53.862Z] [INFO ] [Session] Loaded v2 session mmhcldzctbrvyf6pm2i {"messages":9}
-[2026-03-08T15:27:56.558Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:27:56.559Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983676559-xnpdbbv","stack":"default","orchestrator":"classic","messageCount":1}
-[2026-03-08T15:27:56.563Z] [INFO ] [Server] [agent_start] Agent run started {"model":"qwen2.5-coder-7b-instruct","mode":"developer","fastMode":true,"workspaceDir":"D:\\Projects\\devagent\\workspace","targetFolder":"my-node-app","maxSteps":100,"maxReviewLoops":3}
-[2026-03-08T15:27:56.565Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:28:08.931Z] [INFO ] [Server] [tool_call] [step 1] scaffold_project {"step":1,"action":"scaffold_project","parameters":{"type":"express-api","name":"my-node-app"}}
-[2026-03-08T15:28:08.944Z] [INFO ] [Server] [tool_result] [step 1] scaffold_project ✓ {"step":1,"action":"scaffold_project","ok":true,"error":null}
-[2026-03-08T15:28:08.953Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:28:11.069Z] [INFO ] [Server] [tool_call] [step 3] write_file → ./agent_reports/developer_walkthrough.md {"step":3,"action":"write_file","file":"./agent_reports/developer_walkthrough.md","parameters":{"path":"./agent_reports/developer_walkthrough.md","content":"[omitted 335]"}}
-[2026-03-08T15:28:11.071Z] [INFO ] [Server] [tool_result] [step 3] write_file ✓ ./agent_reports/developer_walkthrough.md {"step":3,"action":"write_file","file":"./agent_reports/developer_walkthrough.md","ok":true,"error":null}
-[2026-03-08T15:28:11.078Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:28:11.679Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983676559-xnpdbbv"}
-[2026-03-08T15:28:11.679Z] [INFO ] [Session] Saved v2 session mmhcldzctbrvyf6pm2i {"messages":10}
-[2026-03-08T15:28:11.679Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:28:11.689Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:29:26.140Z] [INFO ] [SettingsService] Settings saved
-[2026-03-08T15:29:30.757Z] [INFO ] [Agent] New agent run request {"messageCount":5,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:29:30.757Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983770757-sq544vu","stack":"default","orchestrator":"langgraph","messageCount":5}
-[2026-03-08T15:29:30.768Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:29:32.643Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:29:32.644Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983770757-sq544vu"}
-[2026-03-08T15:29:32.644Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:29:32.651Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:29:38.865Z] [INFO ] [Agent] New agent run request {"messageCount":7,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:29:38.865Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983778865-wsntvxx","stack":"default","orchestrator":"langgraph","messageCount":7}
-[2026-03-08T15:29:38.867Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:29:40.008Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:29:40.008Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983778865-wsntvxx"}
-[2026-03-08T15:29:40.008Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:29:40.019Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:30:38.612Z] [INFO ] [SettingsService] Settings saved
-[2026-03-08T15:30:42.225Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983842225-96laien","stack":"default","orchestrator":"langgraph","messageCount":9}
-[2026-03-08T15:30:42.224Z] [INFO ] [Agent] New agent run request {"messageCount":9,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:30:42.227Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:30:44.103Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:30:44.104Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983842225-96laien"}
-[2026-03-08T15:30:44.104Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:30:44.112Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:30:45.123Z] [INFO ] [FilesService] Reading file {"path":"agent-handoff.log"}
-[2026-03-08T15:30:45.133Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:30:45.127Z] [INFO ] [Agent] New agent run request {"messageCount":12,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:30:45.125Z] [WARN ] [Middleware] GET /read?path=agent-handoff.log → 404 (3ms)
-[2026-03-08T15:30:45.128Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772983845127-qs4x8vr","stack":"default","orchestrator":"langgraph","messageCount":12}
-[2026-03-08T15:30:45.147Z] [INFO ] [FilesService] Writing file {"path":"agent-handoff.log","size":158}
-[2026-03-08T15:30:52.019Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:30:52.348Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:30:52.348Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772983845127-qs4x8vr"}
-[2026-03-08T15:30:52.348Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:30:52.357Z] [INFO ] [FilesService] Listing files {"path":"."}
-[2026-03-08T15:37:55.214Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:37:55.218Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:37:55.218Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:37:55.218Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:38:07.460Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:38:07.464Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:38:07.464Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:38:07.464Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:38:15.636Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:38:15.641Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:38:15.641Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:38:15.641Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:38:21.448Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:38:21.453Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:38:21.453Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:38:21.453Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:38:27.921Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:38:27.924Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:38:27.924Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:38:27.924Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:38:32.961Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:38:32.964Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:38:32.964Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:38:32.964Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:38:38.034Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:38:38.037Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:38:38.035Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:38:38.043Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:38:42.027Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:38:42.028Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:38:42.030Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:38:42.032Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:38:48.403Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:38:48.403Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
-[2026-03-08T15:38:48.404Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:38:48.405Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:38:56.430Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:38:56.431Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
-[2026-03-08T15:38:56.431Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:38:56.433Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:39:02.212Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:39:02.212Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
-[2026-03-08T15:39:02.212Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:39:02.213Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:40:38.451Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:40:38.454Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:40:38.454Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:40:38.454Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:40:38.702Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:40:38.703Z] [WARN ] [Middleware] GET /api/models → 404 (2ms)
-[2026-03-08T15:40:38.704Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:40:38.713Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:40:41.618Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:40:41.618Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:40:41.619Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:40:41.621Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:41:36.718Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:41:36.718Z] [INFO ] [Server] Workspace  → D:\Projects\workspace
-[2026-03-08T15:41:36.713Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:41:36.719Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:41:36.904Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:41:36.902Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:41:36.907Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:41:36.901Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:41:39.903Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:41:39.904Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:41:39.904Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:41:39.907Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:41:40.668Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:41:40.668Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
-[2026-03-08T15:41:40.669Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:41:40.671Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:41:41.244Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:41:41.245Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:41:41.245Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:41:41.247Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:42:27.891Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:42:27.891Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:42:27.892Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772984547892-xs4ccoe","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:42:29.381Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:42:30.514Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:42:31.464Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:42:35.600Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:42:36.104Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:42:36.105Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772984547892-xs4ccoe"}
-[2026-03-08T15:42:36.105Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:42:36.120Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:42:37.134Z] [INFO ] [FilesService] Reading file {"path":"agent-handoff.log"}
-[2026-03-08T15:42:37.139Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772984557139-pdzqcor","stack":"default","orchestrator":"langgraph","messageCount":11}
-[2026-03-08T15:42:37.138Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:42:37.138Z] [INFO ] [Agent] New agent run request {"messageCount":11,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:42:37.162Z] [INFO ] [FilesService] Writing file {"path":"agent-handoff.log","size":158}
-[2026-03-08T15:42:39.199Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:42:39.200Z] [WARN ] [AgentService] Stop requested — aborting active run
-[2026-03-08T15:43:11.882Z] [INFO ] [Agent] New agent run request {"messageCount":14,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:43:11.882Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:43:11.882Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772984591882-nljveu1","stack":"default","orchestrator":"langgraph","messageCount":14}
-[2026-03-08T15:43:16.767Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:43:17.134Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:43:17.134Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772984591882-nljveu1"}
-[2026-03-08T15:43:17.134Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:43:17.142Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\workspace"}
-[2026-03-08T15:45:33.020Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:45:33.023Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:45:33.023Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:45:33.023Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:45:33.778Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:45:33.780Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:45:33.780Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:45:33.782Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:45:35.154Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:45:35.155Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:45:35.156Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:45:35.157Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:47:03.089Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:47:03.090Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:47:03.091Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:47:03.093Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:47:08.438Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:47:08.440Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:47:08.439Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:47:08.441Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:47:33.252Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:47:33.257Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:47:33.257Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:47:33.256Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:47:33.445Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:47:33.446Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:47:33.450Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:47:33.452Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:47:36.385Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:47:36.386Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:47:36.387Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:47:36.388Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:47:39.894Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:47:41.931Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/src","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:47:43.540Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:47:45.037Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:48:08.092Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:48:08.093Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772984888093-orq8yjn","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:48:08.093Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:49:08.057Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:49:08.060Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:49:08.060Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:49:08.060Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:51:50.985Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:51:50.988Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:51:50.988Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:51:50.988Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:51:57.848Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:51:57.851Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:51:57.851Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:51:57.851Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:52:01.309Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:52:01.312Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:52:01.312Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:52:01.312Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:52:08.070Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:52:08.073Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:52:08.073Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:52:08.073Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:52:29.654Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:52:29.658Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:52:29.658Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:52:29.658Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:52:29.852Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:52:29.853Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:52:29.889Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:52:29.888Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:52:32.869Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:52:32.869Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:52:32.870Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:52:32.871Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:52:37.138Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:52:37.138Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:52:37.138Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772985157138-9m65zb6","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:52:39.519Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772985157138-9m65zb6"}
-[2026-03-08T15:52:39.519Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:52:39.519Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:52:39.527Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:52:40.534Z] [INFO ] [FilesService] Reading file {"path":"agent-handoff.log"}
-[2026-03-08T15:52:40.538Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:52:40.539Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772985160539-46g9254","stack":"default","orchestrator":"langgraph","messageCount":5}
-[2026-03-08T15:52:40.538Z] [INFO ] [Agent] New agent run request {"messageCount":5,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:52:40.548Z] [INFO ] [FilesService] Writing file {"path":"agent-handoff.log","size":158}
-[2026-03-08T15:52:46.622Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:52:46.933Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:52:46.933Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:52:46.933Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772985160539-46g9254"}
-[2026-03-08T15:52:46.942Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:53:09.902Z] [INFO ] [Agent] New agent run request {"messageCount":11,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:53:09.902Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772985189902-4dajze4","stack":"default","orchestrator":"langgraph","messageCount":11}
-[2026-03-08T15:53:09.902Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:53:29.768Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T15:53:29.769Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772985189902-4dajze4"}
-[2026-03-08T15:53:29.769Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T15:53:29.779Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:54:17.152Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:54:17.155Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:54:17.155Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:54:17.155Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:54:42.265Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T15:54:42.269Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T15:54:42.269Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T15:54:42.269Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T15:54:42.453Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:54:42.453Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:54:42.455Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:54:42.458Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:54:46.052Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T15:54:46.053Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T15:54:46.056Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T15:54:46.055Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:54:56.147Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T15:54:56.146Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T15:54:56.148Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772985296148-net0vuu","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T15:56:20.227Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:56:24.057Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/src","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:56:25.984Z] [INFO ] [FilesService] Reading file {"path":"my-node-app/src/app.js"}
-[2026-03-08T15:56:29.210Z] [INFO ] [FilesService] Reading file {"path":"my-node-app/src/server.js"}
-[2026-03-08T15:56:32.129Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/src/routes","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:56:34.301Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/src","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T15:56:34.759Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:02:30.785Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T16:02:30.786Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772985296148-net0vuu"}
-[2026-03-08T16:02:30.786Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T16:02:30.798Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:02:31.889Z] [INFO ] [FilesService] Reading file {"path":"agent-handoff.log"}
-[2026-03-08T16:02:31.920Z] [INFO ] [Agent] New agent run request {"messageCount":5,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T16:02:31.920Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T16:02:31.920Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772985751920-q2p91wt","stack":"default","orchestrator":"langgraph","messageCount":5}
-[2026-03-08T16:02:31.926Z] [INFO ] [FilesService] Writing file {"path":"agent-handoff.log","size":158}
-[2026-03-08T16:02:34.576Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:02:34.867Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T16:02:34.867Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T16:02:34.867Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772985751920-q2p91wt"}
-[2026-03-08T16:02:34.882Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:02:36.864Z] [INFO ] [FilesService] Reading file {"path":"agent-handoff.log"}
-[2026-03-08T16:02:36.893Z] [INFO ] [FilesService] Writing file {"path":"agent-handoff.log","size":167}
-[2026-03-08T16:02:36.893Z] [INFO ] [Agent] New agent run request {"messageCount":8,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T16:02:36.894Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772985756894-dxksbks","stack":"default","orchestrator":"langgraph","messageCount":8}
-[2026-03-08T16:02:36.894Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T16:02:39.783Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:02:40.629Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T16:02:40.629Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772985756894-dxksbks"}
-[2026-03-08T16:02:40.629Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T16:02:40.638Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:02:41.876Z] [INFO ] [FilesService] Reading file {"path":"agent-handoff.log"}
-[2026-03-08T16:02:41.882Z] [INFO ] [Agent] New agent run request {"messageCount":12,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T16:02:41.882Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772985761882-9w4vor2","stack":"default","orchestrator":"langgraph","messageCount":12}
-[2026-03-08T16:02:41.882Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T16:02:41.886Z] [INFO ] [FilesService] Writing file {"path":"agent-handoff.log","size":158}
-[2026-03-08T16:02:42.280Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T16:02:42.280Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T16:02:42.280Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772985761882-9w4vor2"}
-[2026-03-08T16:02:42.296Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:02:43.875Z] [INFO ] [FilesService] Reading file {"path":"agent-handoff.log"}
-[2026-03-08T16:02:43.886Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T16:02:43.886Z] [INFO ] [Agent] New agent run request {"messageCount":14,"fastMode":true,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T16:02:43.886Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772985763886-8jly0v9","stack":"default","orchestrator":"langgraph","messageCount":14}
-[2026-03-08T16:02:43.890Z] [INFO ] [FilesService] Writing file {"path":"agent-handoff.log","size":167}
-[2026-03-08T16:02:44.227Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T16:02:44.227Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772985763886-8jly0v9"}
-[2026-03-08T16:02:44.227Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T16:02:44.245Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:03:15.968Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/src","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:03:17.066Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/src/middlewares","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:03:18.121Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/src","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:03:18.657Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:03:48.146Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T16:03:48.149Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T16:03:48.150Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T16:03:48.149Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T16:04:43.905Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
-[2026-03-08T16:04:43.908Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
-[2026-03-08T16:04:43.908Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
-[2026-03-08T16:04:43.908Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
-[2026-03-08T16:04:51.396Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:04:51.397Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
-[2026-03-08T16:04:51.397Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
-[2026-03-08T16:04:51.400Z] [INFO ] [Session] Loaded v1 session mmhcldzctbrvyf6pm2i
-[2026-03-08T16:04:55.709Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:04:57.003Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/src","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:04:58.619Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:04:59.149Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/agent_reports","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:05:00.018Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:05:12.811Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":false,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T16:05:12.811Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T16:05:12.812Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772985912811-or09glh","stack":"default","orchestrator":"langgraph","messageCount":1}
-[2026-03-08T16:08:48.991Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:09:13.601Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T16:09:13.601Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772985912811-or09glh"}
-[2026-03-08T16:09:13.601Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T16:09:13.639Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:14:10.728Z] [INFO ] [Agent] New agent run request {"messageCount":7,"fastMode":false,"stack":"default","sessionId":"mmhcldzctbrvyf6pm2i"}
-[2026-03-08T16:14:10.728Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772986450728-jb2czal","stack":"default","orchestrator":"langgraph","messageCount":7}
-[2026-03-08T16:14:10.728Z] [WARN ] [Agent] Connection dropped, agent will continue on server
-[2026-03-08T16:14:24.667Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:14:35.472Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
-[2026-03-08T16:14:36.235Z] [INFO ] [AgentService] Agent run completed {"taskId":"task-1772986450728-jb2czal"}
-[2026-03-08T16:14:36.235Z] [INFO ] [Session] Saved v1 session mmhcldzctbrvyf6pm2i {"messages":1}
-[2026-03-08T16:14:36.235Z] [INFO ] [Agent] Agent run completed
-[2026-03-08T16:14:36.245Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:38:47.610Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:38:47.610Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T16:38:47.618Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T16:38:47.620Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:38:47.619Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
+[2026-03-08T16:39:19.079Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"default","sessionId":"mmhz6jf3oolsijlr0pd"}
+[2026-03-08T16:39:19.080Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T16:39:19.080Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772987959080-4cxigjo2m","messageCount":1,"fastMode":true,"stack":"default","orchestrator":"langgraph"}
+[2026-03-08T16:39:19.973Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:39:23.972Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:39:24.576Z] [INFO ] [Session] Saved v1 session mmhz6jf3oolsijlr0pd {"messages":1}
+[2026-03-08T16:39:24.577Z] [INFO ] [AgentService] Session mmhz6jf3oolsijlr0pd saved (legacy v1).
+[2026-03-08T16:39:24.577Z] [INFO ] [AgentService] Agent run completed successfully {"taskId":"task-1772987959080-4cxigjo2m"}
+[2026-03-08T16:39:24.577Z] [INFO ] [Agent] Agent run completed
+[2026-03-08T16:39:24.594Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:39:25.597Z] [INFO ] [FilesService] Reading file {"path":"agent-handoff.log"}
+[2026-03-08T16:39:25.599Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772987965599-13yqsdkt6","messageCount":7,"fastMode":true,"stack":"default","orchestrator":"langgraph"}
+[2026-03-08T16:39:25.599Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T16:39:25.599Z] [INFO ] [Agent] New agent run request {"messageCount":7,"fastMode":true,"stack":"default","sessionId":"mmhz6jf3oolsijlr0pd"}
+[2026-03-08T16:39:25.605Z] [INFO ] [FilesService] Writing file {"path":"agent-handoff.log","size":158}
+[2026-03-08T16:39:30.303Z] [INFO ] [Session] Saved v1 session mmhz6jf3oolsijlr0pd {"messages":1}
+[2026-03-08T16:39:30.303Z] [INFO ] [AgentService] Session mmhz6jf3oolsijlr0pd saved (legacy v1).
+[2026-03-08T16:39:30.304Z] [INFO ] [AgentService] Agent run completed successfully {"taskId":"task-1772987853824-airu1xmif"}
+[2026-03-08T16:39:30.304Z] [INFO ] [Agent] Agent run completed
+[2026-03-08T16:39:34.144Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:39:34.742Z] [INFO ] [AgentService] Session mmhz6jf3oolsijlr0pd saved (legacy v1).
+[2026-03-08T16:39:34.742Z] [INFO ] [Session] Saved v1 session mmhz6jf3oolsijlr0pd {"messages":1}
+[2026-03-08T16:39:34.743Z] [INFO ] [AgentService] Agent run completed successfully {"taskId":"task-1772987965599-13yqsdkt6"}
+[2026-03-08T16:39:34.743Z] [INFO ] [Agent] Agent run completed
+[2026-03-08T16:39:34.751Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:39:43.667Z] [INFO ] [Session] Cleared session mmhz6jf3oolsijlr0pd
+[2026-03-08T16:39:49.890Z] [INFO ] [SettingsService] Settings saved
+[2026-03-08T16:39:49.898Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:39:49.898Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T16:39:49.907Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:39:58.425Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"mean_stack","sessionId":"mmhz9np5ixn8bhwfye"}
+[2026-03-08T16:39:58.425Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T16:39:58.425Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772987998425-2op9llv60","messageCount":1,"fastMode":true,"stack":"mean_stack","orchestrator":"langgraph"}
+[2026-03-08T16:39:59.953Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:00.579Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:01.198Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:01.808Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:02.427Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:03.055Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:03.695Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:04.336Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:04.972Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:05.611Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:06.237Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:06.894Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:07.694Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:08.459Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:09.204Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:09.954Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:10.689Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:11.453Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:12.201Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:12.943Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:13.662Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:14.403Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:15.154Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:15.918Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:16.663Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:17.402Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:18.149Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:18.922Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:19.664Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:20.424Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:21.192Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:21.929Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:22.691Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:23.444Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:24.088Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:24.089Z] [WARN ] [AgentService] Manual stop requested, aborting agent...
+[2026-03-08T16:40:25.587Z] [INFO ] [Agent] New agent run request {"messageCount":73,"fastMode":true,"stack":"mean_stack","sessionId":"mmhz9np5ixn8bhwfye"}
+[2026-03-08T16:40:25.587Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T16:40:25.588Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772988025587-ljeoxfklx","messageCount":73,"fastMode":true,"stack":"mean_stack","orchestrator":"langgraph"}
+[2026-03-08T16:40:27.467Z] [INFO ] [AgentService] Session mmhz9np5ixn8bhwfye saved (legacy v1).
+[2026-03-08T16:40:27.466Z] [INFO ] [Session] Saved v1 session mmhz9np5ixn8bhwfye {"messages":1}
+[2026-03-08T16:40:27.467Z] [INFO ] [Agent] Agent run completed
+[2026-03-08T16:40:27.467Z] [INFO ] [AgentService] Agent run completed successfully {"taskId":"task-1772988025587-ljeoxfklx"}
+[2026-03-08T16:40:27.485Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:28.492Z] [INFO ] [FilesService] Reading file {"path":"agent-handoff.log"}
+[2026-03-08T16:40:28.499Z] [INFO ] [Agent] New agent run request {"messageCount":76,"fastMode":true,"stack":"mean_stack","sessionId":"mmhz9np5ixn8bhwfye"}
+[2026-03-08T16:40:28.499Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T16:40:28.500Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772988028499-zy8f8pxdc","messageCount":76,"fastMode":true,"stack":"mean_stack","orchestrator":"langgraph"}
+[2026-03-08T16:40:28.505Z] [INFO ] [FilesService] Writing file {"path":"agent-handoff.log","size":158}
+[2026-03-08T16:40:36.446Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:40:36.912Z] [INFO ] [Session] Saved v1 session mmhz9np5ixn8bhwfye {"messages":1}
+[2026-03-08T16:40:36.913Z] [INFO ] [AgentService] Agent run completed successfully {"taskId":"task-1772988028499-zy8f8pxdc"}
+[2026-03-08T16:40:36.913Z] [INFO ] [AgentService] Session mmhz9np5ixn8bhwfye saved (legacy v1).
+[2026-03-08T16:40:36.913Z] [INFO ] [Agent] Agent run completed
+[2026-03-08T16:40:36.920Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:41:02.983Z] [INFO ] [FilesService] Listing files {"path":"my-node-app","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:41:03.883Z] [INFO ] [FilesService] Listing files {"path":"my-node-app/src","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:41:06.222Z] [INFO ] [FilesService] Reading file {"path":"my-node-app/src/app.js"}
+[2026-03-08T16:41:44.991Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:41:44.993Z] [WARN ] [Middleware] GET /api/agent/health → 404 (2ms)
+[2026-03-08T16:41:45.008Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T16:41:45.008Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T16:41:45.009Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:41:45.010Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T16:41:50.044Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:41:50.044Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T16:41:50.052Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T16:41:50.052Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T16:41:50.052Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:41:50.053Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T16:41:50.807Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:41:50.807Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T16:41:50.816Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T16:41:50.816Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T16:41:50.817Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:41:50.817Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T16:41:58.648Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
+[2026-03-08T16:41:58.644Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
+[2026-03-08T16:41:58.648Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
+[2026-03-08T16:41:58.648Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
+[2026-03-08T16:41:58.823Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:41:58.824Z] [WARN ] [Middleware] GET /api/agent/health → 404 (1ms)
+[2026-03-08T16:41:58.838Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T16:41:58.838Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T16:41:58.840Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:41:58.841Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T16:42:00.430Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:42:00.430Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T16:42:00.440Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:42:00.440Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T16:42:00.441Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
+[2026-03-08T16:42:00.443Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T16:42:22.036Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:42:22.036Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T16:42:22.050Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T16:42:22.050Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:42:22.050Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T16:42:22.052Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T16:44:29.917Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:44:29.918Z] [WARN ] [Middleware] GET /api/agent/health → 404 (1ms)
+[2026-03-08T16:44:29.926Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T16:44:29.927Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
+[2026-03-08T16:44:29.933Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T16:44:29.931Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T16:59:28.538Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T16:59:28.538Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T16:59:28.546Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T16:59:28.546Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T16:59:28.548Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T16:59:28.547Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:01:16.654Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T17:01:16.654Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T17:01:16.666Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T17:01:16.666Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T17:01:16.667Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:01:16.668Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T17:01:38.766Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"mean_stack","sessionId":"mmhz9np5ixn8bhwfye"}
+[2026-03-08T17:01:38.766Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T17:01:38.767Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772989298766-gu7dl8poq","messageCount":1,"fastMode":true,"stack":"mean_stack","orchestrator":"langgraph"}
+[2026-03-08T17:04:06.636Z] [WARN ] [AgentService] Manual stop requested, aborting agent...
+[2026-03-08T17:04:06.643Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:04:09.093Z] [INFO ] [Agent] New agent run request {"messageCount":6,"fastMode":false,"stack":"mean_stack","sessionId":"mmhz9np5ixn8bhwfye"}
+[2026-03-08T17:04:09.093Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T17:04:09.093Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772989449093-jj6j6qrti","messageCount":6,"fastMode":false,"stack":"mean_stack","orchestrator":"langgraph"}
+[2026-03-08T17:05:37.876Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T17:05:37.876Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T17:05:37.915Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T17:05:37.915Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:05:37.915Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T17:05:37.917Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T17:06:15.380Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T17:06:15.380Z] [WARN ] [Middleware] GET /api/agent/health → 404 (0ms)
+[2026-03-08T17:06:15.394Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:06:15.393Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T17:06:15.393Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T17:06:15.587Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T17:06:24.692Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
+[2026-03-08T17:06:24.697Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
+[2026-03-08T17:06:24.697Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
+[2026-03-08T17:06:24.697Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
+[2026-03-08T17:06:24.856Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T17:06:24.857Z] [WARN ] [Middleware] GET /api/agent/health → 404 (1ms)
+[2026-03-08T17:06:24.865Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T17:06:24.865Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T17:06:24.871Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T17:06:24.869Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:06:33.673Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"mean_stack","sessionId":"mmhz9np5ixn8bhwfye"}
+[2026-03-08T17:06:33.673Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T17:06:33.674Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772989593673-xuvbukhro","messageCount":1,"fastMode":true,"stack":"mean_stack","orchestrator":"langgraph"}
+[2026-03-08T17:08:39.631Z] [WARN ] [Middleware] GET /api/agent/health → 404 (1ms)
+[2026-03-08T17:08:39.630Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T17:08:39.639Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T17:08:39.640Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
+[2026-03-08T17:08:39.642Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:08:39.644Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T17:09:49.520Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
+[2026-03-08T17:09:49.524Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
+[2026-03-08T17:09:49.524Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
+[2026-03-08T17:09:49.524Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
+[2026-03-08T17:09:49.682Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T17:09:49.673Z] [WARN ] [Middleware] GET /api/agent/health → 404 (1ms)
+[2026-03-08T17:09:49.683Z] [WARN ] [Middleware] GET /api/models → 404 (1ms)
+[2026-03-08T17:09:49.672Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T17:09:49.887Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:09:49.886Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T17:09:54.846Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"mean_stack","sessionId":"mmhz9np5ixn8bhwfye"}
+[2026-03-08T17:09:54.847Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T17:09:54.848Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772989794848-3hzcibmu1","messageCount":1,"fastMode":true,"stack":"mean_stack","orchestrator":"langgraph"}
+[2026-03-08T17:12:40.367Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
+[2026-03-08T17:12:40.370Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
+[2026-03-08T17:12:40.370Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
+[2026-03-08T17:12:40.370Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
+[2026-03-08T17:12:56.551Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
+[2026-03-08T17:12:56.556Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
+[2026-03-08T17:12:56.556Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
+[2026-03-08T17:12:56.556Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
+[2026-03-08T17:15:34.413Z] [INFO ] [Config] Configuration loaded {"port":3009,"workspace":"D:\\Projects\\devagent\\workspace","lmBase":"http://localhost:1234/v1","model":"qwen2.5-coder-7b-instruct"}
+[2026-03-08T17:15:34.418Z] [INFO ] [Server] LM Studio  → http://localhost:1234/v1
+[2026-03-08T17:15:34.417Z] [INFO ] [Server] DevAgent server started on http://localhost:3009
+[2026-03-08T17:15:34.418Z] [INFO ] [Server] Workspace  → D:\Projects\devagent\workspace
+[2026-03-08T17:15:34.561Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T17:15:34.562Z] [WARN ] [Middleware] GET /api/agent/health → 404 (1ms)
+[2026-03-08T17:15:34.577Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T17:15:34.577Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T17:15:34.581Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T17:15:34.579Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:15:38.174Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772990138173-d69a5gk7l","messageCount":1,"fastMode":true,"stack":"mean_stack","orchestrator":"langgraph"}
+[2026-03-08T17:15:38.173Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"mean_stack","sessionId":"mmhz9np5ixn8bhwfye"}
+[2026-03-08T17:15:38.173Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T17:15:46.534Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:15:46.561Z] [WARN ] [Middleware] 404 Not Found: GET /api/agent/health
+[2026-03-08T17:15:46.562Z] [WARN ] [Middleware] GET /api/agent/health → 404 (1ms)
+[2026-03-08T17:15:46.571Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:15:46.572Z] [WARN ] [Middleware] 404 Not Found: GET /api/models
+[2026-03-08T17:15:46.572Z] [WARN ] [Middleware] GET /api/models → 404 (0ms)
+[2026-03-08T17:15:46.574Z] [INFO ] [Session] Loaded v1 session mmhz9np5ixn8bhwfye
+[2026-03-08T17:15:48.167Z] [INFO ] [Agent] New agent run request {"messageCount":1,"fastMode":true,"stack":"mean_stack","sessionId":"mmhz9np5ixn8bhwfye"}
+[2026-03-08T17:15:48.167Z] [WARN ] [Agent] Connection dropped, agent will continue on server
+[2026-03-08T17:15:48.167Z] [INFO ] [AgentService] Starting agent run {"taskId":"task-1772990148167-r5lomrt83","messageCount":1,"fastMode":true,"stack":"mean_stack","orchestrator":"langgraph"}
+[2026-03-08T17:15:49.540Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:15:50.250Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:15:50.971Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:15:51.705Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:15:52.468Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:15:53.227Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:15:53.968Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}
+[2026-03-08T17:16:00.187Z] [INFO ] [Session] Saved v1 session mmhz9np5ixn8bhwfye {"messages":1}
+[2026-03-08T17:16:00.187Z] [INFO ] [AgentService] Session mmhz9np5ixn8bhwfye saved (legacy v1).
+[2026-03-08T17:16:00.188Z] [INFO ] [AgentService] Agent run completed successfully {"taskId":"task-1772990138173-d69a5gk7l"}
+[2026-03-08T17:16:00.188Z] [INFO ] [Agent] Agent run completed
+[2026-03-08T17:16:00.188Z] [INFO ] [AgentService] Session mmhz9np5ixn8bhwfye saved (legacy v1).
+[2026-03-08T17:16:00.188Z] [INFO ] [Session] Saved v1 session mmhz9np5ixn8bhwfye {"messages":1}
+[2026-03-08T17:16:00.188Z] [INFO ] [AgentService] Agent run completed successfully {"taskId":"task-1772990148167-r5lomrt83"}
+[2026-03-08T17:16:00.188Z] [INFO ] [Agent] Agent run completed
+[2026-03-08T17:16:00.233Z] [INFO ] [FilesService] Listing files {"path":".","workspace":"D:\\Projects\\devagent\\workspace"}

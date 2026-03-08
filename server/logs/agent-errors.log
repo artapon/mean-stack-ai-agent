@@ -8,3 +8,45 @@
 [2026-03-08T15:25:34.502Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
 [2026-03-08T15:42:39.202Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1772984557139-pdzqcor","error":"This operation was aborted"}
 [2026-03-08T15:42:39.202Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
+[2026-03-08T16:36:06.397Z] [ERROR] [Middleware] GET /stacks → 500 (5ms)
+[2026-03-08T16:36:06.393Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:36:07.678Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:36:07.679Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-08T16:38:47.604Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:38:47.605Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-08T16:40:24.092Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1772987998425-2op9llv60","error":"This operation was aborted"}
+[2026-03-08T16:40:24.092Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
+[2026-03-08T16:41:44.984Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:41:44.985Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-08T16:41:50.040Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:41:50.040Z] [ERROR] [Middleware] GET /stacks → 500 (0ms)
+[2026-03-08T16:41:50.805Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:41:50.806Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-08T16:41:58.817Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:41:58.821Z] [ERROR] [Middleware] GET /stacks → 500 (6ms)
+[2026-03-08T16:42:00.428Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-08T16:42:00.428Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:42:22.032Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:42:22.032Z] [ERROR] [Middleware] GET /stacks → 500 (0ms)
+[2026-03-08T16:44:29.916Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:44:29.917Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-08T16:59:28.537Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T16:59:28.537Z] [ERROR] [Middleware] GET /stacks → 500 (0ms)
+[2026-03-08T17:01:16.657Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T17:01:16.657Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-08T17:04:06.640Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1772989298766-gu7dl8poq","error":"This operation was aborted"}
+[2026-03-08T17:04:06.640Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
+[2026-03-08T17:05:37.871Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T17:05:37.872Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-08T17:06:15.378Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T17:06:15.378Z] [ERROR] [Middleware] GET /stacks → 500 (0ms)
+[2026-03-08T17:06:24.850Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T17:06:24.854Z] [ERROR] [Middleware] GET /stacks → 500 (5ms)
+[2026-03-08T17:08:39.628Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T17:08:39.628Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-08T17:09:49.668Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T17:09:49.670Z] [ERROR] [Middleware] GET /stacks → 500 (3ms)
+[2026-03-08T17:15:34.557Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T17:15:34.560Z] [ERROR] [Middleware] GET /stacks → 500 (4ms)
+[2026-03-08T17:15:46.560Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-08T17:15:46.560Z] [ERROR] [Middleware] GET /stacks → 500 (0ms)

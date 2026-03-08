@@ -1,9 +1,10 @@
 {
-  "agentType": "default",
+  "agentType": "mean_stack",
   "orchestrator": "langgraph",
   "followReview": false,
   "followAnalysis": false,
   "autoRequestReview": true,
   "fastMode": true,
-  "unlimitedSteps": false
+  "unlimitedSteps": false,
+  "workspacePath": ""
 }

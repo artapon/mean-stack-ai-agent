@@ -4,7 +4,7 @@ const { loadSession, saveSession, clearSession } = require('../../../utils/sessi
 const config = require('../../../config');
 const fs = require('fs');
 const path = require('path');
-const dashboardService = require('../../../dashboard/services/dashboard.service');
+const dashboardService = require('../../dashboard/services/dashboard.service');
 
 /**
  * AgentService - Handles agent execution and session management
@@ -37,19 +37,19 @@ class AgentService extends BaseService {
    * Run agent with streaming
    */
   async runAgent(params, onStep) {
-    const { 
-      messages, 
-      fastMode, 
-      autoRequestReview, 
-      sessionId, 
-      stack, 
+    const {
+      messages,
+      fastMode,
+      autoRequestReview,
+      sessionId,
+      stack,
       orchestrator = 'classic',
       workspaceDir,
-      projectRoot 
+      projectRoot
     } = params;
 
     const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Register task with dashboard
     dashboardService.registerTask(taskId, {
       model: config.lmStudio.model,
@@ -61,12 +61,12 @@ class AgentService extends BaseService {
       autoRequestReview
     });
 
-    this.log('info', 'Starting agent run', { 
+    this.log('info', 'Starting agent run', {
       taskId,
-      messageCount: messages.length, 
-      fastMode, 
-      stack, 
-      orchestrator 
+      messageCount: messages.length,
+      fastMode,
+      stack,
+      orchestrator
     });
 
     // Create abort controller
@@ -78,27 +78,57 @@ class AgentService extends BaseService {
 
     try {
       const agentFunc = orchestrator === 'langgraph' ? runAgentGraph : runAgent;
-      
+
       // Wrap onStep to track in dashboard
       const wrappedOnStep = (stepData) => {
+        if (stepData.type === 'chunk') return; // Ignore stream chunks
+
+        let actionLabel = stepData.action || stepData.tool || 'Unknown Action';
+        let statusLabel = stepData.status || 'executing';
+        let detailText = '';
+        let thoughtText = '';
+
+        if (stepData.type === 'thought') {
+          actionLabel = 'Analyzing';
+          statusLabel = 'executing';
+          thoughtText = stepData.text || stepData.content || '';
+        } else if (stepData.type === 'status') {
+          actionLabel = 'Status Update';
+          detailText = stepData.text || '';
+        } else if (stepData.type === 'tool_result') {
+          actionLabel = stepData.tool || 'Tool Result';
+          statusLabel = stepData.result?.error ? 'failed' : 'completed';
+        } else if (stepData.type === 'error' || stepData.type === 'tool_error') {
+          statusLabel = 'failed';
+        }
+
+        if (stepData.parameters) {
+          const p = stepData.parameters;
+          detailText = p.path || p.file || p.command || p.query || p.target || '';
+        } else if (stepData.type === 'tool_result' && stepData.result && !stepData.result.error) {
+          detailText = 'Success';
+        }
+
         dashboardService.addTaskStep(taskId, {
-          action: stepData.action || stepData.tool,
-          status: stepData.status || 'executing',
+          action: actionLabel,
+          status: statusLabel,
+          detail: detailText,
+          thought: thoughtText,
           details: stepData
         });
-        
+
         // Also log to dashboard
         dashboardService.addAgentLog({
-          level: 'info',
-          message: `Step ${stepData.step || '?'}: ${stepData.action || stepData.tool || 'unknown'}`,
+          level: statusLabel === 'failed' ? 'error' : 'info',
+          message: `Step ${stepData.step || '?'}: ${actionLabel}`,
           step: stepData.step,
-          action: stepData.action || stepData.tool,
+          action: actionLabel,
           metadata: { taskId, service: 'agent' }
         });
-        
+
         if (onStep) onStep(stepData);
       };
-      
+
       const result = await agentFunc({
         messages,
         stack,
@@ -127,10 +157,10 @@ class AgentService extends BaseService {
       return { success: true, result, taskId };
     } catch (err) {
       this.log('error', 'Agent run failed', { taskId, error: err.message });
-      
+
       // Mark task as failed
       dashboardService.failTask(taskId, err);
-      
+
       throw err;
     } finally {
       this.activeAgentRun = null;
