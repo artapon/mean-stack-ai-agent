@@ -8,6 +8,19 @@ class BaseController {
   }
 
   /**
+   * Log controller activity
+   */
+  log(level, message, meta = {}) {
+    if (level === 'error') {
+      console.error(`[${this.moduleName}] ${message}`, meta);
+    } else if (level === 'warn') {
+      console.warn(`[${this.moduleName}] ${message}`, meta);
+    } else {
+      console.log(`[${this.moduleName}] ${message}`, meta);
+    }
+  }
+
+  /**
    * Standard success response
    */
   ok(res, data, statusCode = 200) {

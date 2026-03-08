@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const BaseController = require('../../core/base.controller');
-const AgentController = require('../controllers/agent.controller');
+const AgentController = require('./controllers/agent.controller');
 
 // ── Agent Routes ─────────────────────────────────────────────────────────────
 

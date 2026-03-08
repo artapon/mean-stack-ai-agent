@@ -2,7 +2,7 @@ module.exports = {
     apps: [
         {
             name: 'devagent:3009',
-            script: 'server/src/index.js',
+            script: 'server/src/server.js',
             watch: ['server/src'],
             ignore_watch: ['node_modules', 'projects'],
             log_date_format: 'DD-MM-YYYY HH:mm:ss Z',

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const BaseController = require('../../core/base.controller');
-const FilesController = require('../controllers/files.controller');
+const FilesController = require('./controllers/files.controller');
 
 // ── Files Routes ─────────────────────────────────────────────────────────────
 

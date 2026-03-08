@@ -1,125 +1,95 @@
 <template>
-  <!-- ── PAGE 1: Agent Selection ──────────────────────────────────────────── -->
-  <div v-if="currentPage === 'selection'" class="selection-page">
-    <!-- animated radial glow orbs -->
-    <div class="sp-orb sp-orb-1"></div>
-    <div class="sp-orb sp-orb-2"></div>
-    <div class="sp-orb sp-orb-3"></div>
-    <div class="sp-dots-grid"></div>
+  <!-- ── Chat App ──────────────────────────────────────────────────── -->
+  <div class="app">
 
-    <!-- top nav -->
-    <nav class="sp-nav">
-      <div class="sp-logo">
-        <div class="sp-logo-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="url(#sp-lg)" />
+    <!-- ── Left Nav Sidebar ──────────────────────────────────────────── -->
+    <nav class="nav-sidebar">
+      <div class="nav-logo">
+        <div class="nav-logo-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="url(#nav-lg)" stroke="none"/>
             <defs>
-              <linearGradient id="sp-lg" x1="3" y1="2" x2="21" y2="22" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#a5c8ff" />
-                <stop offset="100%" stop-color="#4080ff" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </div>
-        <span class="sp-logo-name">DevAgent</span>
-      </div>
-      <div class="sp-nav-badge">
-        <span class="sp-badge-dot"></span>
-        AI-Powered Code Generator
-      </div>
-    </nav>
-
-    <!-- hero -->
-    <div class="sp-hero">
-      <div class="sp-hero-label">Select your workspace</div>
-      <h1 class="sp-hero-title">Choose Your AI Agent</h1>
-      <p class="sp-hero-sub">Each agent is specialized for a different technology stack.<br>Pick the one that matches your project.</p>
-    </div>
-
-    <!-- agent cards -->
-    <div class="sp-cards">
-      <div
-        v-for="(meta, id) in stacksMetadata" :key="id"
-        class="sp-agent-card"
-        :class="{ 'sp-agent-card--active': selectedStack === id }"
-        @click="selectStack(id)"
-      >
-        <!-- card glow -->
-        <div class="sp-agent-glow" :class="'sp-glow-' + id"></div>
-
-        <div class="sp-agent-top">
-          <div class="sp-agent-emoji">
-            <span v-if="id === 'default'">🏗</span>
-            <span v-else-if="id === 'mean_stack'">🍃</span>
-            <span v-else-if="id === 'html_css'">🎨</span>
-            <span v-else">✨</span>
-          </div>
-          <div class="sp-agent-meta">
-            <div class="sp-agent-name">{{ meta.name }}</div>
-            <div class="sp-agent-tech" v-if="id === 'default'">Node • Any Stack</div>
-            <div class="sp-agent-tech" v-else-if="id === 'mean_stack'">MongoDB • Express • Node</div>
-            <div class="sp-agent-tech" v-else-if="id === 'html_css'">HTML5 • CSS3 • Bootstrap 5</div>
-          </div>
-        </div>
-
-        <p class="sp-agent-desc">{{ meta.description }}</p>
-
-        <div class="sp-agent-prompts" v-if="meta.prompts">
-          <div class="sp-prompts-label">Sample prompts</div>
-          <div v-for="p in meta.prompts.slice(0, 3)" :key="p" class="sp-prompt-chip">
-            <span class="sp-chip-arrow">›</span>
-            {{ p }}
-          </div>
-        </div>
-
-        <button class="sp-agent-btn">
-          <span>Start with {{ meta.name }}</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="5" y1="12" x2="19" y2="12"/>
-            <polyline points="12 5 19 12 12 19"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    <p class="sp-footer">You can switch agents anytime from the sidebar</p>
-  </div>
-
-  <!-- ── PAGE 2: Chat App ──────────────────────────────────────────────────── -->
-  <div v-else class="app">
-
-    <!-- ── Sidebar ──────────────────────────────────────────────────── -->
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="url(#lightning)" stroke="none"/>
-            <defs>
-              <linearGradient id="lightning" x1="3" y1="2" x2="21" y2="22" gradientUnits="userSpaceOnUse">
+              <linearGradient id="nav-lg" x1="3" y1="2" x2="21" y2="22" gradientUnits="userSpaceOnUse">
                 <stop offset="0%" stop-color="#7ab8ff"/>
                 <stop offset="100%" stop-color="#3d8eff"/>
               </linearGradient>
             </defs>
           </svg>
         </div>
-        <div>
-          <div class="brand-name">DevAgent</div>
-          <div class="brand-sub">AI Code Generator</div>
+        <span class="nav-logo-text">DevAgent</span>
+      </div>
+
+      <div class="nav-items">
+        <!-- Dashboard (first) -->
+        <button
+          class="nav-item"
+          :class="{ active: currentView === 'dashboard' }"
+          @click="openDashboard"
+          title="Dashboard"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span>Dashboard</span>
+        </button>
+
+        <!-- Agent submenu (second) -->
+        <div class="nav-item-group">
+          <button
+            class="nav-item"
+            :class="{ active: currentView === 'chat' }"
+            @click="currentView = 'chat'"
+            title="Switch Agent"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4"/>
+              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            </svg>
+            <span>Agent</span>
+            <svg class="nav-chevron open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left:auto">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div class="nav-submenu">
+            <button
+              v-for="(meta, id) in stacksMetadata" :key="id"
+              class="nav-subitem"
+              :class="{ active: selectedStack === id }"
+              @click="selectStack(id)"
+            >
+              <span v-if="id === 'default'">🏗</span>
+              <span v-else-if="id === 'mean_stack'">🍃</span>
+              <span v-else-if="id === 'html_css'">🎨</span>
+              <span v-else>✨</span>
+              <span class="nav-subitem-name">{{ meta.name }}</span>
+            </button>
+          </div>
         </div>
       </div>
 
+      <div class="nav-bottom">
+        <div class="nav-status-dot" :class="running ? 'running' : 'idle'" :title="running ? 'Agent running' : 'Ready'"></div>
+      </div>
+    </nav>
 
-      <!-- ── Workspace (inline in sidebar) ───────────────────────────── -->
+    <!-- ── Workspace Sidebar ──────────────────────────────────────────── -->
+    <aside class="sidebar" v-if="currentView === 'chat'">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Workspace</span>
+        <button class="icon-btn-sm" @click="loadFiles" :disabled="fbLoading" title="Refresh">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="fbLoading ? 'spin-sm' : ''">
+            <path v-if="!fbLoading" d="M23 4v6h-6M1 20v-6h6"/>
+            <path v-if="!fbLoading" d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        </button>
+      </div>
+
+
+      <!-- ── Workspace file browser ───────────────────────────── -->
       <div class="sidebar-workspace">
-        <div class="sidebar-label" style="padding: 0 6px;">WORKSPACE</div>
-        <div class="fb-header-inline">
-          <button class="icon-btn-sm" @click="loadFiles" :disabled="fbLoading" title="Refresh">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="fbLoading ? 'spin-sm' : ''">
-              <path v-if="!fbLoading" d="M23 4v6h-6M1 20v-6h6"/>
-              <path v-if="!fbLoading" d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
-          </button>
-        </div>
 
         <div class="fb-path-bar compact">
           <button class="fb-crumb home" @click="navigateTo('.')">🏠</button>
@@ -223,19 +193,299 @@
       </div>
     </aside>
 
-    <!-- ── Main Chat ──────────────────────────────────────────────────── -->
-    <main class="chat">
+    <!-- ── Main Area ──────────────────────────────────────────────────── -->
+    <main :class="currentView === 'dashboard' ? 'dashboard-main' : 'chat'">
 
+      <!-- ── Dashboard View ───────────────────────────────────────── -->
+      <template v-if="currentView === 'dashboard'">
+
+        <!-- Header -->
+        <header class="db-header">
+          <div class="db-header-left">
+            <div class="db-brand">
+              <div class="db-brand-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+              </div>
+              <div>
+                <h1 class="db-title">Agent Dashboard</h1>
+                <p class="db-subtitle">Real-time task · workflow · log monitor</p>
+              </div>
+            </div>
+            <div class="db-live-pill" :class="dashConnected ? 'live' : 'offline'">
+              <span class="db-live-dot"></span>
+              {{ dashConnected ? 'Live' : 'Offline' }}
+            </div>
+          </div>
+          <div class="db-header-right">
+            <div class="db-uptime-group">
+              <span class="db-meta-chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                {{ fmtUptime(dashStats.uptime) }}
+              </span>
+              <span class="db-meta-chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                {{ dashStats.activeConnections ?? 0 }} conn
+              </span>
+            </div>
+            <button class="db-btn" @click="loadDashboard" :disabled="dashLoading">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="dashLoading ? 'spin-sm' : ''">
+                <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Refresh
+            </button>
+            <button class="db-btn db-btn-danger" @click="clearDashboard">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+              </svg>
+              Clear
+            </button>
+          </div>
+        </header>
+
+        <!-- KPI row -->
+        <div class="db-kpi-row">
+          <div class="db-kpi">
+            <div class="db-kpi-icon db-kpi-icon-total">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+            </div>
+            <div class="db-kpi-body">
+              <div class="db-kpi-value">{{ dashStats.totalTasks ?? 0 }}</div>
+              <div class="db-kpi-label">Total Tasks</div>
+            </div>
+          </div>
+          <div class="db-kpi db-kpi-green">
+            <div class="db-kpi-icon db-kpi-icon-active">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div class="db-kpi-body">
+              <div class="db-kpi-value">{{ dashStats.activeTasks ?? 0 }}</div>
+              <div class="db-kpi-label">Running</div>
+            </div>
+            <div class="db-kpi-pulse" v-if="dashStats.activeTasks > 0"></div>
+          </div>
+          <div class="db-kpi db-kpi-blue">
+            <div class="db-kpi-icon db-kpi-icon-done">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="db-kpi-body">
+              <div class="db-kpi-value">{{ dashStats.completedTasks ?? 0 }}</div>
+              <div class="db-kpi-label">Completed</div>
+            </div>
+          </div>
+          <div class="db-kpi db-kpi-red">
+            <div class="db-kpi-icon db-kpi-icon-fail">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            </div>
+            <div class="db-kpi-body">
+              <div class="db-kpi-value">{{ dashStats.failedTasks ?? 0 }}</div>
+              <div class="db-kpi-label">Failed</div>
+            </div>
+          </div>
+          <div class="db-kpi db-kpi-purple">
+            <div class="db-kpi-icon db-kpi-icon-wf">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+            </div>
+            <div class="db-kpi-body">
+              <div class="db-kpi-value">{{ dashStats.activeWorkflows ?? dashWorkflows.length }}</div>
+              <div class="db-kpi-label">Workflows</div>
+            </div>
+          </div>
+          <div class="db-kpi db-kpi-yellow">
+            <div class="db-kpi-icon db-kpi-icon-logs">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <div class="db-kpi-body">
+              <div class="db-kpi-value">{{ dashStats.bufferedLogs ?? dashLogs.length }}</div>
+              <div class="db-kpi-label">Log Entries</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3-column body -->
+        <div class="db-body">
+
+          <!-- ── Tasks column ── -->
+          <div class="db-col">
+            <div class="db-col-header">
+              <div class="db-col-title-row">
+                <span class="db-col-title">Tasks</span>
+                <span class="db-badge-running" v-if="dashActiveTasks.length">{{ dashActiveTasks.length }} running</span>
+              </div>
+              <div class="db-tabs">
+                <button class="db-tab" :class="{ active: dashTaskTab === 'active' }" @click="dashTaskTab = 'active'">Active</button>
+                <button class="db-tab" :class="{ active: dashTaskTab === 'history' }" @click="dashTaskTab = 'history'">History</button>
+              </div>
+            </div>
+            <div class="db-col-body">
+
+              <!-- Active tasks -->
+              <template v-if="dashTaskTab === 'active'">
+                <div v-if="!dashActiveTasks.length" class="db-empty-state">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  <div class="db-empty-title">No active tasks</div>
+                  <div class="db-empty-sub">Waiting for agent activity…</div>
+                </div>
+                <div
+                  v-for="task in dashActiveTasks" :key="task.id"
+                  class="db-task-card"
+                  :class="['st-' + task.status, { expanded: dbExpandedTask === task.id }]"
+                  @click="dbExpandedTask = dbExpandedTask === task.id ? null : task.id"
+                >
+                  <div class="db-task-top-row">
+                    <span class="db-status-dot" :class="task.status"></span>
+                    <span class="db-task-id">{{ task.id?.slice(-8) }}</span>
+                    <span class="db-status-badge" :class="task.status">{{ task.status }}</span>
+                    <span class="db-task-elapsed" v-if="task.startTime">{{ fmtDuration(Date.now() - task.startTime) }}</span>
+                  </div>
+                  <div class="db-task-prompt" v-if="task.metadata?.prompt">
+                    {{ task.metadata.prompt.slice(0, 90) }}{{ task.metadata.prompt.length > 90 ? '…' : '' }}
+                  </div>
+                  <div class="db-task-chips">
+                    <span class="db-chip chip-model">{{ task.metadata?.model || 'unknown' }}</span>
+                    <span class="db-chip chip-stack">{{ task.metadata?.stack || 'default' }}</span>
+                    <span class="db-chip chip-steps" v-if="task.steps?.length">{{ task.steps.length }} steps</span>
+                  </div>
+                  <!-- Expanded step trace -->
+                  <div v-if="dbExpandedTask === task.id" class="db-steps-trace">
+                    <div class="db-steps-title">Step trace</div>
+                    <div v-if="!task.steps?.length" class="db-steps-empty">No steps recorded yet</div>
+                    <div v-for="step in (task.steps || []).slice(-8)" :key="step.id" class="db-step-row">
+                      <span class="db-step-dot" :class="step.status || 'pending'"></span>
+                      <span class="db-step-action">{{ step.action }}</span>
+                      <span class="db-step-time">{{ fmtTime(step.timestamp) }}</span>
+                    </div>
+                    <div v-if="task.error" class="db-task-error-line">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      {{ task.error }}
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- History -->
+              <template v-else>
+                <div v-if="!dashHistory.length && !dashRecentTasks.length" class="db-empty-state">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <div class="db-empty-title">No history yet</div>
+                </div>
+                <div
+                  v-for="task in [...dashHistory, ...dashRecentTasks.filter(t => t.status !== 'running')].slice(0, 30)"
+                  :key="'h' + task.id"
+                  class="db-task-card db-task-past"
+                  :class="'st-' + task.status"
+                >
+                  <div class="db-task-top-row">
+                    <span class="db-status-dot" :class="task.status"></span>
+                    <span class="db-task-id">{{ task.id?.slice(-8) }}</span>
+                    <span class="db-status-badge" :class="task.status">{{ task.status }}</span>
+                    <span class="db-task-elapsed" v-if="task.duration">{{ fmtDuration(task.duration) }}</span>
+                  </div>
+                  <div class="db-task-prompt" v-if="task.metadata?.prompt">
+                    {{ task.metadata.prompt.slice(0, 70) }}{{ task.metadata.prompt.length > 70 ? '…' : '' }}
+                  </div>
+                  <div class="db-task-chips">
+                    <span class="db-chip chip-model" v-if="task.metadata?.model">{{ task.metadata.model }}</span>
+                    <span class="db-chip chip-stack" v-if="task.metadata?.stack">{{ task.metadata.stack }}</span>
+                  </div>
+                  <div class="db-task-error-line" v-if="task.error">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    {{ task.error }}
+                  </div>
+                </div>
+              </template>
+
+            </div>
+          </div>
+
+          <!-- ── Workflows column ── -->
+          <div class="db-col">
+            <div class="db-col-header">
+              <div class="db-col-title-row">
+                <span class="db-col-title">Workflows</span>
+                <span class="db-badge-running" v-if="dashActiveWorkflows.length">{{ dashActiveWorkflows.length }} active</span>
+              </div>
+            </div>
+            <div class="db-col-body">
+              <div v-if="!allWorkflows.length" class="db-empty-state">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+                <div class="db-empty-title">No workflows</div>
+                <div class="db-empty-sub">Pipelines will appear here</div>
+              </div>
+              <div v-for="wf in allWorkflows" :key="wf.id" class="db-wf-card" :class="'st-' + wf.status">
+                <div class="db-wf-top">
+                  <div class="db-wf-name">{{ wf.metadata?.name || wf.id?.slice(-10) }}</div>
+                  <span class="db-status-badge" :class="wf.status">{{ wf.status }}</span>
+                </div>
+                <div class="db-wf-desc" v-if="wf.metadata?.description">{{ wf.metadata.description }}</div>
+                <!-- Progress bar -->
+                <div class="db-wf-progress" v-if="wf.totalSteps || wf.progress">
+                  <div class="db-wf-track">
+                    <div class="db-wf-fill" :class="wf.status" :style="{ width: Math.min(wf.progress || 0, 100) + '%' }"></div>
+                  </div>
+                  <span class="db-wf-pct">{{ wf.progress || 0 }}%</span>
+                </div>
+                <!-- Step pills -->
+                <div class="db-wf-steps-row" v-if="wf.totalSteps">
+                  <span class="db-wf-step-lbl">Step {{ wf.currentStep || 0 }} / {{ wf.totalSteps }}</span>
+                  <div class="db-wf-step-dots">
+                    <span v-for="n in Math.min(wf.totalSteps, 10)" :key="n"
+                      class="db-wf-dot"
+                      :class="n <= (wf.currentStep || 0) ? 'done' : n === (wf.currentStep || 0) + 1 ? 'current' : ''">
+                    </span>
+                  </div>
+                </div>
+                <div class="db-wf-footer">
+                  <span class="db-task-elapsed" v-if="wf.startTime">{{ fmtDuration((wf.endTime || Date.now()) - wf.startTime) }}</span>
+                  <span class="db-chip chip-steps" v-if="wf.tasks?.length">{{ wf.tasks.length }} tasks</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Live Log column ── -->
+          <div class="db-col db-col-logs">
+            <div class="db-col-header">
+              <span class="db-col-title">Live Logs</span>
+              <div class="db-log-filters">
+                <button
+                  v-for="lvl in ['all','info','warn','error']" :key="lvl"
+                  class="db-log-filter-btn" :class="[lvl !== 'all' ? 'lf-' + lvl : '', { active: dashLogFilter === lvl }]"
+                  @click="dashLogFilter = lvl"
+                >
+                  {{ lvl }}
+                  <span class="db-filter-cnt" v-if="lvl !== 'all'">{{ dashLogs.filter(l => l.level === lvl).length }}</span>
+                </button>
+              </div>
+            </div>
+            <div class="db-log-stream" ref="dashLogEl">
+              <div v-if="!filteredLogs.length" class="db-empty-state">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.31 2 2 0 0 1 3.62 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.93a16 16 0 0 0 6.06 6.06l1.01-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                <div class="db-empty-title">No logs yet</div>
+                <div class="db-empty-sub">Events stream here in real-time</div>
+              </div>
+              <div
+                v-for="(log, i) in filteredLogs.slice(0, 300)" :key="log.id || i"
+                class="db-log-entry" :class="'ll-' + log.level"
+              >
+                <span class="db-log-ts">{{ fmtTime(log.timestamp) }}</span>
+                <span class="db-log-lvl">{{ (log.level || 'info').toUpperCase().slice(0,4) }}</span>
+                <span class="db-log-svc" v-if="log.metadata?.service">{{ log.metadata.service }}</span>
+                <span class="db-log-msg">{{ log.message }}</span>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- end db-body -->
+      </template>
+
+      <!-- ── Chat View ─────────────────────────────────────────────── -->
+      <template v-else>
       <header class="chat-header">
-        <!-- Left: Branding + live model -->
+        <!-- Left: Agent info -->
         <div class="chat-header-left">
-          <button class="home-btn" @click="currentPage = 'selection'" title="Change agent stack">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-          </button>
-          <h1 class="chat-title">DevAgent</h1>
+          <h1 class="chat-title">{{ stacksMetadata[selectedStack]?.name || 'DevAgent' }}</h1>
           <div class="chat-badge" :class="agentMode">
             <span class="badge-dot"></span>
             <span>{{ agentMode === 'generate' ? 'Developer' : agentMode === 'review' ? 'Reviewer' : 'Analysis' }} · {{ lmModel }}</span>
@@ -474,6 +724,8 @@
         </div>
       </div>
 
+      </template><!-- end chat view -->
+
     </main>
 
   </div>
@@ -611,9 +863,141 @@ const FALLBACK_STACKS = {
   "mean_stack": { "name": "MEAN Stack",           "description": "Expert in MongoDB, Express.js, Angular, and Node.",    "prompts": ["Create a Mongoose model for User with JWT auth", "Build an Express REST API", "Implement signup and login service"] },
   "html_css":   { "name": "HTML/CSS/Bootstrap",   "description": "Senior UI/UX Developer with Bootstrap 5 expertise.",  "prompts": ["Build a modern landing page with Bootstrap 5", "Create a responsive navbar and footer", "Create a dark-mode glassmorphism theme"] }
 }
-const selectedStack = ref(localStorage.getItem('devagent_selected_stack') || '')
+const selectedStack = ref(localStorage.getItem('devagent_selected_stack') || 'default')
 const stacksMetadata = ref({ ...FALLBACK_STACKS })
-const currentPage = ref('selection')
+const currentView = ref('chat') // 'chat' | 'dashboard'
+
+// ── Dashboard State ───────────────────────────────────────────────────────────
+const dashStats        = ref({})
+const dashActiveTasks  = ref([])
+const dashRecentTasks  = ref([])
+const dashHistory      = ref([])
+const dashActiveWorkflows = ref([])
+const dashRecentWorkflows = ref([])
+const dashLogs         = ref([])
+const dashLoading      = ref(false)
+const dashConnected    = ref(false)
+const dashLogFilter    = ref('all')
+const dashLogEl        = ref(null)
+const dashTaskTab      = ref('active')
+const dbExpandedTask   = ref(null)
+
+// Backwards-compat alias used by SSE & old api path
+const dashTasks     = dashActiveTasks
+const dashWorkflows = dashActiveWorkflows
+
+const allWorkflows = computed(() => {
+  const seen = new Set()
+  return [...dashActiveWorkflows.value, ...dashRecentWorkflows.value].filter(w => {
+    if (seen.has(w.id)) return false; seen.add(w.id); return true
+  })
+})
+
+const filteredLogs = computed(() => {
+  if (dashLogFilter.value === 'all') return dashLogs.value
+  return dashLogs.value.filter(l => l.level === dashLogFilter.value)
+})
+
+function fmtDuration(ms) {
+  if (!ms || ms < 0) return '—'
+  if (ms < 1000) return ms + 'ms'
+  if (ms < 60000) return (ms / 1000).toFixed(1) + 's'
+  const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000)
+  return m + 'm ' + s + 's'
+}
+
+function fmtTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function fmtUptime(ms) {
+  if (!ms) return '—'
+  const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000)
+  return h > 0 ? h + 'h ' + m + 'm' : m + 'm'
+}
+
+function upsertTask(task) {
+  const arr = dashActiveTasks.value
+  const i = arr.findIndex(t => t.id === task.id)
+  if (i >= 0) arr.splice(i, 1, task); else arr.unshift(task)
+}
+function upsertWorkflow(wf) {
+  const arr = dashActiveWorkflows.value
+  const i = arr.findIndex(w => w.id === wf.id)
+  if (i >= 0) arr.splice(i, 1, wf); else arr.unshift(wf)
+}
+
+async function loadDashboard() {
+  dashLoading.value = true
+  try {
+    const res  = await fetch('/api/dashboard')
+    const data = await res.json()
+    dashStats.value           = data.stats || {}
+    dashActiveTasks.value     = data.activeTasks || []
+    dashRecentTasks.value     = data.recentTasks || []
+    dashHistory.value         = data.taskHistory || []
+    dashActiveWorkflows.value = data.activeWorkflows || []
+    dashRecentWorkflows.value = data.recentWorkflows || []
+    dashLogs.value            = (data.recentLogs || data.logs || []).slice().reverse()
+    dashConnected.value = true
+  } catch {
+    dashConnected.value = false
+  } finally {
+    dashLoading.value = false
+  }
+}
+
+async function clearDashboard() {
+  try { await fetch('/api/dashboard/clear', { method: 'POST' }) } catch {}
+  dashActiveTasks.value = []; dashHistory.value = []; dashActiveWorkflows.value = []
+  dashRecentWorkflows.value = []; dashLogs.value = []; dashStats.value = {}
+}
+
+let dashSSE = null
+function connectDashSSE() {
+  if (dashSSE) return
+  dashSSE = new EventSource('/api/dashboard/stream')
+  dashSSE.onopen = () => { dashConnected.value = true }
+  dashSSE.onerror = () => { dashConnected.value = false }
+
+  // Named SSE events from the server
+  const onTask = (e) => { try { upsertTask(JSON.parse(e.data)) } catch {} }
+  dashSSE.addEventListener('task:created',   onTask)
+  dashSSE.addEventListener('task:started',   onTask)
+  dashSSE.addEventListener('task:completed', onTask)
+  dashSSE.addEventListener('task:failed',    onTask)
+  dashSSE.addEventListener('task:step', (e) => {
+    try {
+      const { taskId, step } = JSON.parse(e.data)
+      const t = dashActiveTasks.value.find(t => t.id === taskId)
+      if (t) { if (!t.steps) t.steps = []; t.steps.push(step) }
+    } catch {}
+  })
+  dashSSE.addEventListener('workflow:created',  (e) => { try { upsertWorkflow(JSON.parse(e.data)) } catch {} })
+  dashSSE.addEventListener('workflow:started',  (e) => { try { upsertWorkflow(JSON.parse(e.data)) } catch {} })
+  dashSSE.addEventListener('workflow:progress', (e) => { try { const d = JSON.parse(e.data); upsertWorkflow(d) } catch {} })
+  dashSSE.addEventListener('workflow:completed',(e) => { try { upsertWorkflow(JSON.parse(e.data)) } catch {} })
+  dashSSE.addEventListener('log:entry', (e) => { try { dashLogs.value.unshift(JSON.parse(e.data)) } catch {} })
+  dashSSE.addEventListener('init', (e) => {
+    try {
+      const d = JSON.parse(e.data)
+      if (d.stats)             dashStats.value           = d.stats
+      if (d.activeTasks)       dashActiveTasks.value     = d.activeTasks
+      if (d.recentTasks)       dashRecentTasks.value     = d.recentTasks
+      if (d.taskHistory)       dashHistory.value         = d.taskHistory
+      if (d.activeWorkflows)   dashActiveWorkflows.value = d.activeWorkflows
+      if (d.recentWorkflows)   dashRecentWorkflows.value = d.recentWorkflows
+      if (d.recentLogs)        dashLogs.value            = d.recentLogs.slice().reverse()
+      dashConnected.value = true
+    } catch {}
+  })
+  dashSSE.addEventListener('dashboard:cleared', () => {
+    dashActiveTasks.value = []; dashHistory.value = []
+    dashActiveWorkflows.value = []; dashLogs.value = []; dashStats.value = {}
+  })
+}
 
 async function fetchStacks() {
   try {
@@ -633,7 +1017,13 @@ fetchStacks()
 function selectStack(id) {
   selectedStack.value = id
   localStorage.setItem('devagent_selected_stack', id)
-  currentPage.value = 'chat'
+  currentView.value = 'chat'
+}
+
+function openDashboard() {
+  currentView.value = 'dashboard'
+  loadDashboard()
+  connectDashSSE()
 }
 
 const currentPresets = computed(() => {
@@ -1028,6 +1418,7 @@ async function clearChat() {
   localStorage.setItem('devagent_session_id', sessionId.value)
 }
 
+
 // ── SSE event handler ─────────────────────────────────────────────────────────
 
 function applyEvent(ev, idx) {
@@ -1409,49 +1800,164 @@ textarea {
   background: #080a10;
 }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+/* ── Left Nav Sidebar ────────────────────────────────────────────────────── */
+.nav-sidebar {
+  width: 200px;
+  min-width: 200px;
+  background: #080a10;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+
+.nav-logo-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, rgba(91,156,255,0.18), rgba(64,128,255,0.08));
+  border: 1px solid rgba(91,156,255,0.22);
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-logo-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -.02em;
+}
+
+.nav-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 10px;
+  flex: 1;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  width: 100%;
+  text-align: left;
+  color: rgba(255,255,255,0.45);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all .15s;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.nav-item:hover {
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.85);
+  border-color: rgba(255,255,255,0.06);
+}
+.nav-item.active {
+  background: rgba(59,130,246,0.1);
+  color: var(--accent);
+  border-color: rgba(59,130,246,0.2);
+}
+.nav-item svg { flex-shrink: 0; opacity: 0.8; }
+.nav-item:hover svg, .nav-item.active svg { opacity: 1; }
+
+.nav-chevron { transition: transform .2s; flex-shrink: 0; }
+.nav-chevron.open { transform: rotate(180deg); }
+
+.nav-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 0 3px 10px;
+}
+
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  width: 100%;
+  text-align: left;
+  color: rgba(255,255,255,0.4);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all .15s;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: none;
+}
+.nav-subitem:hover {
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.75);
+}
+.nav-subitem.active {
+  background: rgba(59,130,246,0.1);
+  color: var(--accent);
+  border-color: rgba(59,130,246,0.18);
+}
+.nav-subitem-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.nav-bottom {
+  padding: 16px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  transition: all .3s;
+}
+.nav-status-dot.idle {
+  background: rgba(255,255,255,0.15);
+}
+.nav-status-dot.running {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(16,185,129,0.6);
+  animation: glow-pulse 1.4s ease-in-out infinite;
+}
+
+/* ── Workspace Sidebar ───────────────────────────────────────────────────── */
 .sidebar {
-  width: 280px;
-  min-width: 280px;
-  background: #0b0d14;
+  width: 256px;
+  min-width: 256px;
+  background: #0b0d15;
   border-right: 1px solid rgba(255,255,255,0.04);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.brand {
+.sidebar-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 22px 20px 18px;
+  justify-content: space-between;
+  padding: 14px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-
-.brand-icon {
-  width: 36px; height: 36px;
-  background: linear-gradient(135deg, rgba(91,156,255,0.15), rgba(64,128,255,0.08));
-  border: 1px solid rgba(91,156,255,0.2);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
 }
 
-.brand-name {
-  font-size: 15px;
+.sidebar-title {
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: -.02em;
-  color: #fff;
-}
-.brand-sub {
-  font-size: 10px;
+  letter-spacing: .1em;
   color: rgba(255,255,255,0.3);
-  margin-top: 2px;
-  letter-spacing: .04em;
   text-transform: uppercase;
-  font-weight: 600;
 }
 
 .sidebar-section { padding: 16px 14px 0; }
@@ -1461,9 +1967,8 @@ textarea {
 .sidebar-workspace {
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
-  padding: 12px 14px 0;
+  padding: 10px 12px 0;
   overflow-y: auto;
-  border-top: 1px solid rgba(255,255,255,0.04);
 }
 .sidebar-workspace .sidebar-label { margin-bottom: 6px; }
 .fb-header-inline {
@@ -1482,16 +1987,7 @@ textarea {
 .sidebar-fb-list { max-height: none; }
 .sidebar-workspace .fb-preview-code { max-height: 200px; }
 
-/* ── Home Button (header) ───────────────────────────────────────────────── */
-.home-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px;
-  border: 1px solid var(--border2);
-  border-radius: var(--r-sm);
-  color: var(--t2); cursor: pointer;
-  transition: all .15s;
-}
-.home-btn:hover { background: var(--bg3); color: var(--accent); border-color: var(--accent); }
+/* ── Sidebar Workspace header ───────────────────────────────────────────── */
 
 .sidebar-label {
   font-size: 10px;
@@ -1754,14 +2250,14 @@ textarea {
 /* ── Chat Header ─────────────────────────────────────────────────────────── */
 .chat-header {
   display: flex; align-items: center; justify-content: space-between;
-  height: auto; min-height: 56px; padding: 0 24px;
-  background: rgba(10,12,18,0.7);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  flex-shrink: 0; gap: 16px;
+  height: auto; min-height: 54px; padding: 0 20px;
+  background: rgba(8,10,16,0.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0; gap: 12px;
 }
-.chat-header-left { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.chat-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.chat-header-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.chat-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
 
 
 /* Pill group for Mode+Workflow */
@@ -2808,10 +3304,311 @@ input:checked + .slider.slider-unlimited:before {
   box-shadow: 0 4px 16px rgba(91,156,255,0.35);
 }
 
-/* Footer */
-.sp-footer {
-  text-align: center; font-size: 12px;
-  color: rgba(255,255,255,0.2);
-  padding-bottom: 24px; position: relative; z-index: 10;
+/* ── Dashboard View ─────────────────────────────────────────────────────── */
+.dashboard-main {
+  flex: 1; min-width: 0;
+  background: #07090f;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.db-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.055);
+  background: #07090f;
+  flex-shrink: 0; gap: 16px;
+}
+.db-header-left  { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.db-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.db-brand { display: flex; align-items: center; gap: 12px; }
+.db-brand-icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(91,156,255,.18), rgba(64,128,255,.08));
+  border: 1px solid rgba(91,156,255,.22);
+  display: flex; align-items: center; justify-content: center;
+  color: #5b9cff;
+}
+.db-title  { font-size: 15px; font-weight: 700; color: #eef1f8; letter-spacing: -.02em; margin: 0; line-height: 1.2; }
+.db-subtitle { font-size: 11px; color: rgba(255,255,255,0.3); margin: 0; margin-top: 1px; }
+
+.db-live-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 11px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; letter-spacing: .03em; flex-shrink: 0;
+}
+.db-live-pill.live    { background: rgba(61,220,132,.1); color: #3ddc84; border: 1px solid rgba(61,220,132,.2); }
+.db-live-pill.offline { background: rgba(255,107,107,.1); color: #ff6b6b; border: 1px solid rgba(255,107,107,.2); }
+.db-live-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+.db-uptime-group { display: flex; align-items: center; gap: 6px; }
+.db-meta-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 7px; font-size: 11px; color: rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+}
+.db-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 8px; cursor: pointer; transition: all .15s;
+  font-size: 12px; font-weight: 500; border: 1px solid rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6);
+}
+.db-btn:hover:not(:disabled) { background: rgba(255,255,255,0.09); color: #eef1f8; }
+.db-btn:disabled { opacity: .45; cursor: not-allowed; }
+.db-btn-danger { color: rgba(255,107,107,0.7); border-color: rgba(255,107,107,0.15); }
+.db-btn-danger:hover:not(:disabled) { background: rgba(255,107,107,0.08); color: #ff6b6b; border-color: rgba(255,107,107,0.3); }
+
+/* ── KPI row ── */
+.db-kpi-row {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: 1px; background: rgba(255,255,255,0.055);
+  border-bottom: 1px solid rgba(255,255,255,0.055);
+  flex-shrink: 0;
+}
+.db-kpi {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; background: #07090f;
+  position: relative; overflow: hidden;
+}
+.db-kpi:hover { background: rgba(255,255,255,0.015); }
+.db-kpi-icon {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.4);
+}
+.db-kpi-icon-active { background: rgba(61,220,132,.12); color: #3ddc84; }
+.db-kpi-icon-done   { background: rgba(91,156,255,.12); color: #5b9cff; }
+.db-kpi-icon-fail   { background: rgba(255,107,107,.12); color: #ff6b6b; }
+.db-kpi-icon-wf     { background: rgba(167,139,250,.12); color: #a78bfa; }
+.db-kpi-icon-logs   { background: rgba(255,209,102,.1);  color: #ffd166; }
+.db-kpi-body { min-width: 0; }
+.db-kpi-value { font-size: 22px; font-weight: 700; color: #eef1f8; line-height: 1; }
+.db-kpi-label { font-size: 10px; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: .07em; margin-top: 3px; }
+.db-kpi-green .db-kpi-value { color: #3ddc84; }
+.db-kpi-blue  .db-kpi-value { color: #5b9cff; }
+.db-kpi-red   .db-kpi-value { color: #ff6b6b; }
+.db-kpi-purple .db-kpi-value { color: #a78bfa; }
+.db-kpi-yellow .db-kpi-value { color: #ffd166; }
+.db-kpi-pulse {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  width: 8px; height: 8px; border-radius: 50%; background: #3ddc84;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* ── 3-column body ── */
+.db-body {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px; background: rgba(255,255,255,0.055);
+  flex: 1; min-height: 0; overflow: hidden;
+}
+.db-col {
+  background: #07090f; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+}
+.db-col-logs { background: #060810; }
+
+.db-col-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.055);
+  flex-shrink: 0; gap: 8px;
+}
+.db-col-title-row { display: flex; align-items: center; gap: 8px; }
+.db-col-title {
+  font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.55);
+  text-transform: uppercase; letter-spacing: .07em;
+}
+.db-badge-running {
+  font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px;
+  background: rgba(61,220,132,.12); color: #3ddc84; border: 1px solid rgba(61,220,132,.2);
+}
+
+.db-tabs { display: flex; gap: 2px; }
+.db-tab {
+  padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 500;
+  color: rgba(255,255,255,0.35); cursor: pointer; border: 1px solid transparent; background: none; transition: all .12s;
+}
+.db-tab:hover  { color: rgba(255,255,255,0.65); }
+.db-tab.active { background: rgba(91,156,255,.1); color: #5b9cff; border-color: rgba(91,156,255,.2); }
+
+.db-col-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+
+/* ── Empty state ── */
+.db-empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 36px 12px; flex: 1;
+}
+.db-empty-title { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.25); }
+.db-empty-sub   { font-size: 11px; color: rgba(255,255,255,0.15); }
+
+/* ── Task cards ── */
+.db-task-card {
+  padding: 10px 12px; border-radius: 9px; cursor: pointer;
+  background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);
+  display: flex; flex-direction: column; gap: 6px;
+  transition: border-color .15s, background .15s;
+}
+.db-task-card:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+.db-task-card.st-running  { border-color: rgba(61,220,132,0.22); background: rgba(61,220,132,0.035); }
+.db-task-card.st-failed   { border-color: rgba(255,107,107,0.22); background: rgba(255,107,107,0.035); }
+.db-task-card.st-completed { border-color: rgba(91,156,255,0.15); }
+.db-task-card.expanded    { border-color: rgba(91,156,255,0.3); background: rgba(91,156,255,0.04); }
+.db-task-past { opacity: 0.65; }
+.db-task-past:hover { opacity: 1; }
+
+.db-task-top-row { display: flex; align-items: center; gap: 7px; }
+.db-status-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(255,255,255,0.2);
+}
+.db-status-dot.running   { background: #3ddc84; animation: pulse 1.4s infinite; }
+.db-status-dot.completed { background: #5b9cff; }
+.db-status-dot.failed    { background: #ff6b6b; }
+.db-status-dot.pending   { background: #ffd166; }
+
+.db-task-id   { font-size: 10px; font-family: var(--mono, monospace); color: rgba(255,255,255,0.28); flex: 1; }
+.db-task-elapsed { font-size: 10px; color: rgba(255,255,255,0.3); font-family: var(--mono, monospace); flex-shrink: 0; }
+
+.db-status-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  padding: 2px 7px; border-radius: 5px; flex-shrink: 0;
+}
+.db-status-badge.running   { background: rgba(61,220,132,.15); color: #3ddc84; }
+.db-status-badge.completed { background: rgba(91,156,255,.15); color: #5b9cff; }
+.db-status-badge.failed    { background: rgba(255,107,107,.15); color: #ff6b6b; }
+.db-status-badge.pending   { background: rgba(255,209,102,.12); color: #ffd166; }
+
+.db-task-prompt {
+  font-size: 12px; color: rgba(255,255,255,0.72); line-height: 1.45;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.db-task-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.db-chip {
+  font-size: 10px; font-weight: 500; padding: 1px 7px; border-radius: 5px;
+}
+.chip-model { background: rgba(167,139,250,.1); color: #a78bfa; }
+.chip-stack { background: rgba(91,156,255,.1);  color: #5b9cff; }
+.chip-steps { background: rgba(255,255,255,.06); color: rgba(255,255,255,.45); }
+
+/* Step trace (expanded) */
+.db-steps-trace {
+  border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.db-steps-title { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+.db-steps-empty { font-size: 11px; color: rgba(255,255,255,0.2); font-style: italic; padding: 4px 0; }
+.db-step-row { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+.db-step-dot {
+  width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(255,255,255,0.2);
+}
+.db-step-dot.completed { background: #3ddc84; }
+.db-step-dot.running   { background: #5b9cff; animation: pulse 1.4s infinite; }
+.db-step-dot.failed    { background: #ff6b6b; }
+.db-step-action { font-size: 11px; color: rgba(255,255,255,0.65); flex: 1; font-family: var(--mono, monospace); }
+.db-step-time   { font-size: 10px; color: rgba(255,255,255,0.25); font-family: var(--mono, monospace); flex-shrink: 0; }
+.db-task-error-line {
+  display: flex; align-items: flex-start; gap: 5px;
+  font-size: 11px; color: #ff6b6b; background: rgba(255,107,107,0.06);
+  padding: 5px 8px; border-radius: 6px; border-left: 2px solid rgba(255,107,107,0.4);
+  word-break: break-word;
+}
+
+/* ── Workflow cards ── */
+.db-wf-card {
+  padding: 12px 14px; border-radius: 9px;
+  background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);
+  display: flex; flex-direction: column; gap: 8px;
+  transition: border-color .15s;
+}
+.db-wf-card.st-running   { border-color: rgba(167,139,250,.25); background: rgba(167,139,250,.04); }
+.db-wf-card.st-completed { border-color: rgba(91,156,255,.15); }
+.db-wf-card.st-failed    { border-color: rgba(255,107,107,.2); }
+.db-wf-top  { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.db-wf-name { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-wf-desc { font-size: 11px; color: rgba(255,255,255,0.35); line-height: 1.4; }
+.db-wf-progress { display: flex; align-items: center; gap: 8px; }
+.db-wf-track {
+  flex: 1; height: 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.07); overflow: hidden;
+}
+.db-wf-fill {
+  height: 100%; border-radius: 3px; transition: width .4s ease;
+  background: linear-gradient(90deg, #3d8eff, #a78bfa);
+}
+.db-wf-fill.completed { background: linear-gradient(90deg, #3ddc84, #5b9cff); }
+.db-wf-fill.failed    { background: #ff6b6b; }
+.db-wf-pct { font-size: 11px; font-family: var(--mono, monospace); color: rgba(255,255,255,0.45); flex-shrink: 0; }
+.db-wf-steps-row { display: flex; align-items: center; gap: 8px; }
+.db-wf-step-lbl { font-size: 10px; color: rgba(255,255,255,0.3); flex-shrink: 0; }
+.db-wf-step-dots { display: flex; gap: 3px; flex-wrap: wrap; }
+.db-wf-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(255,255,255,0.1); transition: background .2s;
+}
+.db-wf-dot.done    { background: #5b9cff; }
+.db-wf-dot.current { background: #a78bfa; animation: pulse 1.2s infinite; }
+.db-wf-footer { display: flex; align-items: center; justify-content: space-between; }
+
+/* ── Log stream ── */
+.db-log-filters { display: flex; gap: 3px; }
+.db-log-filter-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 6px; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.07);
+  background: none; cursor: pointer; transition: all .12s;
+}
+.db-log-filter-btn:hover { color: rgba(255,255,255,0.6); }
+.db-log-filter-btn.active { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.15); }
+.db-log-filter-btn.lf-warn.active  { background: rgba(255,209,102,.1); color: #ffd166; border-color: rgba(255,209,102,.25); }
+.db-log-filter-btn.lf-error.active { background: rgba(255,107,107,.1); color: #ff6b6b; border-color: rgba(255,107,107,.25); }
+.db-log-filter-btn.lf-info.active  { background: rgba(91,156,255,.1);  color: #5b9cff; border-color: rgba(91,156,255,.25); }
+.db-filter-cnt {
+  font-size: 9px; padding: 0 4px; border-radius: 4px;
+  background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.4);
+}
+
+.db-log-stream {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 6px 0;
+  font-family: var(--mono, 'JetBrains Mono', monospace); font-size: 11px;
+  display: flex; flex-direction: column; gap: 0;
+}
+.db-log-entry {
+  display: grid; grid-template-columns: 68px 38px 60px 1fr;
+  gap: 6px; padding: 3px 14px; align-items: baseline;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  transition: background .1s;
+}
+.db-log-entry:hover { background: rgba(255,255,255,0.025); }
+.db-log-ts  { color: rgba(255,255,255,0.2); font-size: 10px; white-space: nowrap; }
+.db-log-lvl { font-weight: 700; font-size: 9px; letter-spacing: .06em; }
+.db-log-svc {
+  color: rgba(255,255,255,0.25); font-size: 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.db-log-msg {
+  color: rgba(255,255,255,0.65); font-size: 11px; line-height: 1.5;
+  word-break: break-word; overflow-wrap: break-word; grid-column: 4;
+}
+.ll-info  .db-log-lvl { color: #5b9cff; }
+.ll-warn  .db-log-lvl { color: #ffd166; }
+.ll-error .db-log-lvl { color: #ff6b6b; }
+.ll-error .db-log-msg { color: rgba(255,107,107,0.85); }
+.ll-debug .db-log-lvl { color: rgba(255,255,255,0.3); }
+.ll-error { background: rgba(255,107,107,0.04); }
+.ll-warn  { background: rgba(255,209,102,0.025); }
+
+@media (max-width: 1100px) {
+  .db-kpi-row { grid-template-columns: repeat(3, 1fr); }
+  .db-body    { grid-template-columns: 1fr 1fr; }
+  .db-col-logs { grid-column: 1 / -1; max-height: 280px; }
+}
+@media (max-width: 700px) {
+  .db-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .db-body    { grid-template-columns: 1fr; }
 }
 </style>

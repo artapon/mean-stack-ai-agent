@@ -1,6 +1,6 @@
-const BaseService = require('../../core/base.service');
-const { readFile, writeFile, listFiles } = require('../../tools/filesystem');
-const config = require('../../config');
+const BaseService = require('../../../core/base.service');
+const { readFile, writeFile, listFiles } = require('../../../tools/filesystem');
+const config = require('../../../config');
 
 /**
  * FilesService - Handles file operations business logic

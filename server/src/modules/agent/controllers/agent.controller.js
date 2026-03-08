@@ -1,6 +1,6 @@
-const BaseController = require('../../core/base.controller');
+const BaseController = require('../../../core/base.controller');
 const AgentService = require('../services/agent.service');
-const config = require('../../config');
+const config = require('../../../config');
 const path = require('path');
 const fs = require('fs');
 

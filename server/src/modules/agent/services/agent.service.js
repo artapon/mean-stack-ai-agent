@@ -1,9 +1,10 @@
-const BaseService = require('../../core/base.service');
-const { runAgent, runAgentGraph } = require('../../agent/core');
-const { loadSession, saveSession, clearSession } = require('../../utils/session');
-const config = require('../../config');
+const BaseService = require('../../../core/base.service');
+const { runAgent, runAgentGraph } = require('../../../agent/core');
+const { loadSession, saveSession, clearSession } = require('../../../utils/session');
+const config = require('../../../config');
 const fs = require('fs');
 const path = require('path');
+const dashboardService = require('../../dashboard/services/dashboard.service');
 
 /**
  * AgentService - Handles agent execution and session management
@@ -47,7 +48,21 @@ class AgentService extends BaseService {
       projectRoot 
     } = params;
 
+    const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Register task with dashboard
+    dashboardService.registerTask(taskId, {
+      model: config.lmStudio.model,
+      stack: stack || 'default',
+      prompt: messages[messages.length - 1]?.content?.substring(0, 100) || '',
+      sessionId,
+      orchestrator,
+      fastMode,
+      autoRequestReview
+    });
+
     this.log('info', 'Starting agent run', { 
+      taskId,
       messageCount: messages.length, 
       fastMode, 
       stack, 
@@ -58,8 +73,31 @@ class AgentService extends BaseService {
     const abort = new AbortController();
     this.activeAgentRun = abort;
 
+    // Mark task as started
+    dashboardService.startTask(taskId);
+
     try {
       const agentFunc = orchestrator === 'langgraph' ? runAgentGraph : runAgent;
+      
+      // Wrap onStep to track in dashboard
+      const wrappedOnStep = (stepData) => {
+        dashboardService.addTaskStep(taskId, {
+          action: stepData.action || stepData.tool,
+          status: stepData.status || 'executing',
+          details: stepData
+        });
+        
+        // Also log to dashboard
+        dashboardService.addAgentLog({
+          level: 'info',
+          message: `Step ${stepData.step || '?'}: ${stepData.action || stepData.tool || 'unknown'}`,
+          step: stepData.step,
+          action: stepData.action || stepData.tool,
+          metadata: { taskId, service: 'agent' }
+        });
+        
+        if (onStep) onStep(stepData);
+      };
       
       const result = await agentFunc({
         messages,
@@ -67,7 +105,7 @@ class AgentService extends BaseService {
         workspaceDir,
         projectRoot,
         signal: abort.signal,
-        onStep,
+        onStep: wrappedOnStep,
         fastMode: !!fastMode,
         autoRequestReview: !!autoRequestReview,
         sessionId: sessionId || null
@@ -78,10 +116,21 @@ class AgentService extends BaseService {
         await this.saveSession(sessionId, result);
       }
 
-      this.log('info', 'Agent run completed successfully');
-      return { success: true, result };
+      // Mark task as completed
+      dashboardService.completeTask(taskId, {
+        iterations: result.iterations,
+        completed: result.completed,
+        stack: result.stack
+      });
+
+      this.log('info', 'Agent run completed successfully', { taskId });
+      return { success: true, result, taskId };
     } catch (err) {
-      this.log('error', 'Agent run failed', { error: err.message });
+      this.log('error', 'Agent run failed', { taskId, error: err.message });
+      
+      // Mark task as failed
+      dashboardService.failTask(taskId, err);
+      
       throw err;
     } finally {
       this.activeAgentRun = null;

@@ -10,6 +10,7 @@ const { setupMiddleware, setupErrorHandling, setupProcessHandlers } = require('.
 // Module routes
 const agentRoutes = require('./modules/agent/agent.routes');
 const filesRoutes = require('./modules/files/files.routes');
+const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 
 console.log('[Server] Loaded LM_STUDIO_MODEL:', process.env.LM_STUDIO_MODEL);
 
@@ -43,6 +44,10 @@ console.log('[Server] Agent routes initialized.');
 // Files module routes
 app.use('/api/files', filesRoutes);
 console.log('[Server] Files routes initialized.');
+
+// Dashboard routes (both page and API)
+app.use('/', dashboardRoutes);
+console.log('[Server] Dashboard routes initialized.');
 
 // Health check (also provided in AgentController but kept here for convenience)
 app.get('/api/health', (req, res) => {

@@ -1,6 +1,6 @@
-const BaseService = require('../../core/base.service');
-const { scaffoldProject } = require('../../tools/scaffolder');
-const config = require('../../config');
+const BaseService = require('../../../core/base.service');
+const { scaffoldProject } = require('../../../tools/scaffolder');
+const config = require('../../../config');
 
 /**
  * ScaffolderService - Project scaffolding operations

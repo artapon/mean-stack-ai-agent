@@ -1,8 +1,8 @@
 const fs = require('fs-extra');
 const path = require('path');
 const { execFile } = require('child_process');
-const BaseService = require('../../core/base.service');
-const config = require('../../config');
+const BaseService = require('../../../core/base.service');
+const config = require('../../../config');
 
 /**
  * FileSystemService - Shared filesystem operations

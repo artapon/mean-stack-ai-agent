@@ -1,4 +1,4 @@
-const BaseController = require('../../core/base.controller');
+const BaseController = require('../../../core/base.controller');
 const FilesService = require('../services/files.service');
 
 /**
