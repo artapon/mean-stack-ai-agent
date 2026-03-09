@@ -148,7 +148,10 @@ class AgentMemory {
      * @param {string} [ackMsg]
      */
     async pushNudge(directive, ackMsg) {
-        const ack = ackMsg || 'THOUGHT: I need to follow the mandatory instruction before proceeding.\n\nACTION: (pending next instruction)\n\nPARAMETERS: {}';
+        // Keep ack neutral — do NOT use "THOUGHT: I need to follow..." here because
+        // the model echoes it verbatim and it ends up saved in sessions, causing
+        // an infinite "THOUGHT: I need to follow..." → bad JSON → nudge loop.
+        const ack = ackMsg || '[SYSTEM: Correction received — adjusting next action]';
         await this.chatHistory.addMessage(new AIMessage(ack));
         await this.chatHistory.addMessage(new HumanMessage(`[SYSTEM DIRECTIVE]\n\n${directive}\n\nRespond with the correct ACTION and PARAMETERS block immediately.`));
         this.metadata.totalMessages += 2;

@@ -19,7 +19,7 @@ class AgentService extends BaseService {
    * Get available agent stacks
    */
   async getStacks() {
-    const stacksPath = path.join(__dirname, '../../agent/stacks.json');
+    const stacksPath = path.join(__dirname, '../../../agent/stacks.json');
     const data = JSON.parse(fs.readFileSync(stacksPath, 'utf-8'));
     return data;
   }
@@ -28,7 +28,7 @@ class AgentService extends BaseService {
    * Get available models
    */
   async getModels() {
-    const modelsPath = path.join(__dirname, '../../agent/models.json');
+    const modelsPath = path.join(__dirname, '../../../agent/models.json');
     const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
     return data;
   }

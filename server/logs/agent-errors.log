@@ -218,3 +218,127 @@
 [2026-03-09T04:37:35.049Z] [ERROR] [Middleware] POST /reset → 500 (1ms)
 [2026-03-09T04:44:47.408Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
 [2026-03-09T04:44:47.411Z] [ERROR] [Middleware] GET /stacks → 500 (4ms)
+[2026-03-09T06:45:27.320Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T06:45:27.320Z] [ERROR] [Middleware] GET /stacks → 500 (0ms)
+[2026-03-09T06:45:37.150Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T06:45:37.151Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-09T06:45:48.479Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T06:45:48.480Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-09T06:46:23.686Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T06:46:23.687Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-09T06:48:59.391Z] [ERROR] [Files] Failed to list files {"error":"FS error"}
+[2026-03-09T06:48:59.391Z] [ERROR] [Middleware] GET /list → 500 (0ms)
+[2026-03-09T06:48:59.415Z] [ERROR] [Files] Failed to read file {"error":"permission denied"}
+[2026-03-09T06:48:59.415Z] [ERROR] [Middleware] GET /read?path=secret.txt → 500 (0ms)
+[2026-03-09T06:48:59.463Z] [ERROR] [Files] Failed to write file {"error":"disk full"}
+[2026-03-09T06:48:59.464Z] [ERROR] [Middleware] POST /write → 500 (1ms)
+[2026-03-09T06:48:59.774Z] [ERROR] [Memory] Failed to list memory sessions {"error":"readdir failed"}
+[2026-03-09T06:48:59.774Z] [ERROR] [Middleware] GET / → 500 (0ms)
+[2026-03-09T06:48:59.795Z] [ERROR] [Memory] Failed to read session {"error":"readJson failed"}
+[2026-03-09T06:48:59.795Z] [ERROR] [Middleware] GET /bad-session → 500 (0ms)
+[2026-03-09T06:48:59.813Z] [ERROR] [Memory] Failed to delete session {"error":"remove failed"}
+[2026-03-09T06:48:59.813Z] [ERROR] [Middleware] DELETE /bad → 500 (0ms)
+[2026-03-09T06:48:59.910Z] [ERROR] [Settings] Failed to load settings {"error":"disk read error"}
+[2026-03-09T06:48:59.910Z] [ERROR] [Middleware] GET / → 500 (0ms)
+[2026-03-09T06:48:59.927Z] [ERROR] [Settings] Failed to save settings {"error":"write fail"}
+[2026-03-09T06:48:59.927Z] [ERROR] [Middleware] POST / → 500 (0ms)
+[2026-03-09T06:48:59.934Z] [ERROR] [Settings] Failed to reset settings {"error":"reset fail"}
+[2026-03-09T06:48:59.935Z] [ERROR] [Middleware] POST /reset → 500 (1ms)
+[2026-03-09T06:49:00.000Z] [ERROR] [Test] Internal failure
+[2026-03-09T06:49:00.000Z] [ERROR] [Test] Internal failure {"error":"disk full"}
+[2026-03-09T06:49:49.228Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T06:49:49.231Z] [ERROR] [Middleware] GET /stacks → 500 (3ms)
+[2026-03-09T06:49:50.517Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T06:49:50.518Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-09T07:01:39.831Z] [ERROR] [Files] Failed to list files {"error":"FS error"}
+[2026-03-09T07:01:39.832Z] [ERROR] [Middleware] GET /list → 500 (1ms)
+[2026-03-09T07:01:39.858Z] [ERROR] [Files] Failed to read file {"error":"permission denied"}
+[2026-03-09T07:01:39.858Z] [ERROR] [Middleware] GET /read?path=secret.txt → 500 (0ms)
+[2026-03-09T07:01:39.899Z] [ERROR] [Middleware] POST /write → 500 (0ms)
+[2026-03-09T07:01:39.899Z] [ERROR] [Files] Failed to write file {"error":"disk full"}
+[2026-03-09T07:01:40.146Z] [ERROR] [Middleware] GET / → 500 (0ms)
+[2026-03-09T07:01:40.146Z] [ERROR] [Memory] Failed to list memory sessions {"error":"readdir failed"}
+[2026-03-09T07:01:40.161Z] [ERROR] [Middleware] GET /bad-session → 500 (1ms)
+[2026-03-09T07:01:40.160Z] [ERROR] [Memory] Failed to read session {"error":"readJson failed"}
+[2026-03-09T07:01:40.175Z] [ERROR] [Memory] Failed to delete session {"error":"remove failed"}
+[2026-03-09T07:01:40.175Z] [ERROR] [Middleware] DELETE /bad → 500 (0ms)
+[2026-03-09T07:01:40.245Z] [ERROR] [Settings] Failed to load settings {"error":"disk read error"}
+[2026-03-09T07:01:40.246Z] [ERROR] [Middleware] GET / → 500 (1ms)
+[2026-03-09T07:01:40.259Z] [ERROR] [Settings] Failed to save settings {"error":"write fail"}
+[2026-03-09T07:01:40.259Z] [ERROR] [Middleware] POST / → 500 (0ms)
+[2026-03-09T07:01:40.267Z] [ERROR] [Settings] Failed to reset settings {"error":"reset fail"}
+[2026-03-09T07:01:40.267Z] [ERROR] [Middleware] POST /reset → 500 (0ms)
+[2026-03-09T07:01:40.332Z] [ERROR] [Test] Internal failure
+[2026-03-09T07:01:40.332Z] [ERROR] [Test] Internal failure {"error":"disk full"}
+[2026-03-09T07:01:56.567Z] [ERROR] [Test] Internal failure
+[2026-03-09T07:01:56.569Z] [ERROR] [Test] Internal failure {"error":"disk full"}
+[2026-03-09T07:01:56.715Z] [ERROR] [Memory] Failed to list memory sessions {"error":"readdir failed"}
+[2026-03-09T07:01:56.717Z] [ERROR] [Middleware] GET / → 500 (2ms)
+[2026-03-09T07:01:56.736Z] [ERROR] [Memory] Failed to read session {"error":"readJson failed"}
+[2026-03-09T07:01:56.737Z] [ERROR] [Middleware] GET /bad-session → 500 (1ms)
+[2026-03-09T07:01:56.738Z] [ERROR] [Settings] Failed to load settings {"error":"disk read error"}
+[2026-03-09T07:01:56.739Z] [ERROR] [Middleware] GET / → 500 (1ms)
+[2026-03-09T07:01:56.754Z] [ERROR] [Memory] Failed to delete session {"error":"remove failed"}
+[2026-03-09T07:01:56.754Z] [ERROR] [Middleware] DELETE /bad → 500 (0ms)
+[2026-03-09T07:01:56.761Z] [ERROR] [Middleware] POST / → 500 (1ms)
+[2026-03-09T07:01:56.761Z] [ERROR] [Settings] Failed to save settings {"error":"write fail"}
+[2026-03-09T07:01:56.770Z] [ERROR] [Settings] Failed to reset settings {"error":"reset fail"}
+[2026-03-09T07:01:56.770Z] [ERROR] [Middleware] POST /reset → 500 (0ms)
+[2026-03-09T07:01:56.784Z] [ERROR] [Files] Failed to list files {"error":"FS error"}
+[2026-03-09T07:01:56.785Z] [ERROR] [Middleware] GET /list → 500 (1ms)
+[2026-03-09T07:01:56.802Z] [ERROR] [Files] Failed to read file {"error":"permission denied"}
+[2026-03-09T07:01:56.803Z] [ERROR] [Middleware] GET /read?path=secret.txt → 500 (1ms)
+[2026-03-09T07:01:56.836Z] [ERROR] [Files] Failed to write file {"error":"disk full"}
+[2026-03-09T07:01:56.836Z] [ERROR] [Middleware] POST /write → 500 (0ms)
+[2026-03-09T07:03:43.374Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T07:03:43.377Z] [ERROR] [Middleware] GET /stacks → 500 (4ms)
+[2026-03-09T07:03:48.558Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T07:03:48.559Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-09T07:12:59.190Z] [ERROR] [Files] Failed to list files {"error":"FS error"}
+[2026-03-09T07:12:59.190Z] [ERROR] [Middleware] GET /list → 500 (0ms)
+[2026-03-09T07:12:59.207Z] [ERROR] [Files] Failed to read file {"error":"permission denied"}
+[2026-03-09T07:12:59.208Z] [ERROR] [Middleware] GET /read?path=secret.txt → 500 (1ms)
+[2026-03-09T07:12:59.242Z] [ERROR] [Files] Failed to write file {"error":"disk full"}
+[2026-03-09T07:12:59.242Z] [ERROR] [Middleware] POST /write → 500 (0ms)
+[2026-03-09T07:12:59.454Z] [ERROR] [Memory] Failed to list memory sessions {"error":"readdir failed"}
+[2026-03-09T07:12:59.454Z] [ERROR] [Middleware] GET / → 500 (0ms)
+[2026-03-09T07:12:59.474Z] [ERROR] [Memory] Failed to read session {"error":"readJson failed"}
+[2026-03-09T07:12:59.474Z] [ERROR] [Middleware] GET /bad-session → 500 (0ms)
+[2026-03-09T07:12:59.491Z] [ERROR] [Memory] Failed to delete session {"error":"remove failed"}
+[2026-03-09T07:12:59.491Z] [ERROR] [Middleware] DELETE /bad → 500 (0ms)
+[2026-03-09T07:12:59.581Z] [ERROR] [Settings] Failed to load settings {"error":"disk read error"}
+[2026-03-09T07:12:59.582Z] [ERROR] [Middleware] GET / → 500 (1ms)
+[2026-03-09T07:12:59.599Z] [ERROR] [Settings] Failed to save settings {"error":"write fail"}
+[2026-03-09T07:12:59.599Z] [ERROR] [Middleware] POST / → 500 (0ms)
+[2026-03-09T07:12:59.606Z] [ERROR] [Settings] Failed to reset settings {"error":"reset fail"}
+[2026-03-09T07:12:59.607Z] [ERROR] [Middleware] POST /reset → 500 (1ms)
+[2026-03-09T07:12:59.638Z] [ERROR] [Test] Internal failure
+[2026-03-09T07:12:59.638Z] [ERROR] [Test] Internal failure {"error":"disk full"}
+[2026-03-09T07:13:20.509Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T07:13:20.512Z] [ERROR] [Middleware] GET /stacks → 500 (4ms)
+[2026-03-09T07:13:21.707Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T07:13:21.708Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-09T07:24:21.438Z] [ERROR] [Files] Failed to list files {"error":"FS error"}
+[2026-03-09T07:24:21.438Z] [ERROR] [Middleware] GET /list → 500 (1ms)
+[2026-03-09T07:24:21.455Z] [ERROR] [Files] Failed to read file {"error":"permission denied"}
+[2026-03-09T07:24:21.455Z] [ERROR] [Middleware] GET /read?path=secret.txt → 500 (0ms)
+[2026-03-09T07:24:21.504Z] [ERROR] [Files] Failed to write file {"error":"disk full"}
+[2026-03-09T07:24:21.505Z] [ERROR] [Middleware] POST /write → 500 (1ms)
+[2026-03-09T07:24:21.599Z] [ERROR] [Memory] Failed to list memory sessions {"error":"readdir failed"}
+[2026-03-09T07:24:21.599Z] [ERROR] [Middleware] GET / → 500 (0ms)
+[2026-03-09T07:24:21.629Z] [ERROR] [Memory] Failed to read session {"error":"readJson failed"}
+[2026-03-09T07:24:21.630Z] [ERROR] [Middleware] GET /bad-session → 500 (1ms)
+[2026-03-09T07:24:21.645Z] [ERROR] [Memory] Failed to delete session {"error":"remove failed"}
+[2026-03-09T07:24:21.645Z] [ERROR] [Middleware] DELETE /bad → 500 (0ms)
+[2026-03-09T07:24:21.853Z] [ERROR] [Settings] Failed to load settings {"error":"disk read error"}
+[2026-03-09T07:24:21.853Z] [ERROR] [Middleware] GET / → 500 (0ms)
+[2026-03-09T07:24:21.867Z] [ERROR] [Settings] Failed to save settings {"error":"write fail"}
+[2026-03-09T07:24:21.867Z] [ERROR] [Middleware] POST / → 500 (0ms)
+[2026-03-09T07:24:21.875Z] [ERROR] [Settings] Failed to reset settings {"error":"reset fail"}
+[2026-03-09T07:24:21.875Z] [ERROR] [Middleware] POST /reset → 500 (1ms)
+[2026-03-09T07:24:21.941Z] [ERROR] [Test] Internal failure
+[2026-03-09T07:24:21.942Z] [ERROR] [Test] Internal failure {"error":"disk full"}
+[2026-03-09T07:26:38.630Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T07:26:38.633Z] [ERROR] [Middleware] GET /stacks → 500 (4ms)
+[2026-03-09T07:26:46.475Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
+[2026-03-09T07:26:46.475Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)

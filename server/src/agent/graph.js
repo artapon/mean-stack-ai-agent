@@ -421,7 +421,7 @@ function router(state) {
 async function handleNudge(state, type) {
     const { config } = state;
     let directive = "";
-    let ack = "THOUGHT: I need to follow the mandatory instruction before proceeding.";
+    let ack = "[SYSTEM: Correction received — adjusting next action]";
 
     switch (type) {
         case "nudge_premature_finish":
@@ -450,7 +450,7 @@ async function handleNudge(state, type) {
                 `1. ACTION: request_review\n` +
                 `2. PARAMETERS: {}\n\n` +
                 `Call this NOW. Then you may call finish on your NEXT response.`;
-            ack = "THOUGHT: I need to call request_review before I can finish. I will do that now.";
+            ack = "[SYSTEM: Correction received — calling request_review before finish]";
             break;
         case "nudge_format_recovery":
             directive = `Your last response was garbled or merged the THOUGHT/ACTION/PARAMETERS blocks incorrectly. 

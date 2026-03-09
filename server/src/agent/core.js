@@ -1,10 +1,11 @@
 const path = require('path');
 const fs = require('fs-extra');
-const { readFile, writeFile, listFiles, bulkWrite, applyBlueprint, bulkRead, replaceInFile } = require('../tools/filesystem');
+const { readFile, writeFile, listFiles, bulkWrite, applyBlueprint, bulkRead, replaceInFile, createDirectory } = require('../tools/filesystem');
 const { scaffoldProject } = require('../tools/scaffolder');
 const { callLangchain, LangchainWorkflow, DevAgentOutputParser, createLangchainTools, LangchainPlanner, LangchainAnalysisGuard } = require('./langchain');
 const { AIMessage, HumanMessage, SystemMessage } = require("@langchain/core/messages");
 const { logError, logInfo } = require('../utils/logger');
+const { saveSession: saveSessionFile } = require('../utils/session');
 const { createAgentMemory } = require('./memory');
 const { createAgentGraph } = require('./graph');
 
@@ -114,6 +115,7 @@ function getToolsForMode(mode) {
     { name: 'bulk_write', params: '{files:[{path,content}]}', safe: false },
     { name: 'apply_blueprint', params: '{content}', safe: false },
     { name: 'list_files', params: '{path}', safe: true },
+    { name: 'create_directory', params: '{path}', safe: false },
     { name: 'bulk_read', params: '{paths:[]}', safe: true },
     { name: 'scaffold_project', params: '{type, name} (types: express-api, express-api-swagger, express-api-mongo, modular-standard, healthcare-api, vue-app, landing-page, fullstack, fullstack-auth)', safe: false },
     { name: 'order_fix', params: '{instructions}', safe: true },
@@ -203,6 +205,7 @@ const TOOLS = {
   bulk_write: bulkWrite,
   apply_blueprint: applyBlueprint,
   list_files: listFiles,
+  create_directory: createDirectory,
   bulk_read: bulkRead,
   scaffold_project: scaffoldProject,
 
@@ -262,15 +265,52 @@ function extractJSON(raw) {
     if (c === '{') depth++;
     if (c === '}') { depth--; if (depth === 0) { end = j; break; } }
   }
-  if (end === -1) end = raw.length - 1;
-  const candidate = raw.slice(i, end + 1);
+  // Truncated JSON (stream cut off mid-token by max_tokens): close the string and object
+  const truncated = end === -1;
+  if (truncated) end = raw.length - 1;
+  let candidate = raw.slice(i, end + 1);
 
-  try { return JSON.parse(candidate); } catch (_) { }
+  // If stream was truncated, attempt to close any open string then close the object
+  if (truncated) {
+    // Count quote parity to see if we're inside a string value
+    let q = 0;
+    for (let k = 0; k < candidate.length; k++) {
+      if (candidate[k] === '\\') { k++; continue; }
+      if (candidate[k] === '"') q ^= 1;
+    }
+    if (q === 1) candidate += '"'; // close open string
+    candidate += '}';             // close object
+  }
+
+  // Strip known system-noise patterns that leak into content strings
+  const NOISE = [
+    /THOUGHT:\s*I need to follow the mandatory instruction[^\n]*/gi,
+    /\[SYSTEM:\s*Correction received[^\]]*\]/gi,
+    /\[SYSTEM DIRECTIVE\][^\n]*/gi,
+    /\[GARBLED OUTPUT[^\]]*\]/gi,
+  ];
+  const stripNoise = (s) => {
+    let r = s;
+    NOISE.forEach(re => { r = r.replace(re, ''); });
+    return r.trim();
+  };
+
+  const parseAndClean = (s) => {
+    let j;
+    try { j = JSON.parse(s); } catch (_) { return null; }
+    if (j && typeof j.content === 'string') j.content = stripNoise(j.content);
+    if (j && typeof j.replace === 'string') j.replace = stripNoise(j.replace);
+    return j;
+  };
+  const r1 = parseAndClean(candidate); if (r1) return r1;
   try {
     const r = require('vm').runInNewContext('(' + candidate + ')', Object.create(null));
-    if (r && typeof r === 'object') return r;
+    if (r && typeof r === 'object') {
+      if (typeof r.content === 'string') r.content = stripNoise(r.content);
+      return r;
+    }
   } catch (_) { }
-  try { return JSON.parse(candidate.replace(/,(\s*[}\]])/g, '$1')); } catch (_) { }
+  const r2 = parseAndClean(candidate.replace(/,(\s*[}\]])/g, '$1')); if (r2) return r2;
 
   // Field-by-field recovery
   try {
@@ -307,7 +347,12 @@ function extractJSON(raw) {
     ['path', 'content', 'search', 'replace', 'name', 'type', 'files'].forEach(f => {
       const v = extractField(f); if (v !== null) { result[f] = v; any = true; }
     });
-    if (any) return result;
+    if (any) {
+      // Clean noise from content/replace fields that leaked from nudge messages
+      if (typeof result.content  === 'string') result.content  = stripNoise(result.content);
+      if (typeof result.replace  === 'string') result.replace  = stripNoise(result.replace);
+      return result;
+    }
   } catch (_) { }
   return null;
 }
@@ -519,6 +564,7 @@ function summariseResult(action, params, result, isReview, onStep) {
     );
   }
   if (action === 'replace_in_file') return `Edit applied: ${params.path}\n\n${isReview ? 'Continue.' : 'Continue or FINISH.'}`;
+  if (action === 'create_directory') return `Directory created: ${params.path}\n\nYou can now write files into it using write_file. Continue with implementation.`;
   if (action === 'read_file') return `File read: ${params.path}\n\n${isReview ? 'Analyze and advise.' : 'Analyze and implement.'}`;
   if (action === 'bulk_read') return `Bulk read: ${(result?.results || []).filter(r => r.success).length} files. ${isReview ? 'Analyze.' : 'Implement.'}`;
   if (action === 'list_files') {
@@ -745,6 +791,7 @@ async function runAgent(opts) {
 
   let lastScaffoldedName = '';
   let step = 0, listFilesCount = 0, lastActionSig = null, lastActionRepeat = 0;
+  const recentActions = []; // Ring buffer of last 6 actions for cycle detection
 
   // ── Escape counters — all nudge branches have hard abort limits ────────────
   let chainErrorCount = 0;
@@ -780,9 +827,32 @@ async function runAgent(opts) {
   // Set system prompt (lives outside the sliding window)
   agentMemory.setSystemPrompt(systemPrompt);
 
-  // Load incoming messages into LangChain memory
+  // Load incoming messages into LangChain memory.
+  // Filter out internal nudge/recovery artifacts that were saved to session and
+  // echoed back by the client — these accumulate and cause the model to echo them.
+  const NUDGE_ACK_PATTERNS = [
+    /^\[SYSTEM:\s*Correction received/i,
+    /^\[GARBLED OUTPUT — REJECTED BY SYSTEM\]/i,
+    /^\[FORMAT RECOVERY\]/i,
+    // Legacy ack that used to be the pushNudge default:
+    /^THOUGHT:\s*I need to follow the mandatory instruction/i,
+  ];
+  const NUDGE_USER_PATTERNS = [
+    /^\[SYSTEM DIRECTIVE\]/i,
+    /^\[FORMAT RECOVERY\]/i,
+  ];
+  let skippedNudges = 0;
   for (const m of messages) {
     const content = typeof m.content === 'string' ? m.content : String(m.content);
+    // Skip internal nudge/recovery pairs saved from previous runs
+    if (m.role === 'assistant' && NUDGE_ACK_PATTERNS.some(re => re.test(content.trimStart()))) {
+      skippedNudges++;
+      continue;
+    }
+    if (m.role === 'user' && NUDGE_USER_PATTERNS.some(re => re.test(content.trimStart()))) {
+      skippedNudges++;
+      continue;
+    }
     if (m.role === 'assistant') {
       await agentMemory.addAIMessage(content);
     } else if (m.role === 'user') {
@@ -792,6 +862,10 @@ async function runAgent(opts) {
     if (m.role === 'system') {
       await agentMemory.addSystemDirective(content);
     }
+  }
+  if (skippedNudges > 0) {
+    console.warn(`[DevAgent] Filtered ${skippedNudges} stale nudge/recovery messages from incoming history.`);
+    logInfo('history_clean', `Stripped ${skippedNudges} nudge artifacts from incoming history`, { skippedNudges });
   }
 
   console.log(`[DevAgent] LangChain AgentMemory initialized (mode: ${mode}, window: ${agentMemory.metadata.windowSize})`);
@@ -923,6 +997,12 @@ ${report}`;
 
     console.log(`[DevAgent] STEP ${step} -> ${action || 'none'}`);
     console.log(rawText.length > 500 ? rawText.slice(0, 500) + '...' : rawText);
+
+    // ── Log full LLM response to agent-infos.log ──────────────────────────────
+    logInfo('llm_response', `[step ${step}] LLM raw output (${rawText.length} chars)`, {
+      step, action: action || 'none', _text: rawText
+    });
+
     if (parsed.thought && onStep) onStep({ type: 'thought', content: parsed.thought });
 
     logInfo('action', `[step ${step}] Parsed action: ${action || 'none'}`, {
@@ -972,6 +1052,30 @@ ${report}`;
       }
     } else { lastActionSig = sig; lastActionRepeat = 0; }
 
+    // ── Alternating-cycle guard (A→B→A→B pattern) ────────────────────────────
+    recentActions.push(action);
+    if (recentActions.length > 6) recentActions.shift();
+    if (recentActions.length >= 6) {
+      // Detect A→B→A→B→A→B (2-step cycle repeated 3 times)
+      const [a1, b1, a2, b2, a3, b3] = recentActions;
+      if (a1 === a2 && a2 === a3 && b1 === b2 && b2 === b3 && a1 !== b1) {
+        const cycleMsg = `Cycle detected: "${a1}" → "${b1}" repeated 3 times. Aborting loop.`;
+        logInfo('loop_guard', cycleMsg, { step, cycle: `${a1}→${b1}` });
+        if (onStep) onStep({ type: 'error', message: cycleMsg });
+        await agentMemory.pushNudge(
+          `You are stuck in a "${a1}" → "${b1}" loop (repeated 3 times).\n\n` +
+          `STOP this pattern immediately.\n` +
+          `If directories are needed, use create_directory once then write_file.\n` +
+          `If files are missing, use write_file to create them directly.\n` +
+          `Move forward with implementation — do not keep scanning or creating directories.`,
+          `THOUGHT: I am cycling between ${a1} and ${b1} repeatedly. I must break this pattern and make concrete progress.`
+        );
+        recentActions.length = 0; // reset after nudge
+        if (step > 10) return { success: false, response: cycleMsg, history };
+        continue;
+      }
+    }
+
     // ── No-progress guard ────────────────────────────────────────────────────
     if (['list_files', 'read_file', 'bulk_read'].includes(action)) {
       listFilesCount++;
@@ -987,7 +1091,7 @@ ${report}`;
         logInfo('nudge', 'No-progress guard triggered', { step, action, listFilesCount });
         continue;
       }
-    } else if (['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project'].includes(action)) {
+    } else if (['write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'scaffold_project', 'create_directory'].includes(action)) {
       listFilesCount = 0;
     }
 
@@ -1413,6 +1517,12 @@ ${report}`;
         success: true,
         thought: parsed.thought || undefined
       });
+
+      // Log the final response to agent-infos.log
+      logInfo('llm_final_response', `[step ${step}] Agent final response (${finalMsg.length} chars)`, {
+        step, mode, _text: finalMsg.length > 8000 ? finalMsg.slice(0, 8000) + `\n…[truncated]` : finalMsg
+      });
+
       if (onStep) onStep({ type: 'response', content: finalMsg });
       return { success: true, response: finalMsg, history, memory: serializedMemory };
     }
@@ -1699,6 +1809,19 @@ ${report}`;
     // Add tool result to LangChain memory
     await agentMemory.addUserMessage(content);
     history.push({ role: 'user', content });
+
+    // ── Log tool result to agent-infos.log ────────────────────────────────────
+    logInfo('tool_result_full', `[step ${step}] Tool result saved to memory`, {
+      step, action, _text: content.length > 8000 ? content.slice(0, 8000) + `\n…[truncated ${content.length} chars total]` : content
+    });
+
+    // ── Incremental session save (fire-and-forget) ────────────────────────────
+    // Preserves all LLM responses + tool results so far even if agent crashes.
+    if (sessionId) {
+      const snapshot = history.filter(m => m.role !== 'system');
+      saveSessionFile(sessionId, snapshot, mode ? { mode } : {}).catch(() => {});
+    }
+
     console.log(`[DevAgent] STEP ${step} DONE.`);
   }
 
@@ -1806,13 +1929,29 @@ async function runAgentGraph(opts) {
     onStep // Pass streaming callback to graph nodes
   };
 
+  // Sanitize incoming messages: strip nudge/recovery artifacts saved from previous runs
+  const GRAPH_NUDGE_ACK = [
+    /^\[SYSTEM:\s*Correction received/i,
+    /^\[GARBLED OUTPUT — REJECTED BY SYSTEM\]/i,
+    /^\[FORMAT RECOVERY\]/i,
+    /^THOUGHT:\s*I need to follow the mandatory instruction/i,
+  ];
+  const GRAPH_NUDGE_USER = [
+    /^\[SYSTEM DIRECTIVE\]/i,
+    /^\[FORMAT RECOVERY\]/i,
+  ];
+
   // Convert incoming messages to LangChain messages for LangGraph
-  const lcMessages = messages.map(m => {
-    if (m.role === 'assistant') return new AIMessage(m.content);
+  const lcMessages = messages.reduce((acc, m) => {
+    const content = typeof m.content === 'string' ? m.content : String(m.content || '');
+    if (m.role === 'assistant' && GRAPH_NUDGE_ACK.some(re => re.test(content.trimStart()))) return acc;
+    if (m.role === 'user' && GRAPH_NUDGE_USER.some(re => re.test(content.trimStart()))) return acc;
+    if (m.role === 'assistant') { acc.push(new AIMessage(content)); return acc; }
     // Map system messages to HumanMessage to ensure we always have a "user query" for picky prompt templates (like LM Studio)
-    if (m.role === 'system') return new HumanMessage(`[SYSTEM DIRECTIVE] ${m.content}`);
-    return new HumanMessage(m.content);
-  });
+    if (m.role === 'system') { acc.push(new HumanMessage(`[SYSTEM DIRECTIVE] ${content}`)); return acc; }
+    acc.push(new HumanMessage(content));
+    return acc;
+  }, []);
 
   const app = createAgentGraph(TOOLS);
 
@@ -1847,19 +1986,25 @@ async function runAgentGraph(opts) {
   try {
     console.log(`[DevAgent] LangGraph recursion limit set to 1000. Max steps: ${config.maxSteps}`);
     let finalState = initialState;
+    // Manually accumulate messages (LangGraph stream yields deltas, not full state)
+    let accumulatedMessages = [...initialState.messages];
 
     // Use streaming mode to process graph transitions
     const stream = await app.stream(initialState, { signal, recursionLimit: 1000 });
     for await (const update of stream) {
       // Each update contains the state changes from a specific node
       for (const [nodeName, nodeOutput] of Object.entries(update)) {
-        // Merge sequence outputs into our tracking state
-        finalState = { ...finalState, ...nodeOutput };
+        // Apply messages reducer manually: (x, y) => x.concat(y)
+        if (nodeOutput.messages) {
+          accumulatedMessages = accumulatedMessages.concat(nodeOutput.messages);
+        }
+        // Merge all other state fields (lastAction, agentState, etc.)
+        finalState = { ...finalState, ...nodeOutput, messages: accumulatedMessages };
       }
     }
 
     // Extract final response
-    const lastMsg = finalState.messages[finalState.messages.length - 1];
+    const lastMsg = accumulatedMessages[accumulatedMessages.length - 1];
     let response = lastMsg instanceof AIMessage ? lastMsg.content : "Task completed.";
 
     if (isAnalysis && response.includes('[ANALYSIS: COMPLETE]')) {

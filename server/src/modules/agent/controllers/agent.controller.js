@@ -68,8 +68,20 @@ class AgentController extends BaseController {
       }
     };
 
+    // Keepalive: send SSE comment every 20s to prevent proxy/browser timeout
+    // during long LLM inference periods where no data is sent
+    const keepalive = setInterval(() => {
+      if (!res.writableEnded) {
+        res.write(': keepalive\n\n');
+        if (typeof res.flush === 'function') res.flush();
+      } else {
+        clearInterval(keepalive);
+      }
+    }, 20000);
+
     // Handle connection close
     req.on('close', () => {
+      clearInterval(keepalive);
       if (!res.writableEnded) {
         this.log('warn', 'Connection dropped, agent will continue on server');
       }
@@ -98,6 +110,7 @@ class AgentController extends BaseController {
       this.log('error', 'Agent error', { error: err.message });
       send({ type: 'error', message: err.message });
     } finally {
+      clearInterval(keepalive);
       if (!res.writableEnded) {
         res.end();
       }

@@ -536,6 +536,26 @@ async function replaceInFile(params, workspaceDir, allowTraversal = false, rootW
   }
 }
 
+// ── create_directory ───────────────────────────────────────────────────────────
+/**
+ * Create one or more directories (and any missing parents) under the workspace.
+ * The model often wants this before writing nested files — providing it prevents
+ * the create_directory → list_files → error → repeat loop.
+ */
+async function createDirectory({ path: dirPath } = {}, workspaceDir) {
+  if (!dirPath || typeof dirPath !== 'string') {
+    return { error: 'Parameter "path" (string) is required.' };
+  }
+  try {
+    const abs = safePath(dirPath, workspaceDir);
+    await fs.ensureDir(abs);
+    console.log(`[DevAgent] create_directory: ${abs}`);
+    return { success: true, path: dirPath, created: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 module.exports = {
   readFile,
   writeFile,
@@ -543,7 +563,8 @@ module.exports = {
   bulkWrite,
   applyBlueprint,
   bulkRead,
-  replaceInFile
+  replaceInFile,
+  createDirectory
 };
 
 

@@ -781,15 +781,43 @@
               </div>
 
               <div class="mem-messages" v-if="memDetail">
-                <div
-                  v-for="(msg, i) in memDetail.messages"
-                  :key="i"
-                  class="mem-msg"
-                  :class="msg.type"
-                >
-                  <span class="mem-msg-role">{{ msg.type === 'human' ? 'User' : msg.type === 'ai' ? 'Agent' : 'System' }}</span>
-                  <div class="mem-msg-content">{{ msg.content }}</div>
-                </div>
+                <template v-for="(msg, i) in memDetail.messages" :key="i">
+                  <!-- User / Human messages -->
+                  <div v-if="msg.type === 'human'" class="mem-msg human">
+                    <span class="mem-msg-role">User</span>
+                    <div class="mem-msg-content">{{ msg.content }}</div>
+                  </div>
+
+                  <!-- System messages -->
+                  <div v-else-if="msg.type === 'system'" class="mem-msg system">
+                    <span class="mem-msg-role">System</span>
+                    <div class="mem-msg-content mem-msg-system-text">{{ msg.content }}</div>
+                  </div>
+
+                  <!-- AI / assistant messages — parsed into thought + response/tool -->
+                  <div v-else class="mem-msg ai">
+                    <span class="mem-msg-role">Agent</span>
+                    <div class="mem-msg-parsed">
+                      <!-- Thought block -->
+                      <details v-if="msg._thought" class="mem-thought">
+                        <summary class="mem-thought-summary">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                          Agent Reasoning
+                        </summary>
+                        <div class="mem-thought-body">{{ msg._thought }}</div>
+                      </details>
+                      <!-- Tool call badge -->
+                      <div v-if="msg._toolCall" class="mem-tool-call">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                        {{ msg._toolCall.action }}
+                      </div>
+                      <!-- Response text -->
+                      <div v-if="msg._display" class="mem-msg-content">{{ msg._display }}</div>
+                      <!-- Fallback: no parsed content, show raw -->
+                      <div v-else-if="!msg._toolCall && !msg._thought" class="mem-msg-content">{{ msg.content }}</div>
+                    </div>
+                  </div>
+                </template>
               </div>
               <div v-else class="mem-detail-loading">
                 <div class="spin-sm"></div>
@@ -1467,7 +1495,18 @@ async function selectSession(s) {
   try {
     const res  = await fetch(`/api/memory/${s.id}`)
     const data = await res.json()
-    if (data.success) memDetail.value = data.data
+    if (data.success) {
+      // Enrich AI messages with parsed thought/toolCall/displayText
+      const raw = data.data
+      memDetail.value = {
+        ...raw,
+        messages: (raw.messages || []).map(msg => {
+          if (msg.type !== 'ai') return msg
+          const p = parseRawAssistantText(msg.content)
+          return { ...msg, _thought: p.thoughts[0] || null, _toolCall: p.toolCall, _display: p.displayText }
+        })
+      }
+    }
   } catch {}
 }
 
@@ -2052,6 +2091,73 @@ function applyEvent(ev, idx) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
 
+/**
+ * Parse a raw LLM assistant message (THOUGHT/ACTION/PARAMETERS format) into
+ * structured parts so that thoughts and tool calls can be displayed properly
+ * when reloading sessions.
+ *
+ * Returns: { displayText, thoughts: [string], toolCall: {action, parameters}|null }
+ */
+function parseRawAssistantText(raw) {
+  if (!raw || typeof raw !== 'string') return { displayText: raw || '', thoughts: [], toolCall: null }
+
+  // Extract THOUGHT block
+  const thoughtMatch = raw.match(/THOUGHT:\s*([\s\S]*?)(?=\n\s*(?:\*?\*?\s*)?ACTION:|\n\s*(?:\*?\*?\s*)?PARAMETERS:|$)/i)
+  const thought = thoughtMatch ? thoughtMatch[1].trim() : ''
+
+  // Extract ACTION
+  const actionMatch = raw.match(/ACTION:\s*([a-zA-Z_][\w_]*)/i)
+  const action = actionMatch ? actionMatch[1].toLowerCase() : ''
+
+  // For 'finish' action, extract the response text from PARAMETERS
+  let displayText = ''
+  let toolCall = null
+
+  if (action === 'finish') {
+    try {
+      const paramIdx = raw.search(/PARAMETERS:\s*(?:```json\s*)?\{/i)
+      if (paramIdx !== -1) {
+        const paramStr = raw.slice(paramIdx).replace(/^PARAMETERS:\s*(?:```json\s*)?/i, '').replace(/```[\s\S]*$/, '').trim()
+        const json = JSON.parse(paramStr)
+        displayText = json.response || ''
+      }
+    } catch { displayText = '' }
+  } else if (action) {
+    // Tool call — extract parameters for display
+    try {
+      const paramIdx = raw.search(/PARAMETERS:\s*(?:```json\s*)?\{/i)
+      const paramStr = paramIdx !== -1
+        ? raw.slice(paramIdx).replace(/^PARAMETERS:\s*(?:```json\s*)?/i, '').replace(/```[\s\S]*$/, '').trim()
+        : '{}'
+      const params = JSON.parse(paramStr)
+      toolCall = { action, parameters: params }
+    } catch {
+      toolCall = { action, parameters: {} }
+    }
+  } else {
+    // No ACTION — raw response (e.g. orphaned text or review verdict)
+    displayText = raw.replace(/THOUGHT:\s*[\s\S]*?\n\n/i, '').trim() || raw
+  }
+
+  return { displayText, thoughts: thought ? [thought] : [], toolCall }
+}
+
+/**
+ * Reconstruct a proper message object from a saved history entry.
+ * Populates activity[] with thoughts and tool calls so they render correctly.
+ */
+function historyEntryToMessage(m) {
+  if (m.role !== 'assistant') {
+    // User messages: show as-is, but strip internal tool-result noise for cleaner display
+    return { id: uid(), role: 'user', text: m.content, streaming: false, activity: [] }
+  }
+  const { displayText, thoughts, toolCall } = parseRawAssistantText(m.content)
+  const activity = []
+  thoughts.forEach(t => activity.push({ type: 'thought', text: t }))
+  if (toolCall) activity.push({ type: 'tool', tool: toolCall.action, detail: toolCall.action, done: true, result: toolCall.parameters })
+  return { id: uid(), role: 'assistant', text: displayText, streaming: false, activity }
+}
+
 function actIcon(a) {
   if (a.type === 'thought') return '💭'
   if (a.type === 'error')   return '⚠️'
@@ -2118,9 +2224,7 @@ watch(agentMode, async (newMode) => {
       const res  = await fetch(`/api/agent/session/${modeSessionIds[newMode]}`)
       const data = await res.json()
       if (data.history && data.history.length > 0) {
-        modeMessages[newMode] = data.history.map(m => ({
-          id: uid(), role: m.role, text: m.content, streaming: false, activity: []
-        }))
+        modeMessages[newMode] = data.history.map(historyEntryToMessage)
         await nextTick()
         await scrollDown()
       }
@@ -2213,9 +2317,7 @@ onMounted(async () => {
       const res  = await fetch(`/api/agent/session/${sid}`)
       const data = await res.json()
       if (data.history && data.history.length > 0) {
-        modeMessages[mode] = data.history.map(m => ({
-          id: uid(), role: m.role, text: m.content, streaming: false, activity: []
-        }))
+        modeMessages[mode] = data.history.map(historyEntryToMessage)
       }
     } catch (e) {
       console.warn(`[Session] Failed to load ${mode} history:`, e)
@@ -4549,6 +4651,32 @@ input:checked + .slider.slider-unlimited:before {
 .mem-msg.human .mem-msg-content { border-left: 2px solid rgba(59,130,246,0.4); }
 .mem-msg.ai    .mem-msg-content { border-left: 2px solid rgba(16,185,129,0.4); }
 .mem-msg.system .mem-msg-content { border-left: 2px solid rgba(245,158,11,0.4); opacity: 0.7; }
+.mem-msg-system-text { font-size: 11px; max-height: 80px; opacity: 0.6; }
+.mem-msg-parsed { display: flex; flex-direction: column; gap: 5px; }
+
+/* Thought collapsible in Memory view */
+.mem-thought {
+  border: 1px solid rgba(139,92,246,0.2); border-radius: 8px;
+  background: rgba(139,92,246,0.06);
+}
+.mem-thought-summary {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  cursor: pointer; font-size: 11px; font-weight: 600; color: #a78bfa;
+  list-style: none; user-select: none;
+}
+.mem-thought-summary::-webkit-details-marker { display: none; }
+.mem-thought-summary svg { flex-shrink: 0; }
+.mem-thought-body {
+  padding: 6px 12px 8px; font-size: 11.5px; color: var(--t2);
+  line-height: 1.6; white-space: pre-wrap; border-top: 1px solid rgba(139,92,246,0.12);
+}
+
+/* Tool call badge in Memory view */
+.mem-tool-call {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); color: #34d399;
+}
 
 .mem-detail-loading {
   flex: 1; display: flex; align-items: center; justify-content: center;

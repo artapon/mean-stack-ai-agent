@@ -42,20 +42,24 @@ class Logger {
   _write(level, message, meta) {
     if ((LEVELS[level] ?? 0) < minLevel) return;
 
-    const ts      = new Date().toISOString();
-    const line    = `[${ts}] [${PAD[level]}] [${this.module}] ${message}`;
-    const metaStr = meta && Object.keys(meta).length
-      ? ' ' + JSON.stringify(meta)
-      : '';
+    const ts   = new Date().toISOString();
+    const line = `[${ts}] [${PAD[level]}] [${this.module}] ${message}`;
+
+    // If meta contains _text, render it as a readable block instead of JSON
+    const rawText  = meta?._text ?? null;
+    const cleanMeta = meta ? Object.fromEntries(Object.entries(meta).filter(([k]) => k !== '_text')) : null;
+    const metaStr  = cleanMeta && Object.keys(cleanMeta).length ? ' ' + JSON.stringify(cleanMeta) : '';
+    // Separator block for multi-line raw content (LLM responses, tool results)
+    const textBlock = rawText != null ? `\n${rawText}\n` : '';
 
     // ── Console (colored) ────────────────────────────────────────────────────
-    process.stdout.write(`${COLOR[level] ?? ''}${line}${metaStr}${RESET}\n`);
+    process.stdout.write(`${COLOR[level] ?? ''}${line}${metaStr}${textBlock}${RESET}\n`);
 
     // ── File (async, fire-and-forget) ─────────────────────────────────────────
     const file = level === 'error' ? 'agent-errors.log' : 'agent-infos.log';
     fs.appendFile(
       path.join(logsDir, file),
-      line + metaStr + '\n',
+      line + metaStr + textBlock + '\n',
       'utf8'
     ).catch(() => {});
   }
