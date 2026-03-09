@@ -2016,7 +2016,7 @@ function applyEvent(ev, idx) {
   const inReview = agentMode.value === 'review'
 
   if (ev.type === 'thought') {
-    msg.activity = [...msg.activity, { type: 'thought', text: ev.content }]
+    msg.activity = [...msg.activity, { type: 'thought', text: ev.content || ev.text }]
   } else if (ev.type === 'chunk') {
     msg.text = (msg.text || '') + ev.content
     msg.status = null 

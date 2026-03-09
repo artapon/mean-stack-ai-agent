@@ -342,3 +342,17 @@
 [2026-03-09T07:26:38.633Z] [ERROR] [Middleware] GET /stacks → 500 (4ms)
 [2026-03-09T07:26:46.475Z] [ERROR] [Agent] Could not load stacks {"error":"ENOENT: no such file or directory, open 'D:\\Projects\\devagent\\server\\src\\modules\\agent\\stacks.json'"}
 [2026-03-09T07:26:46.475Z] [ERROR] [Middleware] GET /stacks → 500 (1ms)
+[2026-03-09T09:37:11.561Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
+[2026-03-09T09:37:11.560Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1773048838949-jhlyvgmoa","error":"This operation was aborted"}
+[2026-03-09T09:46:23.018Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1773049469177-ajcepl0hz","error":"This operation was aborted"}
+[2026-03-09T09:46:23.018Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
+[2026-03-09T09:51:53.990Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1773049899498-qoa93g9pv","error":"This operation was aborted"}
+[2026-03-09T09:51:53.990Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
+[2026-03-09T09:53:48.461Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1773049916620-9fc3t1fnb","error":"This operation was aborted"}
+[2026-03-09T09:53:48.461Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
+[2026-03-09T10:01:58.091Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1773050308268-b53vjsbin","error":"This operation was aborted"}
+[2026-03-09T10:01:58.091Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
+[2026-03-09T10:07:16.772Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1773050776107-huf9acdnc","error":"This operation was aborted"}
+[2026-03-09T10:07:16.773Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}
+[2026-03-09T10:11:09.034Z] [ERROR] [AgentService] Agent run failed {"taskId":"task-1773051011773-oyszi4yt7","error":"This operation was aborted"}
+[2026-03-09T10:11:09.035Z] [ERROR] [Agent] Agent error {"error":"This operation was aborted"}

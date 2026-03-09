@@ -4,6 +4,9 @@ const { DevAgentOutputParser, cleanResponse } = require("./langchain");
 const { ChatOpenAI } = require("@langchain/openai");
 const path = require('path');
 const fs = require('fs-extra');
+const { createLogger } = require('../utils/logger');
+
+const graphLogger = createLogger('LangGraph');
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -44,10 +47,86 @@ const AgentState = Annotation.Root({
 });
 
 /**
+ * Rough token estimator: 1 token ≈ 4 characters.
+ */
+function estimateTokens(text) {
+    return Math.ceil((text || '').length / 4);
+}
+
+/**
+ * Truncate a single message's content to at most maxChars characters.
+ */
+function truncateContent(content, maxChars) {
+    if (typeof content !== 'string' || content.length <= maxChars) return content;
+    return content.slice(0, maxChars) + '\n...[TRUNCATED]';
+}
+
+/**
+ * Build the final message list that fits within contextTokenLimit.
+ *  - Reserves RESERVE_FOR_OUTPUT tokens for the model's response.
+ *  - Always includes the system prompt (truncated if needed).
+ *  - Always includes the first HumanMessage (original user task).
+ *  - Fills remaining budget with the most-recent messages, skipping oversized ones.
+ */
+function buildContextMessages(systemPrompt, history, contextTokenLimit) {
+    const RESERVE_FOR_OUTPUT = Math.min(1024, Math.floor(contextTokenLimit * 0.25));
+    const MAX_MSG_CHARS       = 4000; // per-message character cap before truncation
+    const inputBudgetTokens   = contextTokenLimit - RESERVE_FOR_OUTPUT;
+    const inputBudgetChars    = inputBudgetTokens * 4;
+
+    // System prompt — truncate to at most half the input budget
+    const sysMaxChars  = Math.floor(inputBudgetChars * 0.5);
+    const sysContent   = truncateContent(systemPrompt || '', sysMaxChars);
+    const sysTokens    = estimateTokens(sysContent);
+
+    let remaining = inputBudgetTokens - sysTokens;
+
+    // Find the first HumanMessage — this is the original user task; must always be included
+    const firstHumanIdx = history.findIndex(m => m instanceof HumanMessage);
+
+    const kept = [];
+    const includedIdxs = new Set();
+
+    // Walk history newest→oldest — use continue (not break) to skip oversized messages
+    for (let i = history.length - 1; i >= 0; i--) {
+        if (remaining <= 0) break;
+        const msg     = history[i];
+        const raw     = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        const content = truncateContent(raw, MAX_MSG_CHARS);
+        const tokens  = estimateTokens(content);
+
+        if (tokens > remaining) continue; // skip this one, try older/smaller messages
+        remaining -= tokens;
+        includedIdxs.add(i);
+
+        if (content !== raw) {
+            kept.unshift(new msg.constructor(content));
+        } else {
+            kept.unshift(msg);
+        }
+    }
+
+    // Always ensure first HumanMessage is present (force-insert if budget skipped it)
+    if (firstHumanIdx !== -1 && !includedIdxs.has(firstHumanIdx)) {
+        const msg     = history[firstHumanIdx];
+        const raw     = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        const content = truncateContent(raw, Math.max(remaining, 1) * 4);
+        // Insert after SystemMessage position (index 0 of kept)
+        kept.unshift(new HumanMessage(content));
+    }
+
+    const finalMessages = [];
+    if (sysContent) finalMessages.push(new SystemMessage(sysContent));
+    finalMessages.push(...kept);
+    return finalMessages;
+}
+
+/**
  * Utility to create a ChatOpenAI instance based on state config.
  */
 function createModel(config) {
     const baseUrl = (process.env.LM_STUDIO_BASE_URL || 'http://localhost:1234').replace(/\/$/, '') + '/v1';
+    // Cap maxTokens to what the model's context actually allows for output
     return new ChatOpenAI({
         modelName: config.resolvedModel,
         temperature: 0.1,
@@ -56,7 +135,7 @@ function createModel(config) {
             baseURL: baseUrl,
             apiKey: "lm-studio",
         },
-        maxTokens: 8192,
+        maxTokens: 2048,
     });
 }
 
@@ -69,20 +148,31 @@ async function callModel(state) {
     const model = createModel(config);
     const parser = new DevAgentOutputParser(config.fastMode);
 
-    // Get windowed history (last 50 messages)
-    const windowedMessages = messages.slice(-50);
-    const finalMessages = [];
-    if (config.systemPrompt) {
-        finalMessages.push(new SystemMessage(config.systemPrompt));
-    }
-    finalMessages.push(...windowedMessages);
+    const ctxLimit     = config.contextSize || parseInt(process.env.LM_CONTEXT_SIZE || '4096', 10);
+    const finalMessages = buildContextMessages(config.systemPrompt, messages, ctxLimit);
 
     // SAFETY: Prevent "No user query found" in LM Studio
     if (!finalMessages.some(m => m instanceof HumanMessage)) {
         finalMessages.push(new HumanMessage("[SYSTEM DIRECTIVE] Continue with your next step."));
     }
 
-    console.log(`[LangGraph] Calling model: ${config.resolvedModel}`);
+    const estTokens = finalMessages.reduce((s, m) => s + estimateTokens(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)), 0);
+    graphLogger.info(`[callModel] context ~${estTokens} tokens (limit ${ctxLimit}), msgs: ${finalMessages.length}`);
+
+    // DEBUG: log full request payload when DEBUG=true
+    if (process.env.DEBUG === 'true') {
+        const payload = {
+            model: config.resolvedModel,
+            temperature: 0.1,
+            stream: true,
+            max_tokens: 2048,
+            messages: finalMessages.map(m => ({
+                role: m._getType ? m._getType() : (m.constructor?.name || 'unknown'),
+                content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+            })),
+        };
+        graphLogger.info(`[callModel][DEBUG] Full request payload:\n${JSON.stringify(payload, null, 2)}`);
+    }
 
     let fullText = "";
     let parsed;
@@ -93,13 +183,19 @@ async function callModel(state) {
 
         // Clean output for the graph state (strips <think> tags etc.)
         cleanedText = cleanResponse(fullText);
+
+        // DEBUG: log raw model response before parsing
+        if (process.env.DEBUG === 'true') {
+            graphLogger.info(`[callModel][DEBUG] Raw response before parser:\n${cleanedText}`);
+        }
+
         parsed = await parser.parse(cleanedText);
 
         // Stream THOUGHT to UI (only if it shifted or we found one)
         if (config.onStep) {
             const thoughtMatch = cleanedText.match(/THOUGHT:\s*([\s\S]*?)(?=\s*ACTION:|$)/i);
             if (thoughtMatch && thoughtMatch[1].trim()) {
-                config.onStep({ type: 'thought', text: thoughtMatch[1].trim() });
+                config.onStep({ type: 'thought', content: thoughtMatch[1].trim() });
             }
         }
     } catch (err) {
@@ -161,7 +257,7 @@ async function executeTool(state, TOOLS) {
     const { lastAction, config } = state;
     const { action, parameters } = lastAction;
 
-    console.log(`[LangGraph] Executing tool: ${action}`);
+    graphLogger.toolCall(action, { step: state.step || 0, action, parameters });
 
     if (action === "finish") {
         // Auto-log review feedback for handoff
@@ -281,6 +377,14 @@ async function executeTool(state, TOOLS) {
             newState.reviewRequested = true;
         }
 
+        // Log tool result
+        graphLogger.toolResult(action, {
+            step: state.step || 0,
+            action,
+            ok: result.success !== false && !result.error,
+            error: result.error || null,
+        });
+
         // Summary formatting
         const summary = `Tool ${action} result: ${JSON.stringify(result).slice(0, 200)}...`;
 
@@ -299,7 +403,7 @@ async function executeTool(state, TOOLS) {
             messages: [new HumanMessage(summary)]
         };
     } catch (err) {
-        console.error(`[LangGraph] Tool execution failed (${action}):`, err.message);
+        graphLogger.toolResult(action, { step: state.step || 0, action, ok: false, error: err.message });
         if (config.onStep) config.onStep({ type: 'error', message: err.message });
         return {
             lastResult: { success: false, error: err.message },

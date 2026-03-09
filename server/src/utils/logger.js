@@ -16,8 +16,24 @@ const path = require('path');
 
 const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 const RESET  = '\x1b[0m';
-const COLOR  = { debug: '\x1b[36m', info: '\x1b[32m', warn: '\x1b[33m', error: '\x1b[31m' };
+const COLOR  = { debug: '\x1b[36m', info: '\x1b[32m', warn: '\x1b[33m', error: '\x1b[31m', tool_call: '\x1b[35m', tool_result: '\x1b[35m' };
 const PAD    = { debug: 'DEBUG', info: 'INFO ', warn: 'WARN ', error: 'ERROR' };
+
+/** Truncate large string values in metadata for readability. */
+function sanitizeMeta(obj, maxLen = 120) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === 'string' && v.length > maxLen) {
+      out[k] = `[omitted ${v.length}]`;
+    } else if (v && typeof v === 'object' && !Array.isArray(v)) {
+      out[k] = sanitizeMeta(v, maxLen);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
 
 const logsDir   = path.resolve(__dirname, '../../logs');
 const minLevel  = LEVELS[String(process.env.LOG_LEVEL || 'info').toLowerCase()] ?? LEVELS.info;
@@ -68,6 +84,32 @@ class Logger {
   info (msg, meta) { this._write('info',  msg, meta); }
   warn (msg, meta) { this._write('warn',  msg, meta); }
   error(msg, meta) { this._write('error', msg, meta); }
+
+  /**
+   * Log a tool invocation (always written, regardless of LOG_LEVEL).
+   * @param {string} tool  Tool/action name.
+   * @param {object} meta  { step, action, parameters, ... }
+   */
+  toolCall(tool, meta = {}) {
+    const ts   = new Date().toISOString();
+    const safe = sanitizeMeta(meta);
+    const line = `[${ts}] [TOOL_CALL] Calling tool "${tool}"\n      Metadata: ${JSON.stringify(safe, null, 2)}`;
+    process.stdout.write(`${COLOR.tool_call}${line}${RESET}\n`);
+    fs.appendFile(path.join(logsDir, 'agent-infos.log'), line + '\n', 'utf8').catch(() => {});
+  }
+
+  /**
+   * Log a tool result (always written, regardless of LOG_LEVEL).
+   * @param {string} tool  Tool/action name.
+   * @param {object} meta  { step, action, ok, error, ... }
+   */
+  toolResult(tool, meta = {}) {
+    const ts   = new Date().toISOString();
+    const safe = sanitizeMeta(meta);
+    const line = `[${ts}] [TOOL_RESULT] Tool "${tool}" completed\n      Metadata: ${JSON.stringify(safe, null, 2)}`;
+    process.stdout.write(`${COLOR.tool_result}${line}${RESET}\n`);
+    fs.appendFile(path.join(logsDir, 'agent-infos.log'), line + '\n', 'utf8').catch(() => {});
+  }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

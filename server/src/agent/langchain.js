@@ -17,7 +17,162 @@ function cleanResponse(text) {
     let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     // Clean merged markers if any leaked through
     cleaned = cleaned.replace(/ACTIONARAMETERS|ACTIONMETERS|THOUGHTACTION|ACTIONPARAMETERS/i, '').trim();
+    // Strip trailing [SYSTEM: ...] noise the model hallucinates after its action block
+    cleaned = cleaned.replace(/(\n\s*\[SYSTEM:[^\]]*\])+\s*$/gi, '').trim();
     return cleaned;
+}
+
+/**
+ * Convert backtick template literals to JSON double-quoted strings.
+ * Handles escaped chars and multi-line content produced by LLMs.
+ */
+function convertBackticks(text) {
+    // Replace `...` with "..." with proper JSON escaping of the inner content
+    return text.replace(/`([\s\S]*?)`/g, (_, inner) => {
+        const escaped = inner
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r')
+            .replace(/\t/g, '\\t');
+        return `"${escaped}"`;
+    });
+}
+
+/**
+ * Extract the first complete JSON object from a string using bracket counting.
+ * Handles nested braces, double-quoted strings, AND backtick template literals.
+ */
+function extractParamsJSON(text) {
+    const start = text.indexOf('{');
+    if (start === -1) return null;
+
+    // Walk character-by-character, track depth and all string types
+    let depth = 0, inQuote = false, inBacktick = false, escape = false;
+    for (let i = start; i < text.length; i++) {
+        const c = text[i];
+        if (escape)               { escape = false; continue; }
+        if (c === '\\')           { escape = true;  continue; }
+        // Toggle backtick string mode
+        if (c === '`' && !inQuote)  { inBacktick = !inBacktick; continue; }
+        if (inBacktick) continue;
+        // Toggle double-quote string mode
+        if (c === '"' && !inBacktick) { inQuote = !inQuote; continue; }
+        if (inQuote) continue;
+        if (c === '{') depth++;
+        if (c === '}') { depth--; if (depth === 0) return text.slice(start, i + 1); }
+    }
+    // Truncated — return whatever we have
+    return text.slice(start);
+}
+
+/**
+ * Strip JS-style // and /* comments from a string, skipping quoted sections.
+ */
+function stripJSComments(str) {
+    let out = '', i = 0, inStr = false, esc = false;
+    while (i < str.length) {
+        const c = str[i];
+        if (esc)              { out += c; i++; esc = false; continue; }
+        if (c === '\\' && inStr) { out += c; i++; esc = true; continue; }
+        if (c === '"')        { inStr = !inStr; out += c; i++; continue; }
+        if (!inStr) {
+            if (c === '/' && str[i + 1] === '/') {
+                while (i < str.length && str[i] !== '\n') i++;
+                continue;
+            }
+            if (c === '/' && str[i + 1] === '*') {
+                i += 2;
+                while (i < str.length && !(str[i] === '*' && str[i + 1] === '/')) i++;
+                i += 2;
+                continue;
+            }
+        }
+        out += c; i++;
+    }
+    return out;
+}
+
+/**
+ * Fix literal newlines/tabs inside JSON string values and close any
+ * unclosed strings or objects left by a truncated model response.
+ */
+function repairJSONString(str) {
+    let out = '', i = 0;
+    while (i < str.length) {
+        if (str[i] !== '"') { out += str[i++]; continue; }
+        // Enter a quoted string — re-encode its content
+        out += '"'; i++;
+        while (i < str.length) {
+            const c = str[i];
+            if (c === '\\')  { out += c + (str[i + 1] || ''); i += 2; continue; }
+            if (c === '"')   { out += '"'; i++; break; }
+            if (c === '\n')  { out += '\\n'; i++; continue; }
+            if (c === '\r')  { out += '\\r'; i++; continue; }
+            if (c === '\t')  { out += '\\t'; i++; continue; }
+            out += c; i++;
+        }
+    }
+    return out;
+}
+
+/**
+ * Close a truncated JSON string: counts depth and open strings,
+ * then appends the minimum characters needed to make it valid.
+ */
+function closeTruncatedJSON(str) {
+    let depth = 0, inStr = false, esc = false;
+    for (let i = 0; i < str.length; i++) {
+        const c = str[i];
+        if (esc)              { esc = false; continue; }
+        if (c === '\\' && inStr) { esc = true; continue; }
+        if (c === '"')        { inStr = !inStr; continue; }
+        if (!inStr) {
+            if (c === '{') depth++;
+            if (c === '}') depth--;
+        }
+    }
+    let result = str.trimEnd();
+    if (result.endsWith(',')) result = result.slice(0, -1); // remove trailing comma
+    if (inStr)    result += '"';   // close open string
+    while (depth-- > 0) result += '}';
+    return result;
+}
+
+/**
+ * Progressive JSON repair — handles every common LLM output failure:
+ *  1. JS-style comments (// and /* *\/)
+ *  2. Literal unescaped newlines/tabs inside string values
+ *  3. Trailing commas
+ *  4. Truncated output (unclosed strings / objects)
+ */
+function parseParamsJSON(raw) {
+    if (!raw) return null;
+
+    // Attempt 1: as-is
+    try { return JSON.parse(raw); } catch (_) {}
+
+    // Attempt 2: convert backtick template literals → double-quoted strings
+    const noBackticks = convertBackticks(raw);
+    try { return JSON.parse(noBackticks); } catch (_) {}
+
+    // Attempt 3: strip JS comments
+    const noComments = stripJSComments(noBackticks);
+    try { return JSON.parse(noComments); } catch (_) {}
+
+    // Attempt 4: fix literal newlines inside strings
+    const fixedStrings = repairJSONString(noComments);
+    try { return JSON.parse(fixedStrings); } catch (_) {}
+
+    // Attempt 5: remove trailing commas
+    const noTrailing = fixedStrings.replace(/,(\s*[}\]])/g, '$1');
+    try { return JSON.parse(noTrailing); } catch (_) {}
+
+    // Attempt 6: close truncated JSON
+    const closed = closeTruncatedJSON(noTrailing);
+    try { return JSON.parse(closed); } catch (_) {}
+
+    return null;
 }
 
 /**
@@ -43,22 +198,26 @@ class DevAgentOutputParser extends BaseOutputParser {
             }
 
             const thoughtMatch = text.match(/THOUGHT:\s*([\s\S]*?)(?=ACTION:|$)/i);
-            const actionMatch = text.match(/ACTION:\s*([\w_]+)/i);
-            const paramsMatch = text.match(/PARAMETERS:\s*(\{[\s\S]*?\})/i);
+            const actionMatch  = text.match(/ACTION:\s*([\w_]+)/i);
+
+            // Extract parameters block using bracket counting (not lazy regex)
+            const paramsSectionMatch = text.match(/PARAMETERS:\s*/i);
+            let parsedParams = null;
+            if (paramsSectionMatch) {
+                const afterKeyword = text.slice(paramsSectionMatch.index + paramsSectionMatch[0].length);
+                const rawJSON = extractParamsJSON(afterKeyword);
+                if (rawJSON) parsedParams = parseParamsJSON(rawJSON);
+            }
 
             const result = {
-                thought: thoughtMatch ? thoughtMatch[1].trim() : "",
-                action: actionMatch ? actionMatch[1].trim().toLowerCase() : (isMerged ? "error" : "finish"),
-                parameters: {},
-                response: text
+                thought:     thoughtMatch ? thoughtMatch[1].trim() : "",
+                action:      actionMatch  ? actionMatch[1].trim().toLowerCase() : (isMerged ? "error" : "finish"),
+                parameters:  parsedParams || {},
+                response:    text
             };
 
-            if (paramsMatch) {
-                try {
-                    result.parameters = JSON.parse(paramsMatch[1].trim());
-                } catch (e) {
-                    result.error = "Invalid JSON in PARAMETERS";
-                }
+            if (paramsSectionMatch && !parsedParams) {
+                result.error = "Invalid JSON in PARAMETERS";
             }
 
             // Final validation: if no action found and not finish, it's a parse error
