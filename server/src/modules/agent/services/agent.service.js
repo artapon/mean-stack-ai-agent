@@ -42,6 +42,7 @@ class AgentService extends BaseService {
       fastMode,
       autoRequestReview,
       sessionId,
+      isHandoff = false,
       stack,
       orchestrator = 'classic',
       mode,
@@ -76,6 +77,21 @@ class AgentService extends BaseService {
 
     // Mark task as started
     dashboardService.startTask(taskId);
+
+    // Load shared session history when this is a handoff run
+    let contextMessages = messages;
+    if (isHandoff && sessionId) {
+      try {
+        const existing = await this.loadSession(sessionId);
+        if (existing && existing.history && existing.history.length > 0) {
+          const newMsg = messages[messages.length - 1];
+          contextMessages = [...existing.history, newMsg];
+          this.log('info', `Handoff: loaded ${existing.history.length} msgs from session ${sessionId}, appended new prompt`);
+        }
+      } catch (e) {
+        this.log('warn', `Handoff session load failed: ${e.message}, using client messages`);
+      }
+    }
 
     try {
       const agentFunc = orchestrator === 'langgraph' ? runAgentGraph : runAgent;
@@ -131,7 +147,8 @@ class AgentService extends BaseService {
       };
 
       const result = await agentFunc({
-        messages,
+        messages: contextMessages,
+        mode,
         stack,
         workspaceDir,
         projectRoot,

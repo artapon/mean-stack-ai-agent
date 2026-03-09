@@ -375,6 +375,7 @@ async function executeTool(state, TOOLS) {
         }
         if (resolvedAction === 'request_review') {
             newState.reviewRequested = true;
+            if (config.onStep) config.onStep({ type: 'review_requested' });
         }
 
         // Log tool result
@@ -469,7 +470,9 @@ function router(state) {
         }
 
         // Auto review-request guard (Developer mode)
-        if (config.autoRequestReview && config.mode === 'developer' && !agentState.reviewRequested && agentState.codeModified) {
+        // Note: do NOT gate on agentState.codeModified — if write_file failed, codeModified
+        // is never set, so the agent would bypass review entirely. Always enforce when enabled.
+        if (config.autoRequestReview && config.mode === 'developer' && !agentState.reviewRequested) {
             return "nudge_review_missing";
         }
 
@@ -550,10 +553,10 @@ async function handleNudge(state, type) {
             directive = `You must write the system analysis report to ./agent_reports/system_analysis_walkthrough.md before finishing.`;
             break;
         case "nudge_review_missing":
-            directive = `You must call request_review before finishing.\n\n` +
-                `1. ACTION: request_review\n` +
-                `2. PARAMETERS: {}\n\n` +
-                `Call this NOW. Then you may call finish on your NEXT response.`;
+            directive = `You have not called request_review yet. You MUST do it now before finishing.\n\n` +
+                `ACTION: request_review\n\n` +
+                `PARAMETERS: {}\n\n` +
+                `Output ONLY the ACTION and PARAMETERS above. Do NOT call finish yet.`;
             ack = "[SYSTEM: Correction received — calling request_review before finish]";
             break;
         case "nudge_format_recovery":

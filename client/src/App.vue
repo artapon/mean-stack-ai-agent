@@ -1079,6 +1079,11 @@ let   abort    = null
 const handoffCount = ref(0)
 const maxAgentLoops = ref(5)
 
+// ── Shared session for dev→review→dev cycle ──────────────────────────────────
+// When autoRequestReview is active, all agents in the cycle share one session ID
+// so the review agent receives the developer's full server-side tool history.
+const handoffSessionId = ref(null)
+
 // ── Workspace State ──
 const workspacePath        = ref('')   // display only — resolved path from server
 const workspacePathSetting = ref('')   // editable in Settings
@@ -1657,9 +1662,10 @@ const currentExamples = computed(() => {
 async function send(text, isAutoHandoff = false) {
   let msg = (text || input.value).trim()
 
-  // Reset handoff count if this is a fresh user request
+  // Reset handoff state if this is a fresh user request
   if (!isAutoHandoff) {
     handoffCount.value = 0
+    handoffSessionId.value = null
   }
 
   const tags = []
@@ -1718,7 +1724,10 @@ async function send(text, isAutoHandoff = false) {
         fastMode: fastMode.value,
         unlimitedSteps: unlimitedSteps.value,
         autoRequestReview: autoRequestReview.value,
-        sessionId: sessionId.value,
+        // During an auto-handoff cycle use the shared session so both dev and review
+        // agents accumulate into the same server-side history file.
+        sessionId: (isAutoHandoff && handoffSessionId.value) ? handoffSessionId.value : sessionId.value,
+        isHandoff: isAutoHandoff && !!handoffSessionId.value,
         mode: agentMode.value,
         stack: selectedStack.value,
         orchestrator: orchestrator.value
@@ -1747,11 +1756,21 @@ async function send(text, isAutoHandoff = false) {
               console.log(`[DevAgent] Tool ${ev.tool} finished. Refreshing file list...`);
               loadFiles();
             }
-            if (ev.type === 'tool_call' && ev.tool === 'request_review') {
-              console.log('[DevAgent] 🛠 Review requested by agent.');
+            // Detect request_review: dedicated event (most reliable) → tool_result → tool_call
+            if (ev.type === 'review_requested') {
+              console.log('[DevAgent] 🛠 review_requested event received (tool executed).');
               wasReviewRequested = true;
             }
-            if (ev.type === 'tool_call' && ev.tool === 'order_fix') {
+            if ((ev.type === 'tool_call' || ev.type === 'tool_result') && ev.tool === 'request_review') {
+              console.log(`[DevAgent] 🛠 request_review detected via ${ev.type}.`);
+              wasReviewRequested = true;
+            }
+            // Server-side confirmation in the done event (authoritative final fallback)
+            if (ev.type === 'done' && ev.wasReviewRequested) {
+              console.log('[DevAgent] 🛠 Server confirmed: request_review was executed.');
+              wasReviewRequested = true;
+            }
+            if ((ev.type === 'tool_call' || ev.type === 'tool_result') && ev.tool === 'order_fix') {
               console.log('[DevAgent] 🛠 Fix ordered by reviewer.');
               wasFixOrdered = true;
             }
@@ -1788,6 +1807,15 @@ async function send(text, isAutoHandoff = false) {
     const isReviewMode = agentMode.value === 'review';
     const isAnalysisMode = agentMode.value === 'analysis';
     
+    // ACTIVITY-BASED FALLBACK: if stream event was missed, scan the current message's
+    // activity cards (built from tool_call SSE events by applyEvent) for request_review.
+    if (!wasReviewRequested && isDevMode) {
+      wasReviewRequested = (messages.value[idx]?.activity || []).some(
+        a => (a.type === 'tool' || a.type === 'tool_call') && a.tool === 'request_review'
+      );
+      if (wasReviewRequested) console.log('[DevAgent] 🛠 request_review detected via activity fallback.');
+    }
+
     // HISTORY-AWARE DETECTION: Look back through the whole chat for the report and fix orders
     // This ensures handoff works even if the report was saved in a previous turn!
     let sessionReportSaved = wasReportSaved;
@@ -1824,58 +1852,90 @@ async function send(text, isAutoHandoff = false) {
       return;
     }
     
-    // Accepted only if report is saved, marked OK, and NO fixes were ordered, and NOT marked NOT OK
-    const isAccepted = sessionReportSaved && isOk && !sessionFixOrdered && !isNotOk;
+    console.log(`[DevAgent] Fin: mode=${agentMode.value} auto=${autoRequestReview.value} report=${sessionReportSaved} fix=${sessionFixOrdered} ok=${isOk} notOk=${isNotOk} reviewReq=${wasReviewRequested}`);
 
-    console.log(`[DevAgent] Fin: mode=${agentMode.value} auto=${autoRequestReview.value} report=${sessionReportSaved} fix=${sessionFixOrdered} ok=${isOk} notOk=${isNotOk} accepted=${isAccepted}`);
-
-    if (handoffCount.value >= maxAgentLoops.value && autoRequestReview.value) {
-      console.warn(`[DevAgent] 🛑 Agent loop limit reached (${maxAgentLoops.value}). Stopping automatic handoff.`);
-      messages.value[idx].status = `⚠️ Loop limit reached (${maxAgentLoops.value})`;
-      setTimeout(() => { messages.value[idx].status = null; }, 5000);
+    // ── DEVELOPER MODE: trigger Review handoff when request_review was called ──
+    if (isDevMode && wasReviewRequested && autoRequestReview.value) {
+      if (handoffCount.value >= maxAgentLoops.value) {
+        console.warn(`[DevAgent] 🛑 Loop limit reached (${maxAgentLoops.value}). Stopping.`);
+        messages.value[idx].status = `⚠️ Loop limit reached (${maxAgentLoops.value})`;
+        setTimeout(() => { messages.value[idx].status = null; }, 5000);
+        return;
+      }
+      console.log('[DevAgent] 🔄 Auto-triggering Review handoff...');
+      if (!handoffSessionId.value) handoffSessionId.value = sessionId.value;
+      handoffCount.value++;
+      messages.value[idx].status = `🔄 Handoff to Reviewer (${handoffCount.value}/${maxAgentLoops.value})...`;
+      const devMsgRef = messages.value[idx]; // capture before mode change
+      agentMode.value = 'review';
+      setTimeout(() => {
+        devMsgRef.status = null;
+        appendHandoffLog('DEV → REVIEW', 'Developer finished. Requesting code review.');
+        send('Developer has finished. Please review the code thoroughly and provide your verdict: [CODE: OK] or [CODE: NOT OK].', true);
+      }, 1000);
       return;
     }
 
-    if (isDevMode && wasReviewRequested && autoRequestReview.value) {
-      console.log('[DevAgent] 🔄 Auto-triggering Review handoff...');
-      handoffCount.value++;
-      messages.value[idx].status = `🔄 Handoff to Reviewer (${handoffCount.value}/${maxAgentLoops.value})...`;
-      agentMode.value = 'review';
-      setTimeout(() => {
-        messages.value[idx].status = null;
-        // Log and then send — let send() inject the [MODE: REVIEW] tag automatically.
-        appendHandoffLog('DEV → REVIEW', 'Developer finished implementation. Requesting review feedback/orders.');
-        send('Developer has finished. Please analyze the code and send feedback/orders.', true);
-      }, 1000);
-    } else if (isReviewMode && (isOk || isNotOk || sessionFixOrdered)) {
-      agentMode.value = 'generate';
-      if (!isAccepted && (sessionReportSaved || sessionFixOrdered || isNotOk) && autoRequestReview.value) {
-        console.log('[DevAgent] 🔄 Auto-triggering Developer return (Report:', sessionReportSaved, 'FixOrdered:', sessionFixOrdered, 'isNotOk:', isNotOk, ')');
+    // ── REVIEW MODE: determine outcome and continue the loop ─────────────────
+    if (isReviewMode && autoRequestReview.value) {
+      const hasVerdict = isOk || isNotOk;
+
+      // No verdict and no fix orders and not errored → auto-continue review
+      if (!hasVerdict && !sessionFixOrdered &&
+          !currentMsgText.includes('❌') && !currentMsgText.includes('aborted:') && !currentMsgText.includes('MAX_STEPS')) {
+        if (handoffCount.value >= maxAgentLoops.value) {
+          console.warn(`[DevAgent] 🛑 Loop limit reached (${maxAgentLoops.value}). Stopping review auto-continue.`);
+          messages.value[idx].status = `⚠️ Loop limit reached (${maxAgentLoops.value})`;
+          setTimeout(() => { messages.value[idx].status = null; }, 5000);
+          return;
+        }
+        console.log('[DevAgent] 🔄 Review verdict not detected, auto-continuing...');
         handoffCount.value++;
-        messages.value[idx].status = `🔄 Returning to Developer (${handoffCount.value}/${maxAgentLoops.value})...`;
-      setTimeout(() => {
-        messages.value[idx].status = null;
-        // Log and then send — let send() inject [MODE: GENERATE] + tags automatically.
-        appendHandoffLog(
-          'REVIEW → DEV',
-          `Reviewer responded with ${isNotOk ? '[CODE: NOT OK]' : 'issues/fix orders'}. Returning to developer to apply fixes.`
-        );
-        send(`[WORKFLOW: UPDATE] [FOLLOW REVIEW] [CODE: NOT OK]
+        messages.value[idx].status = '🔄 Review continuing...';
+        setTimeout(() => {
+          messages.value[idx].status = null;
+          send('[CONTINUE REVIEW] Please continue your review. You MUST write the report and provide [CODE: OK] or [CODE: NOT OK] verdict before finishing.', true);
+        }, 1000);
+        return;
+      }
+
+      // [CODE: OK] with no fix orders → loop complete
+      if (isOk && !isNotOk && !sessionFixOrdered) {
+        console.log('[DevAgent] ✅ Review accepted. Loop complete.');
+        const okMsgRef = messages.value[idx]; // capture before mode change
+        agentMode.value = 'generate';
+        okMsgRef.status = '✅ Code Accepted';
+        setTimeout(() => { okMsgRef.status = null; }, 4000);
+        return;
+      }
+
+      // [CODE: NOT OK] or fix ordered → return to Developer to fix
+      if (isNotOk || sessionFixOrdered) {
+        if (handoffCount.value >= maxAgentLoops.value) {
+          console.warn(`[DevAgent] 🛑 Loop limit reached (${maxAgentLoops.value}). Stopping.`);
+          messages.value[idx].status = `⚠️ Loop limit reached (${maxAgentLoops.value})`;
+          setTimeout(() => { messages.value[idx].status = null; }, 5000);
+          return;
+        }
+        console.log('[DevAgent] 🔄 Auto-returning to Developer for fixes...');
+        const reviewMsgRef = messages.value[idx]; // capture before mode change
+        agentMode.value = 'generate';
+        handoffCount.value++;
+        reviewMsgRef.status = `🔄 Returning to Developer (${handoffCount.value}/${maxAgentLoops.value})...`;
+        setTimeout(() => {
+          reviewMsgRef.status = null;
+          appendHandoffLog('REVIEW → DEV', `Reviewer: ${isNotOk ? '[CODE: NOT OK]' : 'fix orders issued'}.`);
+          send(`[WORKFLOW: UPDATE] [FOLLOW REVIEW] [CODE: NOT OK]
 The reviewer has rejected the current implementation.
 You are now in a HARD LOCK. You MUST:
 1. Read "reviewer_walkthrough.md" immediately.
-2. Fix the issues mentioned in the report.
+2. Fix ALL issues mentioned in the report.
 3. Update "developer_walkthrough.md" with your changes.
 4. MANDATORY: Call "request_review" to hand back to the reviewer.
 5. ONLY then call "finish".`, true);
-      }, 1000);
-      } else if (isAccepted) {
-        console.log('[DevAgent] ✅ Review accepted. Loop complete.');
-        messages.value[idx].status = '✅ Code Accepted';
-        setTimeout(() => { messages.value[idx].status = null; }, 4000);
+        }, 1000);
+        return;
       }
-    } else if (isReviewMode && autoRequestReview.value) {
-      console.log('[DevAgent] ⚠️ Auto-loop criteria NOT met. Ensure report is saved and [CODE: OK/NOT OK] verdict is present.');
     }
   }
 }

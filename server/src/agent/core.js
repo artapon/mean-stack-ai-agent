@@ -1524,7 +1524,7 @@ ${report}`;
       });
 
       if (onStep) onStep({ type: 'response', content: finalMsg });
-      return { success: true, response: finalMsg, history, memory: serializedMemory };
+      return { success: true, response: finalMsg, history, memory: serializedMemory, wasReviewRequested: !!agentState.reviewRequested };
     }
 
     // ── Execute tool ──────────────────────────────────────────────────────────
@@ -1686,6 +1686,7 @@ ${report}`;
         if (action === 'request_review') {
           agentState.reviewRequested = true;
           console.log('[DevAgent] agentState.reviewRequested = true');
+          if (onStep) onStep({ type: 'review_requested' });
         } else if (action === 'read_file' || action === 'bulk_read') {
           const files = action === 'read_file' ? [lp] : (p.paths || []).map(ps => String(ps).toLowerCase());
           if (files.some(f => f.includes('package.json') || f.includes('requirements.txt') || f.includes('pom.xml') || f.includes('go.mod'))) {
@@ -1842,8 +1843,8 @@ async function runAgentGraph(opts) {
   let isReview = false, isAnalysis = false;
   for (const m of messages) {
     if (m.role === 'user' && typeof m.content === 'string') {
-      if (m.content.includes('[MODE: REVIEW]')) isReview = true;
-      if (m.content.includes('[MODE: ANALYSIS]')) isAnalysis = true;
+      if (m.content.includes('[MODE: REVIEW]') || m.content.includes('[CONTINUE REVIEW]')) isReview = true;
+      if (m.content.includes('[MODE: ANALYSIS]') || m.content.includes('[CONTINUE ANALYSIS]')) isAnalysis = true;
     }
   }
   const mode = isReview ? 'review' : (isAnalysis ? 'analysis' : 'developer');
@@ -2031,7 +2032,8 @@ async function runAgentGraph(opts) {
       success: true,
       response,
       history,
-      isLangGraph: true
+      isLangGraph: true,
+      wasReviewRequested: !!finalState.agentState?.reviewRequested
     };
   } catch (err) {
     if (onStep) onStep({ type: 'error', message: err.message });
