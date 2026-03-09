@@ -15,6 +15,7 @@ const agentRoutes     = require('./modules/agent/agent.routes');
 const filesRoutes     = require('./modules/files/files.routes');
 const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 const settingsRoutes  = require('./modules/settings/settings.routes');
+const memoryRoutes    = require('./modules/memory/memory.routes');
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ setupMiddleware(app);
 app.use('/api/agent',    agentRoutes);
 app.use('/api/files',    filesRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/memory',   memoryRoutes);
 app.use('/',             dashboardRoutes);
 
 setupErrorHandling(app);

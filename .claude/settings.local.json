@@ -6,7 +6,11 @@
       "Bash(pm2 logs:*)",
       "Bash(pm2 env:*)",
       "Bash(wc:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(python:*)",
+      "Bash(npm install:*)",
+      "Bash(npx jest:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

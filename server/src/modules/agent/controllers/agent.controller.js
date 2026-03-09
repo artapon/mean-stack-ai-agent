@@ -41,7 +41,7 @@ class AgentController extends BaseController {
    * POST /api/agent/run - Run agent with streaming
    */
   async run(req, res) {
-    const { messages, fastMode, autoRequestReview, sessionId, stack, orchestrator } = req.body;
+    const { messages, fastMode, autoRequestReview, sessionId, stack, orchestrator, mode } = req.body;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return this.badRequest(res, '"messages" must be a non-empty array.');
@@ -85,6 +85,7 @@ class AgentController extends BaseController {
           sessionId,
           stack,
           orchestrator,
+          mode,
           workspaceDir,
           projectRoot: config.projectRoot
         },

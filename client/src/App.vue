@@ -49,6 +49,21 @@
           <span>Chat</span>
         </button>
 
+        <!-- Memory -->
+        <button
+          class="nav-item"
+          :class="{ active: currentView === 'memory' }"
+          @click="openMemory"
+          title="Memory"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+            <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+          </svg>
+          <span>Memory</span>
+        </button>
+
         <!-- Settings -->
         <button
           class="nav-item"
@@ -194,7 +209,7 @@
     </aside>
 
     <!-- ── Main Area ──────────────────────────────────────────────────── -->
-    <main :class="currentView === 'dashboard' ? 'dashboard-main' : currentView === 'settings' ? 'settings-main' : 'chat'">
+    <main :class="currentView === 'dashboard' ? 'dashboard-main' : currentView === 'settings' ? 'settings-main' : currentView === 'memory' ? 'memory-main' : 'chat'">
 
       <!-- ── Dashboard View ───────────────────────────────────────── -->
       <template v-if="currentView === 'dashboard'">
@@ -680,6 +695,117 @@
         </div>
       </template>
 
+      <!-- ── Memory View ───────────────────────────────────────────── -->
+      <template v-else-if="currentView === 'memory'">
+        <header class="mem-header">
+          <div class="mem-header-left">
+            <div class="mem-brand-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+                <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+              </svg>
+            </div>
+            <div>
+              <h1 class="mem-title">Memory</h1>
+              <p class="mem-subtitle">Persistent agent session memory</p>
+            </div>
+          </div>
+          <div class="mem-header-right">
+            <span class="mem-count-chip">{{ filteredSessions.length }} session{{ filteredSessions.length !== 1 ? 's' : '' }}</span>
+            <button class="mem-btn" @click="loadMemory" :disabled="memLoading">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="memLoading ? 'spin-sm' : ''">
+                <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+        </header>
+
+        <!-- Mode filter tabs -->
+        <div class="mem-filters">
+          <button class="mem-filter-btn" :class="{ active: memFilter === 'all' }"      @click="memFilter = 'all'">All</button>
+          <button class="mem-filter-btn" :class="{ active: memFilter === 'generate' }" @click="memFilter = 'generate'">🛠 Developer</button>
+          <button class="mem-filter-btn" :class="{ active: memFilter === 'review' }"   @click="memFilter = 'review'">⚖️ Audit</button>
+          <button class="mem-filter-btn" :class="{ active: memFilter === 'analysis' }" @click="memFilter = 'analysis'">📊 Analysis</button>
+        </div>
+
+        <div class="mem-body">
+          <!-- Error state -->
+          <div v-if="memError" class="mem-error">{{ memError }}</div>
+
+          <!-- Empty state -->
+          <div v-else-if="!memLoading && filteredSessions.length === 0" class="mem-empty">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/>
+              <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+              <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+            </svg>
+            <p>No sessions found</p>
+          </div>
+
+          <!-- Session list + detail split -->
+          <div v-else class="mem-split">
+            <!-- Left: session list -->
+            <div class="mem-list">
+              <div
+                v-for="s in filteredSessions"
+                :key="s.id"
+                class="mem-card"
+                :class="{ active: memSelected?.id === s.id }"
+                @click="selectSession(s)"
+              >
+                <div class="mem-card-top">
+                  <span class="mem-card-id">{{ s.id.slice(0, 12) }}…</span>
+                  <span class="mem-card-date">{{ fmtMemDate(s.updatedAt) }}</span>
+                </div>
+                <div class="mem-card-preview" v-if="s.preview">{{ s.preview }}</div>
+                <div class="mem-card-meta">
+                  <span class="mem-tag mem-tag-mode" v-if="s.mode" :class="`mem-tag-${s.mode}`">
+                    {{ s.mode === 'generate' ? '🛠 Dev' : s.mode === 'review' ? '⚖️ Audit' : s.mode === 'analysis' ? '📊 Analysis' : s.mode }}
+                  </span>
+                  <span class="mem-tag">{{ s.msgCount }} msg</span>
+                  <span class="mem-tag mem-tag-size">{{ fmtSize(s.size) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: session detail -->
+            <div class="mem-detail" v-if="memSelected">
+              <div class="mem-detail-header">
+                <div class="mem-detail-id">{{ memSelected.id }}</div>
+                <button class="mem-delete-btn" @click="deleteSession(memSelected.id)" title="Delete session">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Delete
+                </button>
+              </div>
+
+              <div class="mem-messages" v-if="memDetail">
+                <div
+                  v-for="(msg, i) in memDetail.messages"
+                  :key="i"
+                  class="mem-msg"
+                  :class="msg.type"
+                >
+                  <span class="mem-msg-role">{{ msg.type === 'human' ? 'User' : msg.type === 'ai' ? 'Agent' : 'System' }}</span>
+                  <div class="mem-msg-content">{{ msg.content }}</div>
+                </div>
+              </div>
+              <div v-else class="mem-detail-loading">
+                <div class="spin-sm"></div>
+              </div>
+            </div>
+
+            <div class="mem-detail mem-detail-empty" v-else>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.25">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <p>Select a session to inspect</p>
+            </div>
+          </div>
+        </div>
+      </template>
+
       <!-- ── Chat View ─────────────────────────────────────────────── -->
       <template v-else>
       <header class="chat-header">
@@ -896,7 +1022,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, computed, onMounted, watch } from 'vue'
+import { ref, reactive, nextTick, computed, onMounted, watch } from 'vue'
 import { marked } from 'marked'
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -908,7 +1034,12 @@ const selectedModel    = ref('')
 const modelConfig      = ref({})
 
 // ── State ─────────────────────────────────────────────────────────────────────
-const messages = ref([])
+// Per-mode messages: each agent type has its own conversation history
+const modeMessages = reactive({ generate: [], review: [], analysis: [] })
+const messages = computed({
+  get: () => modeMessages[agentMode.value],
+  set: (v) => { modeMessages[agentMode.value] = v }
+})
 const input    = ref('')
 const running  = ref(false)
 const showBrowser = ref(true)
@@ -932,12 +1063,19 @@ const fbItems      = ref([])
 const currentPath  = ref('.')
 const selectedFile = ref(null)
 const fileContent  = ref('')
-const sessionId    = ref(localStorage.getItem('devagent_session_id') || uid())
-
-// Ensure we have a session ID
-if (!localStorage.getItem('devagent_session_id')) {
-  localStorage.setItem('devagent_session_id', sessionId.value)
+// Per-mode session IDs: each agent type maintains its own session
+function getOrCreateSessionId(mode) {
+  const key = `devagent_session_${mode}`
+  let id = localStorage.getItem(key)
+  if (!id) { id = uid(); localStorage.setItem(key, id) }
+  return id
 }
+const modeSessionIds = reactive({
+  generate: getOrCreateSessionId('generate'),
+  review:   getOrCreateSessionId('review'),
+  analysis: getOrCreateSessionId('analysis'),
+})
+const sessionId = computed(() => modeSessionIds[agentMode.value])
 
 function setTargetFolder(path) {
   targetFolder.value = path === targetFolder.value ? null : path
@@ -1063,6 +1201,13 @@ const filteredLogs = computed(() => {
   return dashLogs.value.filter(l => l.level === dashLogFilter.value)
 })
 
+// Auto-scroll log panel to top when new entries arrive (newest-first list)
+watch(dashLogs, () => {
+  nextTick(() => {
+    if (dashLogEl.value) dashLogEl.value.scrollTop = 0
+  })
+}, { deep: false })
+
 const dashCurrentAction = computed(() => {
   const t = dashActiveTasks.value.find(t => t.status === 'running' && t.steps && t.steps.length > 0)
   if (t) {
@@ -1118,13 +1263,14 @@ async function loadDashboard() {
   dashLoading.value = true
   try {
     const res  = await fetch('/api/dashboard')
-    const data = await res.json()
-    dashStats.value           = data.stats || {}
-    dashActiveTasks.value     = data.activeTasks || []
-    dashRecentTasks.value     = data.recentTasks || []
-    dashHistory.value         = data.taskHistory || []
-    dashLogs.value            = (data.recentLogs || data.logs || []).slice().reverse()
-    dashConnected.value = true
+    const json = await res.json()
+    const data = json.data || json          // unwrap { success, data } envelope
+    dashStats.value       = data.stats       || {}
+    dashActiveTasks.value = (data.activeTasks || data.recentTasks || []).filter(t => t.status === 'running' || t.status === 'pending')
+    dashRecentTasks.value = data.recentTasks  || []
+    dashHistory.value     = data.taskHistory  || []
+    dashLogs.value        = (data.recentLogs  || data.logs || []).slice().reverse()
+    dashConnected.value   = true
   } catch {
     dashConnected.value = false
   } finally {
@@ -1139,18 +1285,79 @@ async function clearDashboard() {
 }
 
 let dashSSE = null
-function connectDashSSE() {
-  if (dashSSE) return
-  dashSSE = new EventSource('/api/dashboard/stream')
-  dashSSE.onopen = () => { dashConnected.value = true }
-  dashSSE.onerror = () => { dashConnected.value = false }
+let dashSSEReconnectTimer = null
 
-  // Named SSE events from the server
-  const onTask = (e) => { try { upsertTask(JSON.parse(e.data)) } catch {} }
-  dashSSE.addEventListener('task:created',   onTask)
-  dashSSE.addEventListener('task:started',   onTask)
-  dashSSE.addEventListener('task:completed', onTask)
-  dashSSE.addEventListener('task:failed',    onTask)
+function disconnectDashSSE() {
+  if (dashSSEReconnectTimer) { clearTimeout(dashSSEReconnectTimer); dashSSEReconnectTimer = null }
+  if (dashSSE) { dashSSE.close(); dashSSE = null }
+}
+
+function connectDashSSE() {
+  if (dashSSE && dashSSE.readyState !== EventSource.CLOSED) return
+  if (dashSSE) { dashSSE.close(); dashSSE = null }
+
+  dashSSE = new EventSource('/api/dashboard/stream')
+
+  dashSSE.onopen = () => {
+    dashConnected.value = true
+    if (dashSSEReconnectTimer) { clearTimeout(dashSSEReconnectTimer); dashSSEReconnectTimer = null }
+  }
+
+  dashSSE.onerror = () => {
+    dashConnected.value = false
+    dashSSE.close()
+    dashSSE = null
+    // Auto-reconnect after 3s
+    if (!dashSSEReconnectTimer) {
+      dashSSEReconnectTimer = setTimeout(() => {
+        dashSSEReconnectTimer = null
+        if (currentView.value === 'dashboard') connectDashSSE()
+      }, 3000)
+    }
+  }
+
+  // init — full snapshot on connect
+  dashSSE.addEventListener('init', (e) => {
+    try {
+      const d = JSON.parse(e.data)
+      if (d.stats)      dashStats.value       = d.stats
+      if (d.activeTasks) dashActiveTasks.value = d.activeTasks.filter(t => t.status === 'running' || t.status === 'pending')
+      if (d.recentTasks) dashRecentTasks.value = d.recentTasks
+      if (d.taskHistory) dashHistory.value     = d.taskHistory
+      if (d.recentLogs)  dashLogs.value        = d.recentLogs.slice().reverse()
+      dashConnected.value = true
+    } catch {}
+  })
+
+  // task events
+  dashSSE.addEventListener('task:created', (e) => {
+    try { upsertActiveTask(JSON.parse(e.data)) } catch {}
+  })
+  dashSSE.addEventListener('task:started', (e) => {
+    try { upsertActiveTask(JSON.parse(e.data)) } catch {}
+  })
+  dashSSE.addEventListener('task:completed', (e) => {
+    try {
+      const task = JSON.parse(e.data)
+      removeActiveTask(task.id)
+      dashHistory.value.unshift(task)
+      dashStats.value = { ...dashStats.value,
+        completedTasks: (dashStats.value.completedTasks || 0) + 1,
+        activeTasks: Math.max(0, (dashStats.value.activeTasks || 1) - 1)
+      }
+    } catch {}
+  })
+  dashSSE.addEventListener('task:failed', (e) => {
+    try {
+      const task = JSON.parse(e.data)
+      removeActiveTask(task.id)
+      dashHistory.value.unshift(task)
+      dashStats.value = { ...dashStats.value,
+        failedTasks: (dashStats.value.failedTasks || 0) + 1,
+        activeTasks: Math.max(0, (dashStats.value.activeTasks || 1) - 1)
+      }
+    } catch {}
+  })
   dashSSE.addEventListener('task:step', (e) => {
     try {
       const { taskId, step } = JSON.parse(e.data)
@@ -1158,22 +1365,32 @@ function connectDashSSE() {
       if (t) { if (!t.steps) t.steps = []; t.steps.push(step) }
     } catch {}
   })
-  dashSSE.addEventListener('log:entry', (e) => { try { dashLogs.value.unshift(JSON.parse(e.data)) } catch {} })
-  dashSSE.addEventListener('init', (e) => {
+
+  // logs
+  dashSSE.addEventListener('log:entry', (e) => {
     try {
-      const d = JSON.parse(e.data)
-      if (d.stats)             dashStats.value           = d.stats
-      if (d.activeTasks)       dashActiveTasks.value     = d.activeTasks
-      if (d.recentTasks)       dashRecentTasks.value     = d.recentTasks
-      if (d.taskHistory)       dashHistory.value         = d.taskHistory
-      if (d.recentLogs)        dashLogs.value            = d.recentLogs.slice().reverse()
-      dashConnected.value = true
+      dashLogs.value.unshift(JSON.parse(e.data))
+      if (dashLogs.value.length > 500) dashLogs.value.length = 500
     } catch {}
   })
+
+  // clear
   dashSSE.addEventListener('dashboard:cleared', () => {
     dashActiveTasks.value = []; dashHistory.value = []
-    dashLogs.value = []; dashStats.value = {}
+    dashRecentTasks.value = []; dashLogs.value = []; dashStats.value = {}
   })
+}
+
+function upsertActiveTask(task) {
+  const arr = dashActiveTasks.value
+  const i = arr.findIndex(t => t.id === task.id)
+  if (i >= 0) arr.splice(i, 1, task); else arr.unshift(task)
+  dashStats.value = { ...dashStats.value, activeTasks: arr.length }
+}
+
+function removeActiveTask(id) {
+  const i = dashActiveTasks.value.findIndex(t => t.id === id)
+  if (i >= 0) dashActiveTasks.value.splice(i, 1)
 }
 
 async function fetchStacks() {
@@ -1202,7 +1419,79 @@ function selectStack(id) {
 function openDashboard() {
   currentView.value = 'dashboard'
   loadDashboard()
-  connectDashSSE()
+  connectDashSSE()   // no-op if already connected; auto-reconnects if closed
+}
+
+// ── Memory ────────────────────────────────────────────────────────────────────
+
+const memSessions  = ref([])
+const memSelected  = ref(null)
+const memDetail    = ref(null)
+const memLoading   = ref(false)
+const memError     = ref('')
+const memFilter    = ref('all')   // 'all' | 'generate' | 'review' | 'analysis'
+
+const filteredSessions = computed(() => {
+  if (memFilter.value === 'all') return memSessions.value
+  return memSessions.value.filter(s => {
+    const m = (s.mode || '').toLowerCase()
+    if (memFilter.value === 'generate') return m === 'generate' || m === 'developer'
+    if (memFilter.value === 'review')   return m === 'review'
+    if (memFilter.value === 'analysis') return m === 'analysis'
+    return true
+  })
+})
+
+async function loadMemory() {
+  memLoading.value = true
+  memError.value   = ''
+  try {
+    const res  = await fetch('/api/memory')
+    const data = await res.json()
+    if (!data.success) throw new Error(data.error || 'Failed to load')
+    memSessions.value = data.data.sessions
+    if (memSelected.value) {
+      const still = memSessions.value.find(s => s.id === memSelected.value.id)
+      if (!still) { memSelected.value = null; memDetail.value = null }
+    }
+  } catch (e) {
+    memError.value = e.message
+  } finally {
+    memLoading.value = false
+  }
+}
+
+async function selectSession(s) {
+  memSelected.value = s
+  memDetail.value   = null
+  try {
+    const res  = await fetch(`/api/memory/${s.id}`)
+    const data = await res.json()
+    if (data.success) memDetail.value = data.data
+  } catch {}
+}
+
+async function deleteSession(id) {
+  if (!confirm('Delete this session? This cannot be undone.')) return
+  try {
+    await fetch(`/api/memory/${id}`, { method: 'DELETE' })
+    memSelected.value = null
+    memDetail.value   = null
+    await loadMemory()
+  } catch (e) {
+    memError.value = e.message
+  }
+}
+
+function openMemory() {
+  currentView.value = 'memory'
+  loadMemory()
+}
+
+function fmtMemDate(ts) {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────
@@ -1385,12 +1674,13 @@ async function send(text, isAutoHandoff = false) {
     const res = await fetch('/api/agent/run', {
       method  : 'POST',
       headers : { 'Content-Type': 'application/json' },
-      body    : JSON.stringify({ 
-        messages: history, 
-        fastMode: fastMode.value, 
+      body    : JSON.stringify({
+        messages: history,
+        fastMode: fastMode.value,
         unlimitedSteps: unlimitedSteps.value,
         autoRequestReview: autoRequestReview.value,
         sessionId: sessionId.value,
+        mode: agentMode.value,
         stack: selectedStack.value,
         orchestrator: orchestrator.value
       }),
@@ -1659,6 +1949,7 @@ const exportAnalysis = async () => {
 }
 
 async function clearChat() {
+  const mode = agentMode.value
   if (sessionId.value) {
     try {
       await fetch('/api/agent/clear', {
@@ -1670,9 +1961,10 @@ async function clearChat() {
       console.warn('[Session] Failed to clear server session:', e)
     }
   }
-  messages.value = []
-  sessionId.value = uid()
-  localStorage.setItem('devagent_session_id', sessionId.value)
+  modeMessages[mode] = []
+  const newId = uid()
+  modeSessionIds[mode] = newId
+  localStorage.setItem(`devagent_session_${mode}`, newId)
 }
 
 
@@ -1818,7 +2110,28 @@ function updateActiveModelDisplay() {
   }
 }
 
-watch(agentMode, updateActiveModelDisplay)
+watch(agentMode, async (newMode) => {
+  updateActiveModelDisplay()
+  // Lazy-load session history for this mode if not yet loaded
+  if (modeMessages[newMode].length === 0 && modeSessionIds[newMode]) {
+    try {
+      const res  = await fetch(`/api/agent/session/${modeSessionIds[newMode]}`)
+      const data = await res.json()
+      if (data.history && data.history.length > 0) {
+        modeMessages[newMode] = data.history.map(m => ({
+          id: uid(), role: m.role, text: m.content, streaming: false, activity: []
+        }))
+        await nextTick()
+        await scrollDown()
+      }
+    } catch (e) {
+      console.warn(`[Session] Failed to load ${newMode} history:`, e)
+    }
+  } else {
+    await nextTick()
+    await scrollDown()
+  }
+})
 
 onMounted(async () => {
   // Load persistence
@@ -1838,6 +2151,17 @@ onMounted(async () => {
   loadModels()
   loadFiles()
   loadSettings()
+
+  // Poll stats every 5s while dashboard is open
+  setInterval(async () => {
+    if (currentView.value !== 'dashboard') return
+    try {
+      const res  = await fetch('/api/dashboard/stats')
+      const json = await res.json()
+      const s    = json.data || json
+      if (s.totalTasks !== undefined) dashStats.value = s
+    } catch {}
+  }, 5000)
 
   // Global Copy Logic: Handles both Thought callouts and Full Message bubbles
   window.addEventListener('click', async (e) => {
@@ -1881,26 +2205,24 @@ onMounted(async () => {
     }
   });
 
-  // Load session history
-  if (sessionId.value) {
+  // Load session history for all modes
+  for (const mode of ['generate', 'review', 'analysis']) {
+    const sid = modeSessionIds[mode]
+    if (!sid) continue
     try {
-      const res = await fetch(`/api/agent/session/${sessionId.value}`)
+      const res  = await fetch(`/api/agent/session/${sid}`)
       const data = await res.json()
       if (data.history && data.history.length > 0) {
-        messages.value = data.history.map(m => ({
-          id: uid(),
-          role: m.role,
-          text: m.content,
-          streaming: false,
-          activity: []
+        modeMessages[mode] = data.history.map(m => ({
+          id: uid(), role: m.role, text: m.content, streaming: false, activity: []
         }))
-        await nextTick()
-        await scrollDown()
       }
     } catch (e) {
-      console.warn('[Session] Failed to load history:', e)
+      console.warn(`[Session] Failed to load ${mode} history:`, e)
     }
   }
+  await nextTick()
+  await scrollDown()
 })
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
@@ -4071,4 +4393,164 @@ input:checked + .slider.slider-unlimited:before {
   background: rgba(255,107,107,0.2); border-color: rgba(255,107,107,0.5);
 }
 .stg-switch input:checked + .stg-thumb-danger::before { background: var(--red); }
+
+/* ── Memory View ─────────────────────────────────────────────────────────── */
+.memory-main {
+  flex: 1; min-width: 0;
+  background: #07090f;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+.mem-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.055);
+  background: #07090f;
+  flex-shrink: 0;
+}
+.mem-header-left { display: flex; align-items: center; gap: 12px; }
+.mem-brand-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, rgba(139,92,246,0.18), rgba(109,40,217,0.08));
+  border: 1px solid rgba(139,92,246,0.22);
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--purple);
+}
+.mem-title { font-size: 16px; font-weight: 700; color: var(--t0); letter-spacing: -.02em; }
+.mem-subtitle { font-size: 12px; color: var(--t3); margin-top: 2px; }
+
+.mem-header-right { display: flex; align-items: center; gap: 8px; }
+.mem-count-chip {
+  font-size: 11px; color: var(--t3);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px; padding: 3px 10px;
+}
+.mem-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  color: var(--t1); cursor: pointer; transition: all .15s;
+}
+.mem-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+.mem-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.mem-body {
+  flex: 1; overflow: hidden;
+  display: flex; flex-direction: column;
+  padding: 20px 24px;
+}
+.mem-error {
+  padding: 12px 16px; border-radius: 8px;
+  background: var(--red-glow); border: 1px solid rgba(239,68,68,0.3);
+  color: var(--red); font-size: 13px;
+}
+.mem-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  color: var(--t3); font-size: 14px;
+}
+
+.mem-split {
+  flex: 1; display: flex; gap: 16px; overflow: hidden; min-height: 0;
+}
+
+/* Session list */
+.mem-list {
+  width: 320px; min-width: 260px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 6px;
+  overflow-y: auto; padding-right: 4px;
+}
+.mem-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px; padding: 12px 14px;
+  cursor: pointer; transition: all .15s;
+}
+.mem-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.11); }
+.mem-card.active { background: rgba(139,92,246,0.08); border-color: rgba(139,92,246,0.25); }
+.mem-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.mem-card-id { font-size: 12px; font-weight: 600; color: var(--t1); font-family: var(--mono); }
+.mem-card-date { font-size: 11px; color: var(--t3); }
+.mem-card-preview {
+  font-size: 12px; color: var(--t2); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin-bottom: 8px;
+}
+.mem-card-meta { display: flex; gap: 6px; }
+.mem-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 12px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--t3);
+}
+.mem-tag-size     { color: var(--purple); background: rgba(139,92,246,0.08); border-color: rgba(139,92,246,0.2); }
+.mem-tag-generate { color: #60a5fa; background: rgba(96,165,250,0.10); border-color: rgba(96,165,250,0.25); }
+.mem-tag-review   { color: #f59e0b; background: rgba(245,158,11,0.10); border-color: rgba(245,158,11,0.25); }
+.mem-tag-analysis { color: #34d399; background: rgba(52,211,153,0.10); border-color: rgba(52,211,153,0.25); }
+
+/* Mode filter tabs */
+.mem-filters {
+  display: flex; gap: 6px; padding: 10px 20px 0;
+}
+.mem-filter-btn {
+  padding: 5px 14px; border-radius: 20px; font-size: 12px; cursor: pointer;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--t3); transition: all 0.15s;
+}
+.mem-filter-btn:hover  { background: rgba(255,255,255,0.08); color: var(--t2); }
+.mem-filter-btn.active { background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.4); color: #a5b4fc; }
+
+/* Session detail */
+.mem-detail {
+  flex: 1; display: flex; flex-direction: column;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px; overflow: hidden;
+}
+.mem-detail-empty {
+  align-items: center; justify-content: center; gap: 12px;
+  color: var(--t3); font-size: 13px;
+}
+.mem-detail-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0; background: rgba(255,255,255,0.02);
+}
+.mem-detail-id { font-size: 12px; color: var(--t2); font-family: var(--mono); }
+.mem-delete-btn {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600; padding: 5px 10px;
+  border-radius: 6px; color: var(--red); cursor: pointer;
+  background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.2);
+  transition: all .15s;
+}
+.mem-delete-btn:hover { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.35); }
+
+.mem-messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.mem-msg { display: flex; flex-direction: column; gap: 4px; }
+.mem-msg-role {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+}
+.mem-msg.human .mem-msg-role { color: var(--accent); }
+.mem-msg.ai .mem-msg-role { color: var(--green); }
+.mem-msg.system .mem-msg-role { color: var(--yellow); }
+.mem-msg-content {
+  font-size: 12.5px; color: var(--t1); line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word;
+  background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px 12px;
+  max-height: 200px; overflow-y: auto;
+}
+.mem-msg.human .mem-msg-content { border-left: 2px solid rgba(59,130,246,0.4); }
+.mem-msg.ai    .mem-msg-content { border-left: 2px solid rgba(16,185,129,0.4); }
+.mem-msg.system .mem-msg-content { border-left: 2px solid rgba(245,158,11,0.4); opacity: 0.7; }
+
+.mem-detail-loading {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+}
 </style>

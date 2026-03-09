@@ -44,6 +44,7 @@ class AgentService extends BaseService {
       sessionId,
       stack,
       orchestrator = 'classic',
+      mode,
       workspaceDir,
       projectRoot
     } = params;
@@ -143,7 +144,7 @@ class AgentService extends BaseService {
 
       // Save session if provided
       if (sessionId) {
-        await this.saveSession(sessionId, result);
+        await this.saveSession(sessionId, result, mode);
       }
 
       // Mark task as completed
@@ -170,13 +171,14 @@ class AgentService extends BaseService {
   /**
    * Save session from agent result
    */
-  async saveSession(sessionId, result) {
+  async saveSession(sessionId, result, mode) {
+    const meta = mode ? { mode } : {};
     if (result.memory && result.memory.version === 2) {
-      await saveSession(sessionId, result.memory);
+      await saveSession(sessionId, result.memory, meta);
       this.log('info', `Session ${sessionId} saved (LangChain memory v2).`);
     } else if (result.history) {
       const historyToSave = result.history.filter(m => m.role !== 'system');
-      await saveSession(sessionId, historyToSave);
+      await saveSession(sessionId, historyToSave, meta);
       this.log('info', `Session ${sessionId} saved (legacy v1).`);
     }
   }

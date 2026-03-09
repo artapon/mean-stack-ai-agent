@@ -56,8 +56,9 @@ async function loadSession(sessionId) {
  *
  * @param {string} sessionId
  * @param {Array|object} historyOrMemory  Raw history array (v1) or LangChain memory object (v2).
+ * @param {object} [meta={}]             Extra fields to merge into the saved JSON (e.g. { mode }).
  */
-async function saveSession(sessionId, historyOrMemory) {
+async function saveSession(sessionId, historyOrMemory, meta = {}) {
   if (!sessionId) return;
   await ensureSessionsDir();
 
@@ -65,10 +66,10 @@ async function saveSession(sessionId, historyOrMemory) {
 
   try {
     if (historyOrMemory?.version === 2) {
-      await fs.writeJson(sessionPath, historyOrMemory, { spaces: 2 });
+      await fs.writeJson(sessionPath, { ...historyOrMemory, ...meta }, { spaces: 2 });
       log.info(`Saved v2 session ${sessionId}`, { messages: (historyOrMemory.messages || []).length });
     } else {
-      await fs.writeJson(sessionPath, { history: historyOrMemory }, { spaces: 2 });
+      await fs.writeJson(sessionPath, { history: historyOrMemory, ...meta }, { spaces: 2 });
       log.info(`Saved v1 session ${sessionId}`, { messages: (historyOrMemory || []).length });
     }
   } catch (err) {
